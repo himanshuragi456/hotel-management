@@ -40,41 +40,41 @@ Superadmin, Owner, Waiter, Chef, Billing Counter, Customer
 ### Phase 1 — Foundation & Auth
 
 #### 1.1 Backend Setup
-- [ ] Create Laravel 11 project in `backend/`
-- [ ] Install packages: jwt-auth, spatie/laravel-permission, pusher-php-server, dompdf, maatwebsite/excel, stripe-php, razorpay
-- [ ] Configure `.env` for DB, JWT, Pusher
-- [ ] Set up base API response trait (success/error format)
+- [x] Create Laravel 11 project in `backend/`
+- [x] Install packages: jwt-auth, spatie/laravel-permission, pusher-php-server, dompdf, maatwebsite/excel, stripe-php, razorpay
+- [x] Configure `.env` for DB, JWT, Pusher
+- [x] Set up base API response trait (success/error format)
 
 #### 1.2 Database Migrations
-- [ ] `tenants` table
-- [ ] `users` table (with tenant_id, role)
-- [ ] `roles` & `permissions` (spatie)
-- [ ] `tenant_modules` table
-- [ ] `subscription_plans` table
-- [ ] `subscriptions` table
-- [ ] `audit_logs` table
-- [ ] `notifications` table
+- [x] `tenants` table
+- [x] `users` table (with tenant_id, role)
+- [x] `roles` & `permissions` (spatie)
+- [x] `tenant_modules` table
+- [x] `subscription_plans` table
+- [x] `subscriptions` table
+- [x] `audit_logs` table
+- [x] `notifications` table
 
 #### 1.3 Auth System
-- [ ] JWT login / register / logout / refresh endpoints
-- [ ] Role middleware (CheckRole)
-- [ ] Tenant scoping middleware
-- [ ] Superadmin bypass middleware
+- [x] JWT login / register / logout / refresh endpoints
+- [x] Role middleware (CheckRole)
+- [x] Tenant scoping middleware
+- [x] Superadmin bypass middleware
 
 #### 1.4 Seeders
-- [ ] Superadmin seeder
-- [ ] Default roles & permissions seeder
-- [ ] Demo tenant + owner seeder
-- [ ] Sample subscription plans seeder
+- [x] Superadmin seeder
+- [x] Default roles & permissions seeder
+- [x] Demo tenant + owner seeder
+- [x] Sample subscription plans seeder
 
 #### 1.5 Frontend Setup
-- [ ] Create React + Vite project in `frontend/`
-- [ ] Install: TailwindCSS, shadcn/ui, React Router v6, Zustand, Axios, React Query, Pusher-js
-- [ ] Auth store (Zustand) — token, user, role
-- [ ] Axios instance with JWT interceptor + refresh logic
-- [ ] Role-based routing guard
-- [ ] Login page (works for all roles)
-- [ ] Role-based dashboard redirect after login
+- [x] Create React + Vite project in `frontend/`
+- [x] Install: TailwindCSS, shadcn/ui, React Router v6, Zustand, Axios, React Query, Pusher-js
+- [x] Auth store (Zustand) — token, user, role
+- [x] Axios instance with JWT interceptor + refresh logic
+- [x] Role-based routing guard
+- [x] Login page (works for all roles)
+- [x] Role-based dashboard redirect after login
 
 ---
 
