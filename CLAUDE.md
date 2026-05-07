@@ -118,51 +118,51 @@ Superadmin, Owner, Waiter, Chef, Billing Counter, Customer
 ### Phase 3 — Module 1: Restaurant & Order Management
 
 #### 3.1 Menu Management
-- [ ] Menu categories CRUD
-- [ ] Menu items CRUD (name, price, image, category, available toggle)
-- [ ] Bulk enable/disable items
-- [ ] Menu preview
+- [x] Menu categories CRUD
+- [x] Menu items CRUD (name, price, image, category, available toggle)
+- [x] Bulk enable/disable items
+- [x] Menu preview
 
 #### 3.2 Table Management
-- [ ] Tables CRUD (number, capacity, floor/section)
-- [ ] Table status view (free/occupied + occupied since)
-- [ ] QR code generation per table
+- [x] Tables CRUD (number, capacity, floor/section)
+- [x] Table status view (free/occupied + occupied since)
+- [x] QR code generation per table
 
 #### 3.3 Waiter Dashboard
-- [ ] View all tables with status
-- [ ] Select table → open order form
-- [ ] Browse menu by category, add items with qty + notes
-- [ ] Submit order → triggers kitchen notification
-- [ ] View active orders for their tables
+- [x] View all tables with status
+- [x] Select table → open order form
+- [x] Browse menu by category, add items with qty + notes
+- [x] Submit order → triggers kitchen notification
+- [x] View active orders for their tables
 
 #### 3.4 Kitchen Dashboard (Chef)
-- [ ] Realtime order feed via WebSocket
-- [ ] Sound notification on new order
-- [ ] Order cards: table, items, notes, time elapsed
-- [ ] Status update: Pending → Preparing → Ready
-- [ ] Color coded by status and urgency
+- [x] Realtime order feed via WebSocket
+- [x] Sound notification on new order
+- [x] Order cards: table, items, notes, time elapsed
+- [x] Status update: Pending → Preparing → Ready
+- [x] Color coded by status and urgency
 
 #### 3.5 Customer QR Order Flow
-- [ ] Public route: `/menu/{tenant_slug}/{table_id}`
-- [ ] Responsive mobile menu (no login)
-- [ ] Add to cart, place order
-- [ ] Order confirmation page
+- [x] Public route: `/menu/{tenant_slug}/{table_id}`
+- [x] Responsive mobile menu (no login)
+- [x] Add to cart, place order
+- [x] Order confirmation page
 
 #### 3.6 Billing Counter
-- [ ] View orders ready for billing
-- [ ] Generate invoice: subtotal, GST, discount, total
-- [ ] Payment methods: cash, card, UPI, split
-- [ ] UPI QR on printed bill
-- [ ] PDF invoice download
-- [ ] Split payment between room and direct
-- [ ] Customer record (name/phone optional)
+- [x] View orders ready for billing
+- [x] Generate invoice: subtotal, GST, discount, total
+- [x] Payment methods: cash, card, UPI, split
+- [x] UPI QR on printed bill
+- [x] PDF invoice download
+- [x] Split payment between room and direct
+- [x] Customer record (name/phone optional)
 
 #### 3.7 Owner — Orders & Revenue
-- [ ] Live order board
-- [ ] Today's revenue widget
-- [ ] Export orders PDF/Excel (date range)
-- [ ] Expense tracking
-- [ ] Expense report
+- [x] Live order board
+- [x] Today's revenue widget
+- [x] Export orders PDF/Excel (date range)
+- [x] Expense tracking
+- [x] Expense report
 
 ---
 

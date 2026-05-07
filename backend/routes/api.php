@@ -1,6 +1,13 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Billing\InvoiceController;
+use App\Http\Controllers\Chef\KitchenController;
+use App\Http\Controllers\Customer\MenuController as CustomerMenuController;
+use App\Http\Controllers\Owner\MenuController as OwnerMenuController;
+use App\Http\Controllers\Owner\RevenueController;
+use App\Http\Controllers\Owner\TableController;
+use App\Http\Controllers\Waiter\OrderController as WaiterOrderController;
 use App\Http\Controllers\Superadmin\AuditLogController;
 use App\Http\Controllers\Superadmin\DatabaseStatsController;
 use App\Http\Controllers\Superadmin\PaymentGatewayController;
@@ -77,22 +84,56 @@ Route::middleware(['auth:api'])->group(function () {
 
         // Owner routes
         Route::middleware(['role:owner'])->prefix('owner')->group(function () {
-            // Phase 3+ owner routes
+            // Menu categories
+            Route::get('menu/categories', [OwnerMenuController::class, 'categories']);
+            Route::post('menu/categories', [OwnerMenuController::class, 'storeCategory']);
+            Route::put('menu/categories/{menuCategory}', [OwnerMenuController::class, 'updateCategory']);
+            Route::delete('menu/categories/{menuCategory}', [OwnerMenuController::class, 'destroyCategory']);
+            // Menu items
+            Route::get('menu/items', [OwnerMenuController::class, 'items']);
+            Route::post('menu/items', [OwnerMenuController::class, 'storeItem']);
+            Route::put('menu/items/{menuItem}', [OwnerMenuController::class, 'updateItem']);
+            Route::delete('menu/items/{menuItem}', [OwnerMenuController::class, 'destroyItem']);
+            Route::post('menu/items/bulk-toggle', [OwnerMenuController::class, 'bulkToggle']);
+            // Tables
+            Route::get('tables', [TableController::class, 'index']);
+            Route::post('tables', [TableController::class, 'store']);
+            Route::put('tables/{restaurantTable}', [TableController::class, 'update']);
+            Route::delete('tables/{restaurantTable}', [TableController::class, 'destroy']);
+            Route::get('tables/{restaurantTable}/qr', [TableController::class, 'qrCode']);
+            // Revenue & reports
+            Route::get('orders/live', [RevenueController::class, 'liveOrders']);
+            Route::get('revenue/today', [RevenueController::class, 'todayRevenue']);
+            Route::get('orders/report', [RevenueController::class, 'ordersReport']);
+            Route::get('orders/export/pdf', [RevenueController::class, 'exportPdf']);
+            // Expenses
+            Route::get('expenses', [RevenueController::class, 'expenses']);
+            Route::post('expenses', [RevenueController::class, 'storeExpense']);
+            Route::delete('expenses/{expense}', [RevenueController::class, 'destroyExpense']);
         });
 
         // Waiter routes
         Route::middleware(['role:waiter,owner'])->prefix('waiter')->group(function () {
-            // Phase 3 waiter routes
+            Route::get('tables', [WaiterOrderController::class, 'tables']);
+            Route::get('menu', [WaiterOrderController::class, 'menu']);
+            Route::post('orders', [WaiterOrderController::class, 'store']);
+            Route::post('orders/{order}/items', [WaiterOrderController::class, 'addItems']);
+            Route::get('orders/my', [WaiterOrderController::class, 'myOrders']);
         });
 
         // Chef routes
         Route::middleware(['role:chef,owner'])->prefix('chef')->group(function () {
-            // Phase 3 chef routes
+            Route::get('orders', [KitchenController::class, 'orders']);
+            Route::put('orders/{order}/status', [KitchenController::class, 'updateStatus']);
         });
 
         // Billing routes
         Route::middleware(['role:billing,owner'])->prefix('billing')->group(function () {
-            // Phase 3 billing routes
+            Route::get('orders/ready', [InvoiceController::class, 'readyOrders']);
+            Route::get('orders', [InvoiceController::class, 'allOrders']);
+            Route::post('invoices', [InvoiceController::class, 'store']);
+            Route::get('invoices/{invoice}', [InvoiceController::class, 'show']);
+            Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf']);
         });
 
     });
@@ -104,7 +145,10 @@ Route::middleware(['auth:api'])->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('public')->group(function () {
-    // Phase 3 — customer QR menu routes
+    // Customer QR menu + ordering (no auth)
+    Route::get('menu/{tenantSlug}/{qrToken}', [CustomerMenuController::class, 'menu']);
+    Route::post('menu/{tenantSlug}/{qrToken}/order', [CustomerMenuController::class, 'placeOrder']);
+    Route::get('orders/{orderNumber}/status', [CustomerMenuController::class, 'orderStatus']);
     // Phase 5 — feedback submission routes
 });
 
