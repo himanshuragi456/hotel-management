@@ -7,7 +7,11 @@ use App\Http\Controllers\Customer\MenuController as CustomerMenuController;
 use App\Http\Controllers\Owner\MenuController as OwnerMenuController;
 use App\Http\Controllers\Owner\RevenueController;
 use App\Http\Controllers\Owner\TableController;
+use App\Http\Controllers\Owner\Hotel\BookingController;
+use App\Http\Controllers\Owner\Hotel\GuestController;
+use App\Http\Controllers\Owner\Hotel\RoomController;
 use App\Http\Controllers\Waiter\OrderController as WaiterOrderController;
+use App\Http\Controllers\Waiter\RoomServiceController;
 use App\Http\Controllers\Superadmin\AuditLogController;
 use App\Http\Controllers\Superadmin\DatabaseStatsController;
 use App\Http\Controllers\Superadmin\PaymentGatewayController;
@@ -110,6 +114,29 @@ Route::middleware(['auth:api'])->group(function () {
             Route::get('expenses', [RevenueController::class, 'expenses']);
             Route::post('expenses', [RevenueController::class, 'storeExpense']);
             Route::delete('expenses/{expense}', [RevenueController::class, 'destroyExpense']);
+            // Hotel — Rooms
+            Route::get('hotel/rooms', [RoomController::class, 'index']);
+            Route::post('hotel/rooms', [RoomController::class, 'store']);
+            Route::get('hotel/rooms/status', [RoomController::class, 'statusBoard']);
+            Route::get('hotel/rooms/{room}', [RoomController::class, 'show']);
+            Route::put('hotel/rooms/{room}', [RoomController::class, 'update']);
+            Route::delete('hotel/rooms/{room}', [RoomController::class, 'destroy']);
+            // Hotel — Guests
+            Route::get('hotel/guests', [GuestController::class, 'index']);
+            Route::post('hotel/guests', [GuestController::class, 'store']);
+            Route::get('hotel/guests/search', [GuestController::class, 'search']);
+            Route::get('hotel/guests/{guest}', [GuestController::class, 'show']);
+            Route::put('hotel/guests/{guest}', [GuestController::class, 'update']);
+            // Hotel — Bookings
+            Route::get('hotel/bookings', [BookingController::class, 'index']);
+            Route::post('hotel/bookings', [BookingController::class, 'store']);
+            Route::get('hotel/bookings/calendar', [BookingController::class, 'calendar']);
+            Route::get('hotel/bookings/occupancy', [BookingController::class, 'occupancyReport']);
+            Route::get('hotel/bookings/{booking}', [BookingController::class, 'show']);
+            Route::put('hotel/bookings/{booking}', [BookingController::class, 'update']);
+            Route::post('hotel/bookings/{booking}/check-in', [BookingController::class, 'checkIn']);
+            Route::post('hotel/bookings/{booking}/check-out', [BookingController::class, 'checkOut']);
+            Route::post('hotel/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
         });
 
         // Waiter routes
@@ -119,6 +146,9 @@ Route::middleware(['auth:api'])->group(function () {
             Route::post('orders', [WaiterOrderController::class, 'store']);
             Route::post('orders/{order}/items', [WaiterOrderController::class, 'addItems']);
             Route::get('orders/my', [WaiterOrderController::class, 'myOrders']);
+            // Room service
+            Route::get('room-service/active-rooms', [RoomServiceController::class, 'activeRooms']);
+            Route::post('room-service/orders', [RoomServiceController::class, 'placeOrder']);
         });
 
         // Chef routes

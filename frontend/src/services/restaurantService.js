@@ -51,6 +51,35 @@ export const downloadInvoicePdf = (id, upiId) => api.get(`/billing/invoices/${id
 // Waiter aliases
 export const getWaiterOrders = () => api.get('/waiter/orders/my')
 
+// Owner — Hotel Rooms
+export const getRooms          = ()         => api.get('/owner/hotel/rooms')
+export const getRoomStatus     = ()         => api.get('/owner/hotel/rooms/status')
+export const createRoom        = (data)     => api.post('/owner/hotel/rooms', data)
+export const updateRoom        = (id, data) => api.put(`/owner/hotel/rooms/${id}`, data)
+export const deleteRoom        = (id)       => api.delete(`/owner/hotel/rooms/${id}`)
+
+// Owner — Hotel Guests
+export const getGuests         = (params)   => api.get('/owner/hotel/guests', { params })
+export const searchGuests      = (q)        => api.get('/owner/hotel/guests/search', { params: { q } })
+export const createGuest       = (data)     => api.post('/owner/hotel/guests', data)
+export const updateGuest       = (id, data) => api.put(`/owner/hotel/guests/${id}`, data)
+export const getGuest          = (id)       => api.get(`/owner/hotel/guests/${id}`)
+
+// Owner — Hotel Bookings
+export const getBookings       = (params)   => api.get('/owner/hotel/bookings', { params })
+export const getBookingCalendar= (params)   => api.get('/owner/hotel/bookings/calendar', { params })
+export const getOccupancyReport= (params)   => api.get('/owner/hotel/bookings/occupancy', { params })
+export const createBooking     = (data)     => api.post('/owner/hotel/bookings', data)
+export const updateBooking     = (id, data) => api.put(`/owner/hotel/bookings/${id}`, data)
+export const getBooking        = (id)       => api.get(`/owner/hotel/bookings/${id}`)
+export const checkInBooking    = (id)       => api.post(`/owner/hotel/bookings/${id}/check-in`)
+export const checkOutBooking   = (id, data) => api.post(`/owner/hotel/bookings/${id}/check-out`, data)
+export const cancelBooking     = (id)       => api.post(`/owner/hotel/bookings/${id}/cancel`)
+
+// Waiter — Room Service
+export const getActiveRooms    = ()         => api.get('/waiter/room-service/active-rooms')
+export const placeRoomService  = (data)     => api.post('/waiter/room-service/orders', data)
+
 // Public (customer)
 export const getPublicMenu = (slug, token) => api.get(`/public/menu/${slug}/${token}`)
 export const placePublicOrder = (slug, token, data) => api.post(`/public/menu/${slug}/${token}/order`, data)

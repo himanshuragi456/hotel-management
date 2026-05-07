@@ -4,12 +4,17 @@ import useAuthStore from '@/store/authStore'
 import { logout } from '@/services/authService'
 
 const NAV = [
-  { label: 'Dashboard',  path: '/owner',                icon: '📊' },
-  { label: 'Live Orders',path: '/owner/orders',         icon: '🔴' },
-  { label: 'Menu',       path: '/owner/menu',           icon: '🍽' },
-  { label: 'Tables',     path: '/owner/tables',         icon: '🪑' },
-  { label: 'Expenses',   path: '/owner/expenses',       icon: '💸' },
-  { label: 'Reports',    path: '/owner/reports',        icon: '📈' },
+  { label: 'Dashboard',   path: '/owner',                     icon: '📊' },
+  { label: 'Live Orders', path: '/owner/orders',              icon: '🔴' },
+  { label: 'Menu',        path: '/owner/menu',                icon: '🍽' },
+  { label: 'Tables',      path: '/owner/tables',              icon: '🪑' },
+  { label: 'Expenses',    path: '/owner/expenses',            icon: '💸' },
+  { label: 'Reports',     path: '/owner/reports',             icon: '📈' },
+  { label: '— Hotel',     path: null,                         icon: null, divider: true },
+  { label: 'Rooms',       path: '/owner/hotel/rooms',         icon: '🏨' },
+  { label: 'Bookings',    path: '/owner/hotel/bookings',      icon: '📅' },
+  { label: 'Guests',      path: '/owner/hotel/guests',        icon: '👤' },
+  { label: 'Hotel Reports',path: '/owner/hotel/reports',     icon: '📊' },
 ]
 
 export default function OwnerLayout() {
@@ -30,7 +35,11 @@ export default function OwnerLayout() {
           {open && <span className="font-semibold text-sm text-gray-800 truncate">{user?.name?.split(' ')[0]}</span>}
         </div>
         <nav className="flex-1 py-4 space-y-1 px-2">
-          {NAV.map((item) => (
+          {NAV.map((item) => item.divider ? (
+            open ? (
+              <div key={item.label} className="px-3 pt-3 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">{item.label}</div>
+            ) : <div key={item.label} className="border-t border-gray-100 my-2" />
+          ) : (
             <NavLink key={item.path} to={item.path} end={item.path === '/owner'}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${isActive ? 'bg-orange-50 text-orange-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}>

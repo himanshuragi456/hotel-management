@@ -26,6 +26,7 @@ class Order extends Model
     public function waiter()  { return $this->belongsTo(User::class, 'waiter_id'); }
     public function items()   { return $this->hasMany(OrderItem::class); }
     public function invoice() { return $this->hasOne(Invoice::class); }
+    public function booking() { return $this->belongsTo(Booking::class); }
 
     public function recalculate(): void
     {

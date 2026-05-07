@@ -21,6 +21,10 @@ import TableManager from '@/pages/owner/tables/TableManager'
 import LiveOrders from '@/pages/owner/orders/LiveOrders'
 import Expenses from '@/pages/owner/expenses/Expenses'
 import Reports from '@/pages/owner/reports/Reports'
+import RoomManager from '@/pages/owner/hotel/RoomManager'
+import Bookings from '@/pages/owner/hotel/Bookings'
+import Guests from '@/pages/owner/hotel/Guests'
+import HotelReports from '@/pages/owner/hotel/HotelReports'
 
 // Waiter
 import WaiterDashboard from '@/pages/waiter/Dashboard'
@@ -67,6 +71,11 @@ export default function App() {
             <Route path="orders" element={<LiveOrders />} />
             <Route path="expenses" element={<Expenses />} />
             <Route path="reports" element={<Reports />} />
+            {/* Hotel module */}
+            <Route path="hotel/rooms" element={<RoomManager />} />
+            <Route path="hotel/bookings" element={<Bookings />} />
+            <Route path="hotel/guests" element={<Guests />} />
+            <Route path="hotel/reports" element={<HotelReports />} />
           </Route>
 
           {/* Waiter */}

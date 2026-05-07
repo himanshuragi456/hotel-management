@@ -169,31 +169,31 @@ Superadmin, Owner, Waiter, Chef, Billing Counter, Customer
 ### Phase 4 — Module 2: Hotel & Room Management
 
 #### 4.1 Room Setup
-- [ ] Room CRUD (number, type, floor, price/night, amenities)
-- [ ] Room status board (available/occupied + since when)
-- [ ] Room type pricing
+- [x] Room CRUD (number, type, floor, price/night, amenities)
+- [x] Room status board (available/occupied + since when)
+- [x] Room type pricing
 
 #### 4.2 Guest Management
-- [ ] Guest profile: name, phone, email, ID proof, company/sponsor
-- [ ] Guest history
+- [x] Guest profile: name, phone, email, ID proof, company/sponsor
+- [x] Guest history
 
 #### 4.3 Booking Management
-- [ ] New booking form: guest, room, check-in, check-out, advance
-- [ ] Booking calendar view
-- [ ] Check-in flow
-- [ ] Check-out flow with consolidated bill
-- [ ] Booking status management
+- [x] New booking form: guest, room, check-in, check-out, advance
+- [x] Booking calendar view
+- [x] Check-in flow
+- [x] Check-out flow with consolidated bill
+- [x] Booking status management
 
 #### 4.4 Room Service Orders
-- [ ] Orders placed against room number
-- [ ] Charges accumulate on booking
-- [ ] Checkout shows total room + service charges
+- [x] Orders placed against room number
+- [x] Charges accumulate on booking
+- [x] Checkout shows total room + service charges
 
 #### 4.5 Reports
-- [ ] Occupancy report
-- [ ] Revenue per room type
-- [ ] Guest list export
-- [ ] Outstanding payments report
+- [x] Occupancy report
+- [x] Revenue per room type
+- [x] Guest list export
+- [x] Outstanding payments report
 
 ---
 
