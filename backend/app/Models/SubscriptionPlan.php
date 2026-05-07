@@ -12,6 +12,11 @@ class SubscriptionPlan extends Model
         'max_users', 'max_tables', 'max_rooms', 'is_active', 'features',
     ];
 
+    public function subscriptions()
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
     protected function casts(): array
     {
         return [

@@ -81,37 +81,37 @@ Superadmin, Owner, Waiter, Chef, Billing Counter, Customer
 ### Phase 2 — Superadmin Panel
 
 #### 2.1 Restaurant / Tenant Management
-- [ ] List all tenants (search, filter)
-- [ ] Create / edit / suspend / delete tenant
-- [ ] Assign modules to tenant (toggle Module 1/2/3)
-- [ ] View tenant usage stats
+- [x] List all tenants (search, filter)
+- [x] Create / edit / suspend / delete tenant
+- [x] Assign modules to tenant (toggle Module 1/2/3)
+- [x] View tenant usage stats
 
 #### 2.2 Subscription & Plans
-- [ ] CRUD subscription plans
-- [ ] Assign plan to tenant
-- [ ] View all active subscriptions
-- [ ] Manual plan override / extend
+- [x] CRUD subscription plans
+- [x] Assign plan to tenant
+- [x] View all active subscriptions
+- [x] Manual plan override / extend
 
 #### 2.3 Payment Gateways
-- [ ] Stripe integration — customer, subscription, webhook
-- [ ] Razorpay integration — subscription, webhook
-- [ ] Per-tenant payment gateway config
-- [ ] Monthly recurring billing logic
+- [x] Stripe integration — customer, subscription, webhook
+- [x] Razorpay integration — subscription, webhook
+- [x] Per-tenant payment gateway config
+- [x] Monthly recurring billing logic
 
 #### 2.4 Database Management UI
-- [ ] View table stats per tenant
-- [ ] Export tenant data
-- [ ] Purge old audit logs
+- [x] View table stats per tenant
+- [x] Export tenant data
+- [x] Purge old audit logs
 
 #### 2.5 Audit Logs
-- [ ] Global audit log viewer
-- [ ] Auto-log via Model Observer
+- [x] Global audit log viewer
+- [x] Auto-log via Model Observer
 
 #### 2.6 Superadmin Frontend
-- [ ] Sidebar: Tenants, Plans, Subscriptions, Payments, Audit Logs
-- [ ] Tenant detail page with module toggles
-- [ ] Plan builder UI
-- [ ] Subscription list with status badges
+- [x] Sidebar: Tenants, Plans, Subscriptions, Payments, Audit Logs
+- [x] Tenant detail page with module toggles
+- [x] Plan builder UI
+- [x] Subscription list with status badges
 
 ---
 

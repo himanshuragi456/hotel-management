@@ -3,7 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RequireAuth, RedirectIfAuth } from '@/components/layouts/RoleGuard'
 
 import Login from '@/pages/auth/Login'
-import SuperadminDashboard from '@/pages/superadmin/Dashboard'
+import SuperadminLayout from '@/components/layouts/SuperadminLayout'
+import Overview from '@/pages/superadmin/Overview'
+import TenantList from '@/pages/superadmin/tenants/TenantList'
+import TenantDetail from '@/pages/superadmin/tenants/TenantDetail'
+import PlanList from '@/pages/superadmin/plans/PlanList'
+import SubscriptionList from '@/pages/superadmin/subscriptions/SubscriptionList'
+import AuditLogs from '@/pages/superadmin/audit/AuditLogs'
 import OwnerDashboard from '@/pages/owner/Dashboard'
 import WaiterDashboard from '@/pages/waiter/Dashboard'
 import ChefDashboard from '@/pages/chef/Dashboard'
@@ -31,13 +37,20 @@ export default function App() {
 
           {/* Superadmin */}
           <Route
-            path="/superadmin/*"
+            path="/superadmin"
             element={
               <RequireAuth roles={['superadmin']}>
-                <SuperadminDashboard />
+                <SuperadminLayout />
               </RequireAuth>
             }
-          />
+          >
+            <Route index element={<Overview />} />
+            <Route path="tenants" element={<TenantList />} />
+            <Route path="tenants/:id" element={<TenantDetail />} />
+            <Route path="plans" element={<PlanList />} />
+            <Route path="subscriptions" element={<SubscriptionList />} />
+            <Route path="audit-logs" element={<AuditLogs />} />
+          </Route>
 
           {/* Owner */}
           <Route
