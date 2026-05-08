@@ -232,19 +232,19 @@ Superadmin, Owner, Waiter, Chef, Billing Counter, Customer
 ### Phase 6 — Analytics, Notifications & Polish
 
 #### 6.1 Owner Analytics Dashboard
-- [ ] Revenue chart (daily/weekly/monthly)
-- [ ] Top selling menu items
-- [ ] Table turnover rate
-- [ ] Peak hours heatmap
-- [ ] Occupancy rate (if hotel module on)
-- [ ] Expense vs revenue comparison
+- [x] Revenue chart (daily/weekly/monthly)
+- [x] Top selling menu items
+- [x] Table turnover rate
+- [x] Peak hours heatmap
+- [x] Occupancy rate (if hotel module on)
+- [x] Expense vs revenue comparison
 
 #### 6.2 Notification System
-- [ ] In-app notifications (bell icon) all roles
-- [ ] Chef: new order sound + badge
-- [ ] Owner: low inventory, new booking, checkout due
-- [ ] Billing: order ready for invoicing
-- [ ] Mark read / clear all
+- [x] In-app notifications (bell icon) all roles
+- [x] Chef: new order sound + badge
+- [x] Owner: low inventory, new booking, checkout due
+- [x] Billing: order ready for invoicing
+- [x] Mark read / clear all
 
 #### 6.3 Inventory Management
 - [ ] Stock tracking per ingredient/item
@@ -253,19 +253,19 @@ Superadmin, Owner, Waiter, Chef, Billing Counter, Customer
 - [ ] Manual stock update
 
 #### 6.4 Report Filters & Exports
-- [ ] Date range, category, role filters on all reports
-- [ ] PDF export (DomPDF)
+- [x] Date range, category, role filters on all reports
+- [x] PDF export (DomPDF)
 - [ ] Excel export (Maatwebsite)
 
 #### 6.5 Audit Log (Owner view)
-- [ ] Tenant-scoped audit trail
-- [ ] Filter by user, action, date
+- [x] Tenant-scoped audit trail
+- [x] Filter by user, action, date
 
 #### 6.6 UI Polish
-- [ ] Loading skeletons
-- [ ] Empty states with CTAs
-- [ ] Mobile responsiveness audit
-- [ ] Toast notifications
+- [x] Loading skeletons
+- [x] Empty states with CTAs
+- [x] Mobile responsiveness audit
+- [x] Toast notifications
 - [ ] Dark mode toggle
 
 ---

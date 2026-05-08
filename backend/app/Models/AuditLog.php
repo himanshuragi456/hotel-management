@@ -22,6 +22,8 @@ class AuditLog extends Model
         ];
     }
 
+    public function user() { return $this->belongsTo(User::class); }
+
     public static function record(string $action, mixed $model = null, array $oldValues = [], array $newValues = []): void
     {
         $user = auth()->user();

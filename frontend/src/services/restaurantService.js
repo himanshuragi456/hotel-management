@@ -51,6 +51,15 @@ export const downloadInvoicePdf = (id, upiId) => api.get(`/billing/invoices/${id
 // Waiter aliases
 export const getWaiterOrders = () => api.get('/waiter/orders/my')
 
+// Owner — Analytics
+export const getAnalyticsOverview = (params) => api.get('/owner/analytics/overview', { params })
+export const getOwnerAuditLog     = (params) => api.get('/owner/analytics/audit-log', { params })
+
+// Notifications (all roles)
+export const getNotifications  = ()    => api.get('/notifications')
+export const markNotifRead     = (id)  => id ? api.post(`/notifications/${id}/mark-read`) : api.post('/notifications/mark-read')
+export const clearNotifications= ()    => api.delete('/notifications')
+
 // Owner — Feedback
 export const getFeedbackQrCodes      = ()         => api.get('/owner/feedback/qr-codes')
 export const createFeedbackQrCode    = (data)     => api.post('/owner/feedback/qr-codes', data)

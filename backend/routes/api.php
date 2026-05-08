@@ -7,6 +7,8 @@ use App\Http\Controllers\Customer\MenuController as CustomerMenuController;
 use App\Http\Controllers\Owner\MenuController as OwnerMenuController;
 use App\Http\Controllers\Owner\RevenueController;
 use App\Http\Controllers\Owner\TableController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Owner\AnalyticsController;
 use App\Http\Controllers\Owner\Feedback\FeedbackController;
 use App\Http\Controllers\Owner\Hotel\BookingController;
 use App\Http\Controllers\Owner\Hotel\GuestController;
@@ -37,6 +39,12 @@ Route::prefix('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:api'])->group(function () {
+    // Notifications (all authenticated roles)
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/mark-read', [NotificationController::class, 'markRead']);
+    Route::post('notifications/{id}/mark-read', [NotificationController::class, 'markRead']);
+    Route::delete('notifications', [NotificationController::class, 'clearAll']);
+
     Route::prefix('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
@@ -129,6 +137,9 @@ Route::middleware(['auth:api'])->group(function () {
             Route::get('hotel/guests/search', [GuestController::class, 'search']);
             Route::get('hotel/guests/{guest}', [GuestController::class, 'show']);
             Route::put('hotel/guests/{guest}', [GuestController::class, 'update']);
+            // Analytics
+            Route::get('analytics/overview', [AnalyticsController::class, 'overview']);
+            Route::get('analytics/audit-log', [AnalyticsController::class, 'ownerAuditLog']);
             // Feedback — QR codes & dashboard
             Route::get('feedback/qr-codes', [FeedbackController::class, 'listQrCodes']);
             Route::post('feedback/qr-codes', [FeedbackController::class, 'createQrCode']);

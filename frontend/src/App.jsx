@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RequireAuth, RedirectIfAuth } from '@/components/layouts/RoleGuard'
+import { ToastProvider } from '@/components/shared/Toast'
 
 import Login from '@/pages/auth/Login'
 
@@ -27,6 +28,8 @@ import Guests from '@/pages/owner/hotel/Guests'
 import HotelReports from '@/pages/owner/hotel/HotelReports'
 import FeedbackSetup from '@/pages/owner/feedback/FeedbackSetup'
 import FeedbackDashboard from '@/pages/owner/feedback/FeedbackDashboard'
+import Analytics from '@/pages/owner/analytics/Analytics'
+import OwnerAuditLog from '@/pages/owner/analytics/AuditLog'
 import FeedbackPage from '@/pages/feedback/FeedbackPage'
 
 // Waiter
@@ -48,6 +51,7 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
       <BrowserRouter>
         <Routes>
           {/* Public */}
@@ -85,6 +89,9 @@ export default function App() {
             {/* Feedback module */}
             <Route path="feedback/setup" element={<FeedbackSetup />} />
             <Route path="feedback/dashboard" element={<FeedbackDashboard />} />
+            {/* Analytics */}
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="audit-log" element={<OwnerAuditLog />} />
           </Route>
 
           {/* Waiter */}
@@ -101,6 +108,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   )
 }

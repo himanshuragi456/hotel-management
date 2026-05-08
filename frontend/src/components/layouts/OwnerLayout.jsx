@@ -2,22 +2,26 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import useAuthStore from '@/store/authStore'
 import { logout } from '@/services/authService'
+import NotificationBell from '@/components/shared/NotificationBell'
 
 const NAV = [
-  { label: 'Dashboard',   path: '/owner',                     icon: '📊' },
-  { label: 'Live Orders', path: '/owner/orders',              icon: '🔴' },
-  { label: 'Menu',        path: '/owner/menu',                icon: '🍽' },
-  { label: 'Tables',      path: '/owner/tables',              icon: '🪑' },
-  { label: 'Expenses',    path: '/owner/expenses',            icon: '💸' },
-  { label: 'Reports',     path: '/owner/reports',             icon: '📈' },
-  { label: '— Hotel',     path: null,                         icon: null, divider: true },
-  { label: 'Rooms',       path: '/owner/hotel/rooms',         icon: '🏨' },
-  { label: 'Bookings',    path: '/owner/hotel/bookings',      icon: '📅' },
-  { label: 'Guests',      path: '/owner/hotel/guests',        icon: '👤' },
-  { label: 'Hotel Reports',path: '/owner/hotel/reports',     icon: '📊' },
-  { label: '— Feedback',  path: null,                         icon: null, divider: true },
-  { label: 'QR Setup',    path: '/owner/feedback/setup',      icon: '🔗' },
-  { label: 'Reviews',     path: '/owner/feedback/dashboard',  icon: '⭐' },
+  { label: 'Dashboard',    path: '/owner',                     icon: '📊' },
+  { label: 'Live Orders',  path: '/owner/orders',              icon: '🔴' },
+  { label: 'Menu',         path: '/owner/menu',                icon: '🍽' },
+  { label: 'Tables',       path: '/owner/tables',              icon: '🪑' },
+  { label: 'Expenses',     path: '/owner/expenses',            icon: '💸' },
+  { label: 'Reports',      path: '/owner/reports',             icon: '📈' },
+  { label: 'Analytics',    path: '/owner/analytics',           icon: '📉' },
+  { label: '— Hotel',      path: null, icon: null, divider: true },
+  { label: 'Rooms',        path: '/owner/hotel/rooms',         icon: '🏨' },
+  { label: 'Bookings',     path: '/owner/hotel/bookings',      icon: '📅' },
+  { label: 'Guests',       path: '/owner/hotel/guests',        icon: '👤' },
+  { label: 'Hotel Reports',path: '/owner/hotel/reports',       icon: '📊' },
+  { label: '— Feedback',   path: null, icon: null, divider: true },
+  { label: 'QR Setup',     path: '/owner/feedback/setup',      icon: '🔗' },
+  { label: 'Reviews',      path: '/owner/feedback/dashboard',  icon: '⭐' },
+  { label: '— System',     path: null, icon: null, divider: true },
+  { label: 'Audit Log',    path: '/owner/audit-log',           icon: '🔍' },
 ]
 
 export default function OwnerLayout() {
@@ -32,8 +36,8 @@ export default function OwnerLayout() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <aside className={`${open ? 'w-52' : 'w-14'} transition-all bg-white border-r border-gray-200 flex flex-col shrink-0`}>
-        <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+      <aside className={`${open ? 'w-52' : 'w-14'} transition-all bg-white border-r border-gray-200 flex flex-col shrink-0 overflow-y-auto`}>
+        <div className="p-4 border-b border-gray-100 flex items-center gap-2 sticky top-0 bg-white z-10">
           <span className="text-xl">🍽</span>
           {open && <span className="font-semibold text-sm text-gray-800 truncate">{user?.name?.split(' ')[0]}</span>}
         </div>
@@ -51,7 +55,7 @@ export default function OwnerLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="p-3 border-t border-gray-100">
+        <div className="p-3 border-t border-gray-100 sticky bottom-0 bg-white">
           <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg">
             <span>🚪</span>{open && 'Logout'}
           </button>
@@ -60,7 +64,8 @@ export default function OwnerLayout() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
           <button onClick={() => setOpen(!open)} className="text-gray-400 hover:text-gray-600">☰</button>
-          <span className="text-sm text-gray-500">Owner Panel</span>
+          <span className="text-sm text-gray-500 flex-1">Owner Panel</span>
+          <NotificationBell />
         </header>
         <main className="flex-1 overflow-y-auto p-6"><Outlet /></main>
       </div>
