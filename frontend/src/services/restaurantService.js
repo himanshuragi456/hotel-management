@@ -51,6 +51,21 @@ export const downloadInvoicePdf = (id, upiId) => api.get(`/billing/invoices/${id
 // Waiter aliases
 export const getWaiterOrders = () => api.get('/waiter/orders/my')
 
+// Owner — Feedback
+export const getFeedbackQrCodes      = ()         => api.get('/owner/feedback/qr-codes')
+export const createFeedbackQrCode    = (data)     => api.post('/owner/feedback/qr-codes', data)
+export const updateFeedbackQrCode    = (id, data) => api.put(`/owner/feedback/qr-codes/${id}`, data)
+export const deleteFeedbackQrCode    = (id)       => api.delete(`/owner/feedback/qr-codes/${id}`)
+export const downloadFeedbackQr      = (id)       => api.get(`/owner/feedback/qr-codes/${id}/download`, { responseType: 'blob' })
+export const getReviewConfig         = ()         => api.get('/owner/feedback/review-config')
+export const updateReviewConfig      = (data)     => api.put('/owner/feedback/review-config', data)
+export const getFeedbackDashboard    = (params)   => api.get('/owner/feedback/dashboard', { params })
+
+// Public — Feedback submission
+export const getFeedbackPage         = (token)    => api.get(`/public/feedback/${token}`)
+export const submitFeedback          = (token, data) => api.post(`/public/feedback/${token}/submit`, data)
+export const getAiSuggestions        = (token, data) => api.post(`/public/feedback/${token}/ai-suggestions`, data)
+
 // Owner — Hotel Rooms
 export const getRooms          = ()         => api.get('/owner/hotel/rooms')
 export const getRoomStatus     = ()         => api.get('/owner/hotel/rooms/status')

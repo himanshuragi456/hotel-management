@@ -200,32 +200,32 @@ Superadmin, Owner, Waiter, Chef, Billing Counter, Customer
 ### Phase 5 — Module 3: Feedback & Review System
 
 #### 5.1 Feedback QR Setup
-- [ ] Generate unique QR per tenant
-- [ ] QR links to `/feedback/{qr_token}`
-- [ ] Label placement (reception, table, room)
-- [ ] Downloadable QR PNG for printing
+- [x] Generate unique QR per tenant
+- [x] QR links to `/feedback/{qr_token}`
+- [x] Label placement (reception, table, room)
+- [x] Downloadable QR PNG for printing
 
 #### 5.2 Feedback Submission Page
-- [ ] Mobile-optimized public page
-- [ ] Star rating (1–5)
-- [ ] Optional comment
-- [ ] Routing: >3 → Google Reviews + AI suggestions; ≤3 → internal apology
+- [x] Mobile-optimized public page
+- [x] Star rating (1–5)
+- [x] Optional comment
+- [x] Routing: >3 → Google Reviews + AI suggestions; ≤3 → internal apology
 
 #### 5.3 AI Review Suggestions
-- [ ] Call OpenAI on rating > 3
-- [ ] Generate 3 compliment suggestions
-- [ ] "Copy & Open Google Review" button
+- [x] Call OpenAI on rating > 3
+- [x] Generate 3 compliment suggestions
+- [x] "Copy & Open Google Review" button
 
 #### 5.4 Google Review Config
-- [ ] Owner enters Google Place ID / review URL
-- [ ] Test link preview
+- [x] Owner enters Google Place ID / review URL
+- [x] Test link preview
 
 #### 5.5 Feedback Dashboard
-- [ ] All feedback list (date, rating, comment)
-- [ ] Average rating widget
-- [ ] Rating breakdown chart
-- [ ] Filter by date / rating
-- [ ] Internal vs public split view
+- [x] All feedback list (date, rating, comment)
+- [x] Average rating widget
+- [x] Rating breakdown chart
+- [x] Filter by date / rating
+- [x] Internal vs public split view
 
 ---
 

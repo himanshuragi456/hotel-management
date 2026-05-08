@@ -7,9 +7,11 @@ use App\Http\Controllers\Customer\MenuController as CustomerMenuController;
 use App\Http\Controllers\Owner\MenuController as OwnerMenuController;
 use App\Http\Controllers\Owner\RevenueController;
 use App\Http\Controllers\Owner\TableController;
+use App\Http\Controllers\Owner\Feedback\FeedbackController;
 use App\Http\Controllers\Owner\Hotel\BookingController;
 use App\Http\Controllers\Owner\Hotel\GuestController;
 use App\Http\Controllers\Owner\Hotel\RoomController;
+use App\Http\Controllers\Public\FeedbackSubmissionController;
 use App\Http\Controllers\Waiter\OrderController as WaiterOrderController;
 use App\Http\Controllers\Waiter\RoomServiceController;
 use App\Http\Controllers\Superadmin\AuditLogController;
@@ -127,6 +129,15 @@ Route::middleware(['auth:api'])->group(function () {
             Route::get('hotel/guests/search', [GuestController::class, 'search']);
             Route::get('hotel/guests/{guest}', [GuestController::class, 'show']);
             Route::put('hotel/guests/{guest}', [GuestController::class, 'update']);
+            // Feedback — QR codes & dashboard
+            Route::get('feedback/qr-codes', [FeedbackController::class, 'listQrCodes']);
+            Route::post('feedback/qr-codes', [FeedbackController::class, 'createQrCode']);
+            Route::put('feedback/qr-codes/{qrCode}', [FeedbackController::class, 'updateQrCode']);
+            Route::delete('feedback/qr-codes/{qrCode}', [FeedbackController::class, 'deleteQrCode']);
+            Route::get('feedback/qr-codes/{qrCode}/download', [FeedbackController::class, 'downloadQrPng']);
+            Route::get('feedback/review-config', [FeedbackController::class, 'getReviewConfig']);
+            Route::put('feedback/review-config', [FeedbackController::class, 'updateReviewConfig']);
+            Route::get('feedback/dashboard', [FeedbackController::class, 'dashboard']);
             // Hotel — Bookings
             Route::get('hotel/bookings', [BookingController::class, 'index']);
             Route::post('hotel/bookings', [BookingController::class, 'store']);
@@ -179,7 +190,10 @@ Route::prefix('public')->group(function () {
     Route::get('menu/{tenantSlug}/{qrToken}', [CustomerMenuController::class, 'menu']);
     Route::post('menu/{tenantSlug}/{qrToken}/order', [CustomerMenuController::class, 'placeOrder']);
     Route::get('orders/{orderNumber}/status', [CustomerMenuController::class, 'orderStatus']);
-    // Phase 5 — feedback submission routes
+    // Feedback submission (public — no auth)
+    Route::get('feedback/{token}', [FeedbackSubmissionController::class, 'show']);
+    Route::post('feedback/{token}/submit', [FeedbackSubmissionController::class, 'submit']);
+    Route::post('feedback/{token}/ai-suggestions', [FeedbackSubmissionController::class, 'aiSuggestions']);
 });
 
 // Payment webhooks (no auth, verified by signature)

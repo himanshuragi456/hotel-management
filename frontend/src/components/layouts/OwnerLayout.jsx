@@ -15,6 +15,9 @@ const NAV = [
   { label: 'Bookings',    path: '/owner/hotel/bookings',      icon: '📅' },
   { label: 'Guests',      path: '/owner/hotel/guests',        icon: '👤' },
   { label: 'Hotel Reports',path: '/owner/hotel/reports',     icon: '📊' },
+  { label: '— Feedback',  path: null,                         icon: null, divider: true },
+  { label: 'QR Setup',    path: '/owner/feedback/setup',      icon: '🔗' },
+  { label: 'Reviews',     path: '/owner/feedback/dashboard',  icon: '⭐' },
 ]
 
 export default function OwnerLayout() {

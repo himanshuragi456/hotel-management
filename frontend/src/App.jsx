@@ -25,6 +25,9 @@ import RoomManager from '@/pages/owner/hotel/RoomManager'
 import Bookings from '@/pages/owner/hotel/Bookings'
 import Guests from '@/pages/owner/hotel/Guests'
 import HotelReports from '@/pages/owner/hotel/HotelReports'
+import FeedbackSetup from '@/pages/owner/feedback/FeedbackSetup'
+import FeedbackDashboard from '@/pages/owner/feedback/FeedbackDashboard'
+import FeedbackPage from '@/pages/feedback/FeedbackPage'
 
 // Waiter
 import WaiterDashboard from '@/pages/waiter/Dashboard'
@@ -53,6 +56,9 @@ export default function App() {
           {/* Customer QR menu — no auth required */}
           <Route path="/menu/:slug/:token" element={<CustomerMenuPage />} />
 
+          {/* Feedback — public, no auth */}
+          <Route path="/feedback/:token" element={<FeedbackPage />} />
+
           {/* Superadmin */}
           <Route path="/superadmin" element={<RequireAuth roles={['superadmin']}><SuperadminLayout /></RequireAuth>}>
             <Route index element={<Overview />} />
@@ -76,6 +82,9 @@ export default function App() {
             <Route path="hotel/bookings" element={<Bookings />} />
             <Route path="hotel/guests" element={<Guests />} />
             <Route path="hotel/reports" element={<HotelReports />} />
+            {/* Feedback module */}
+            <Route path="feedback/setup" element={<FeedbackSetup />} />
+            <Route path="feedback/dashboard" element={<FeedbackDashboard />} />
           </Route>
 
           {/* Waiter */}
