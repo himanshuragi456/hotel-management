@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             SuperadminSeeder::class,
             SubscriptionPlansSeeder::class,
             DemoTenantSeeder::class,
+            TenantDataSeeder::class,
         ]);
     }
 }

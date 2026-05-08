@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Models\TenantModule;
 use App\Models\User;
 use App\Traits\ApiResponse;
+use Database\Seeders\TenantDataSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -84,6 +85,10 @@ class TenantController extends Controller
             ]);
 
             AuditLog::record('tenant.created', $tenant, [], $tenant->toArray());
+
+            // Seed default tables, menu, rooms & feedback QR for new tenant
+            (new TenantDataSeeder())->seedForTenant($tenant);
+
             DB::commit();
 
             return $this->created($tenant->load('modules'), 'Tenant created successfully');
