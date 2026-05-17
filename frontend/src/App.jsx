@@ -2,6 +2,16 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RequireAuth, RedirectIfAuth } from '@/components/layouts/RoleGuard'
 import { ToastProvider } from '@/components/shared/Toast'
+import GlobalErrorModal from '@/components/shared/GlobalErrorModal'
+import useAuthStore from '@/store/authStore'
+
+function OwnerIndexRedirect() {
+  const modules = useAuthStore(s => s.user?.modules)
+  if (modules && modules.feedback && !modules.restaurant && !modules.hotel) {
+    return <Navigate to="/owner/feedback/dashboard" replace />
+  }
+  return <Navigate to="/owner/dashboard" replace />
+}
 
 import Login from '@/pages/auth/Login'
 
@@ -13,6 +23,7 @@ import TenantDetail from '@/pages/superadmin/tenants/TenantDetail'
 import PlanList from '@/pages/superadmin/plans/PlanList'
 import SubscriptionList from '@/pages/superadmin/subscriptions/SubscriptionList'
 import AuditLogs from '@/pages/superadmin/audit/AuditLogs'
+import BrandingSettings from '@/pages/superadmin/BrandingSettings'
 
 // Owner
 import OwnerLayout from '@/components/layouts/OwnerLayout'
@@ -30,6 +41,7 @@ import FeedbackSetup from '@/pages/owner/feedback/FeedbackSetup'
 import FeedbackDashboard from '@/pages/owner/feedback/FeedbackDashboard'
 import Analytics from '@/pages/owner/analytics/Analytics'
 import OwnerAuditLog from '@/pages/owner/analytics/AuditLog'
+import StaffManager from '@/pages/owner/staff/StaffManager'
 import FeedbackPage from '@/pages/feedback/FeedbackPage'
 
 // Waiter
@@ -53,6 +65,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
       <BrowserRouter>
+        <GlobalErrorModal />
         <Routes>
           {/* Public */}
           <Route path="/login" element={<><RedirectIfAuth /><Login /></>} />
@@ -71,11 +84,13 @@ export default function App() {
             <Route path="plans" element={<PlanList />} />
             <Route path="subscriptions" element={<SubscriptionList />} />
             <Route path="audit-logs" element={<AuditLogs />} />
+            <Route path="branding" element={<BrandingSettings />} />
           </Route>
 
           {/* Owner */}
           <Route path="/owner" element={<RequireAuth roles={['owner']}><OwnerLayout /></RequireAuth>}>
-            <Route index element={<OwnerDashboard />} />
+            <Route index element={<OwnerIndexRedirect />} />
+            <Route path="dashboard" element={<OwnerDashboard />} />
             <Route path="menu" element={<MenuManager />} />
             <Route path="tables" element={<TableManager />} />
             <Route path="orders" element={<LiveOrders />} />
@@ -92,6 +107,8 @@ export default function App() {
             {/* Analytics */}
             <Route path="analytics" element={<Analytics />} />
             <Route path="audit-log" element={<OwnerAuditLog />} />
+            {/* Staff */}
+            <Route path="staff" element={<StaffManager />} />
           </Route>
 
           {/* Waiter */}

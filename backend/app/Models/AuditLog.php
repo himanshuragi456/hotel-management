@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AuditLog extends Model
 {
@@ -23,6 +24,8 @@ class AuditLog extends Model
     }
 
     public function user() { return $this->belongsTo(User::class); }
+
+    public function tenant() { return $this->belongsTo(Tenant::class); }
 
     public static function record(string $action, mixed $model = null, array $oldValues = [], array $newValues = []): void
     {

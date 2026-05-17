@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Owner;
 
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\Order;
+use App\Models\Room;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,12 +23,22 @@ class RevenueController extends Controller
     {
         $orders = Order::where('tenant_id', auth()->user()->tenant_id)
             ->whereNotIn('status', ['served', 'cancelled'])
-            ->with(['items', 'table', 'waiter:id,name'])
+            ->with(['items', 'table', 'waiter:id,name', 'booking.room', 'booking.guest'])
             ->latest()
             ->get()
             ->map(function ($o) {
                 $data = $o->toArray();
-                $data['elapsed_minutes'] = now()->diffInMinutes($o->created_at);
+                $mins = (int) round(abs(now()->diffInRealMinutes($o->created_at)));
+                $data['elapsed_minutes'] = $mins;
+                $data['elapsed_label']   = $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm' : $mins . 'm';
+                if ($o->preparing_at) {
+                    $km = (int) round(abs(now()->diffInRealMinutes($o->preparing_at)));
+                    $data['kitchen_minutes'] = $km;
+                    $data['kitchen_label']   = $km >= 60 ? floor($km / 60) . 'h ' . ($km % 60) . 'm' : $km . 'm';
+                } else {
+                    $data['kitchen_minutes'] = null;
+                    $data['kitchen_label']   = null;
+                }
                 return $data;
             });
         return $this->success($orders);
@@ -35,7 +47,9 @@ class RevenueController extends Controller
     public function todayRevenue(): JsonResponse
     {
         $tenantId = auth()->user()->tenant_id;
-        $revenue = Invoice::where('tenant_id', $tenantId)
+
+        // Food revenue — paid invoices today
+        $foodRevenue = Invoice::where('tenant_id', $tenantId)
             ->whereDate('created_at', today())
             ->where('status', 'paid')
             ->sum('total');
@@ -49,11 +63,45 @@ class RevenueController extends Controller
             ->whereDate('expense_date', today())
             ->sum('amount');
 
+        // Hotel — checkouts today (room revenue collected)
+        $checkoutsToday = Booking::where('tenant_id', $tenantId)
+            ->where('status', 'checked_out')
+            ->whereDate('actual_check_out', today())
+            ->get();
+
+        $roomRevenue = $checkoutsToday->sum(fn($b) => $b->advance_paid);
+
+        // Hotel — current occupancy
+        $occupiedRooms = Room::where('tenant_id', $tenantId)->where('status', 'occupied')->count();
+        $totalRooms    = Room::where('tenant_id', $tenantId)->count();
+
+        // Hotel — check-ins and check-outs today
+        $checkinsToday  = Booking::where('tenant_id', $tenantId)
+            ->whereDate('actual_check_in', today())
+            ->count();
+        $checkoutsCount = $checkoutsToday->count();
+
+        // Hotel — guests currently staying (outstanding balance)
+        $activeBookings = Booking::where('tenant_id', $tenantId)
+            ->where('status', 'checked_in')
+            ->get();
+        $outstandingBalance = $activeBookings->sum(fn($b) => $b->balance_due);
+
+        $totalRevenue = $foodRevenue + $roomRevenue;
+
         return $this->success([
-            'revenue'     => $revenue,
-            'order_count' => $orderCount,
-            'expenses'    => $expenses,
-            'net'         => $revenue - $expenses,
+            'revenue'             => $totalRevenue,
+            'food_revenue'        => $foodRevenue,
+            'room_revenue'        => $roomRevenue,
+            'order_count'         => $orderCount,
+            'expenses'            => $expenses,
+            'net'                 => $totalRevenue - $expenses,
+            'occupied_rooms'      => $occupiedRooms,
+            'total_rooms'         => $totalRooms,
+            'checkins_today'      => $checkinsToday,
+            'checkouts_today'     => $checkoutsCount,
+            'active_guests'       => $activeBookings->count(),
+            'outstanding_balance' => $outstandingBalance,
         ]);
     }
 

@@ -17,15 +17,315 @@ class InvoiceController extends Controller
 {
     use ApiResponse;
 
-    public function readyOrders(): JsonResponse
+    public function tables(): JsonResponse
+    {
+        $tables = \App\Models\RestaurantTable::where('tenant_id', auth()->user()->tenant_id)
+            ->with('activeOrder.items')
+            ->orderBy('number')
+            ->get()
+            ->map(function ($t) {
+                $mins = $t->occupied_since ? (int) round(abs(now()->diffInRealMinutes($t->occupied_since))) : null;
+                return [
+                    'id'             => $t->id,
+                    'number'         => $t->number,
+                    'section'        => $t->section,
+                    'capacity'       => $t->capacity,
+                    'status'         => $t->status,
+                    'occupied_since' => $t->occupied_since,
+                    'occupied_minutes' => $mins,
+                    'occupied_label' => $mins !== null ? ($mins >= 60 ? floor($mins / 60) . 'hr ' . ($mins % 60) . 'm' : $mins . 'm') : null,
+                    'active_order'   => $t->activeOrder,
+                    'active_order_id'=> $t->activeOrder?->id,
+                ];
+            });
+        return $this->success($tables);
+    }
+
+    public function tableOrders(int $tableId): JsonResponse
+    {
+        $table = RestaurantTable::where('id', $tableId)
+            ->where('tenant_id', auth()->user()->tenant_id)
+            ->firstOrFail();
+
+        if ($table->status === 'free') {
+            return $this->success([]);
+        }
+
+        $orders = Order::where('tenant_id', auth()->user()->tenant_id)
+            ->where('restaurant_table_id', $tableId)
+            ->where('status', '!=', 'cancelled')
+            ->when($table->occupied_since, fn($q) => $q->where('created_at', '>=', $table->occupied_since))
+            ->with(['items', 'table', 'invoice'])
+            ->oldest()
+            ->get()
+            ->map(function ($order) {
+                $data = $order->toArray();
+                $mins = (int) round(abs(now()->diffInRealMinutes($order->created_at)));
+                $data['elapsed_minutes'] = $mins;
+                $data['elapsed_label']   = $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm' : $mins . 'm';
+                if ($order->preparing_at) {
+                    $km = (int) round(abs(now()->diffInRealMinutes($order->preparing_at)));
+                    $data['kitchen_minutes'] = $km;
+                    $data['kitchen_label']   = $km >= 60 ? floor($km / 60) . 'h ' . ($km % 60) . 'm' : $km . 'm';
+                } else {
+                    $data['kitchen_minutes'] = null;
+                    $data['kitchen_label']   = null;
+                }
+                return $data;
+            });
+        return $this->success($orders);
+    }
+
+    public function tableHistory(int $tableId): JsonResponse
     {
         $orders = Order::where('tenant_id', auth()->user()->tenant_id)
-            ->where('status', 'ready')
-            ->whereDoesntHave('invoice')
-            ->with(['items', 'table'])
+            ->where('restaurant_table_id', $tableId)
+            ->where('status', '!=', 'cancelled')
+            ->with(['items', 'invoice'])
             ->latest()
             ->get();
         return $this->success($orders);
+    }
+
+    public function addItems(Request $request, Order $order): JsonResponse
+    {
+        if ($order->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
+        if (in_array($order->status, ['served', 'cancelled'])) return $this->error('Cannot modify a closed order');
+
+        $v = Validator::make($request->all(), [
+            'items'                => 'required|array|min:1',
+            'items.*.menu_item_id' => 'required|exists:menu_items,id',
+            'items.*.quantity'     => 'required|integer|min:1',
+            'items.*.notes'        => 'nullable|string',
+        ]);
+        if ($v->fails()) return $this->validationError($v->errors());
+
+        foreach ($request->items as $row) {
+            $menuItem = \App\Models\MenuItem::where('id', $row['menu_item_id'])
+                ->where('tenant_id', auth()->user()->tenant_id)->firstOrFail();
+            \App\Models\OrderItem::create([
+                'order_id'     => $order->id,
+                'menu_item_id' => $menuItem->id,
+                'item_name'    => $menuItem->name,
+                'item_price'   => $menuItem->price,
+                'quantity'     => $row['quantity'],
+                'subtotal'     => $menuItem->price * $row['quantity'],
+                'notes'        => $row['notes'] ?? null,
+            ]);
+        }
+        $order->load('items');
+        $order->recalculate();
+        broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
+        return $this->success($order->fresh()->load('items'), 'Items added');
+    }
+
+    public function waiters(): JsonResponse
+    {
+        $waiters = \App\Models\User::where('tenant_id', auth()->user()->tenant_id)
+            ->where('role', 'waiter')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        return $this->success($waiters);
+    }
+
+    public function newOrderForTable(Request $request): JsonResponse
+    {
+        $v = Validator::make($request->all(), [
+            'restaurant_table_id' => 'required|exists:restaurant_tables,id',
+            'waiter_id'           => 'nullable|exists:users,id',
+            'items'               => 'required|array|min:1',
+            'items.*.menu_item_id'=> 'required|exists:menu_items,id',
+            'items.*.quantity'    => 'required|integer|min:1',
+            'items.*.notes'       => 'nullable|string',
+        ]);
+        if ($v->fails()) return $this->validationError($v->errors());
+
+        $tenantId = auth()->user()->tenant_id;
+        $table = \App\Models\RestaurantTable::where('id', $request->restaurant_table_id)
+            ->where('tenant_id', $tenantId)->firstOrFail();
+
+        // Use provided waiter_id if given, otherwise fall back to the billing user themselves
+        $waiterId = $request->waiter_id ?? auth()->id();
+
+        $resolvedItems = collect($request->items)->map(function ($row) use ($tenantId) {
+            $menuItem = \App\Models\MenuItem::where('id', $row['menu_item_id'])->where('tenant_id', $tenantId)->firstOrFail();
+            return array_merge($row, ['menu_item' => $menuItem]);
+        });
+
+        $kitchenItems   = $resolvedItems->filter(fn($r) => ! $r['menu_item']->is_ready_made);
+        $readyMadeItems = $resolvedItems->filter(fn($r) =>   $r['menu_item']->is_ready_made);
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $createdOrders = [];
+
+            if ($kitchenItems->isNotEmpty()) {
+                $order = Order::create([
+                    'tenant_id'           => $tenantId,
+                    'restaurant_table_id' => $table->id,
+                    'waiter_id'           => $waiterId,
+                    'type'                => 'dine-in',
+                    'status'              => 'pending',
+                ]);
+                foreach ($kitchenItems as $row) {
+                    $m = $row['menu_item'];
+                    \App\Models\OrderItem::create([
+                        'order_id'     => $order->id,
+                        'menu_item_id' => $m->id,
+                        'item_name'    => $m->name,
+                        'item_price'   => $m->price,
+                        'quantity'     => $row['quantity'],
+                        'subtotal'     => $m->price * $row['quantity'],
+                        'notes'        => $row['notes'] ?? null,
+                    ]);
+                }
+                $order->load('items');
+                $order->recalculate();
+                $createdOrders[] = $order->fresh()->load('items', 'table');
+            }
+
+            if ($readyMadeItems->isNotEmpty()) {
+                $rmOrder = Order::create([
+                    'tenant_id'           => $tenantId,
+                    'restaurant_table_id' => $table->id,
+                    'waiter_id'           => $waiterId,
+                    'type'                => 'dine-in',
+                    'status'              => 'ready',
+                ]);
+                foreach ($readyMadeItems as $row) {
+                    $m = $row['menu_item'];
+                    \App\Models\OrderItem::create([
+                        'order_id'     => $rmOrder->id,
+                        'menu_item_id' => $m->id,
+                        'item_name'    => $m->name,
+                        'item_price'   => $m->price,
+                        'quantity'     => $row['quantity'],
+                        'subtotal'     => $m->price * $row['quantity'],
+                        'notes'        => $row['notes'] ?? null,
+                    ]);
+                }
+                $rmOrder->load('items');
+                $rmOrder->recalculate();
+                $createdOrders[] = $rmOrder->fresh()->load('items', 'table');
+            }
+
+            if ($table->status === 'free') $table->occupy();
+            \Illuminate\Support\Facades\DB::commit();
+
+            foreach ($createdOrders as $o) {
+                broadcast(new \App\Events\OrderStatusUpdated($o))->toOthers();
+            }
+
+            return $this->created($createdOrders, 'Order added');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            return $this->error('Failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function markServed(Order $order): JsonResponse
+    {
+        if ($order->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
+        if ($order->status !== 'ready') return $this->error('Order must be ready before marking as served');
+        $order->update(['status' => 'served']);
+        broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
+        return $this->success(null, 'Order marked as served');
+    }
+
+    public function closeTable(Request $request, int $tableId): JsonResponse
+    {
+        $tenantId = auth()->user()->tenant_id;
+        $table = \App\Models\RestaurantTable::where('id', $tableId)->where('tenant_id', $tenantId)->firstOrFail();
+        // Mark all open orders as served
+        Order::where('tenant_id', $tenantId)
+            ->where('restaurant_table_id', $tableId)
+            ->whereNotIn('status', ['served', 'cancelled'])
+            ->update(['status' => 'served']);
+        $table->free();
+        return $this->success(null, 'Table closed');
+    }
+
+    public function getBillingMenu(): JsonResponse
+    {
+        $tenantId = auth()->user()->tenant_id;
+        $cats = \App\Models\MenuCategory::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->with(['items' => fn($q) => $q->where('is_available', true)->orderBy('sort_order')])
+            ->orderBy('sort_order')
+            ->get();
+        return $this->success($cats);
+    }
+
+    public function readyOrders(): JsonResponse
+    {
+        $orders = Order::where('tenant_id', auth()->user()->tenant_id)
+            ->where('status', 'served')
+            ->whereDoesntHave('invoice')
+            ->with(['items', 'table', 'booking.room', 'booking.guest'])
+            ->oldest()
+            ->get()
+            ->map(function ($order) {
+                $data = $order->toArray();
+                $mins = (int) round(abs(now()->diffInRealMinutes($order->created_at)));
+                $data['elapsed_minutes'] = $mins;
+                $data['elapsed_label']   = $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm' : $mins . 'm';
+                if ($order->preparing_at) {
+                    $km = (int) round(abs(now()->diffInRealMinutes($order->preparing_at)));
+                    $data['kitchen_minutes'] = $km;
+                    $data['kitchen_label']   = $km >= 60 ? floor($km / 60) . 'h ' . ($km % 60) . 'm' : $km . 'm';
+                } else {
+                    $data['kitchen_minutes'] = null;
+                    $data['kitchen_label']   = null;
+                }
+                return $data;
+            });
+        return $this->success($orders);
+    }
+
+    public function markServedRoom(Order $order): JsonResponse
+    {
+        if ($order->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
+        if ($order->type !== 'room-service') return $this->error('Not a room service order');
+        if (!in_array($order->status, ['pending', 'preparing', 'ready'])) return $this->error('Order cannot be marked served');
+        $order->update(['status' => 'served']);
+        broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'room')))->toOthers();
+        return $this->success(null, 'Order marked as served');
+    }
+
+    public function bookingOrders(int $bookingId): JsonResponse
+    {
+        $tenantId = auth()->user()->tenant_id;
+        $booking  = \App\Models\Booking::where('id', $bookingId)
+            ->where('tenant_id', $tenantId)
+            ->with(['room', 'guest'])
+            ->firstOrFail();
+
+        $orders = Order::where('tenant_id', $tenantId)
+            ->where('type', 'room-service')
+            ->where(function ($q) use ($bookingId, $booking) {
+                $q->where('booking_id', $bookingId)
+                  ->orWhere(function ($q2) use ($booking) {
+                      // fallback for orders placed before booking_id was tracked
+                      $q2->whereNull('booking_id')->where('room_id', $booking->room_id);
+                  });
+            })
+            ->whereNotIn('status', ['cancelled'])
+            ->with(['items', 'invoice'])
+            ->oldest()
+            ->get()
+            ->map(function ($order) {
+                $data = $order->toArray();
+                $mins = (int) round(abs(now()->diffInRealMinutes($order->created_at)));
+                $data['elapsed_minutes'] = $mins;
+                $data['elapsed_label']   = $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm' : $mins . 'm';
+                return $data;
+            });
+
+        return $this->success([
+            'booking' => $booking,
+            'orders'  => $orders,
+        ]);
     }
 
     public function allOrders(Request $request): JsonResponse
@@ -34,6 +334,27 @@ class InvoiceController extends Controller
             ->with(['items', 'table', 'invoice']);
         if ($request->status) $query->where('status', $request->status);
         return $this->success($query->latest()->paginate(20));
+    }
+
+    public function activeOrders(): JsonResponse
+    {
+        $tid = auth()->user()->tenant_id;
+
+        $orders = Order::where('tenant_id', $tid)
+            ->whereNotIn('status', ['served', 'cancelled'])
+            ->whereDoesntHave('invoice')
+            ->with(['items', 'table', 'booking.room', 'booking.guest'])
+            ->oldest()
+            ->get()
+            ->map(function ($order) {
+                $data = $order->toArray();
+                $mins = (int) round(abs(now()->diffInRealMinutes($order->created_at)));
+                $data['elapsed_minutes'] = $mins;
+                $data['elapsed_label']   = $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm' : $mins . 'm';
+                return $data;
+            });
+
+        return $this->success($orders);
     }
 
     public function store(Request $request): JsonResponse
@@ -95,13 +416,93 @@ class InvoiceController extends Controller
             'created_by'      => auth()->id(),
         ]);
 
-        // Mark order served and free the table
-        $order->update(['status' => 'served']);
+        // Free table only if no other unbilled orders remain (any status except cancelled)
         if ($order->restaurant_table_id) {
-            RestaurantTable::find($order->restaurant_table_id)?->free();
+            $remaining = Order::where('tenant_id', auth()->user()->tenant_id)
+                ->where('restaurant_table_id', $order->restaurant_table_id)
+                ->where('id', '!=', $order->id)
+                ->where('status', '!=', 'cancelled')
+                ->whereDoesntHave('invoice')
+                ->count();
+            if ($remaining === 0) {
+                RestaurantTable::find($order->restaurant_table_id)?->free();
+            }
         }
 
         return $this->created($invoice->load('order.items'), 'Invoice created');
+    }
+
+    public function billAll(Request $request, int $tableId): JsonResponse
+    {
+        $v = Validator::make($request->all(), [
+            'payment_method' => 'required|in:cash,card,upi,split',
+            'amount_paid'    => 'required|numeric|min:0',
+            'customer_name'  => 'nullable|string|max:100',
+            'customer_phone' => 'nullable|string|max:20',
+        ]);
+        if ($v->fails()) return $this->validationError($v->errors());
+
+        $tenantId = auth()->user()->tenant_id;
+        $tenant   = auth()->user()->tenant;
+        $table    = RestaurantTable::where('id', $tableId)->where('tenant_id', $tenantId)->firstOrFail();
+
+        $orders = Order::where('tenant_id', $tenantId)
+            ->where('restaurant_table_id', $tableId)
+            ->whereNotIn('status', ['cancelled'])
+            ->whereDoesntHave('invoice')
+            ->with('items')
+            ->get();
+
+        if ($orders->isEmpty()) return $this->error('No unbilled orders on this table');
+
+        $gstRate    = $tenant->gst_rate ?? 5;
+        $amtPaid    = (float)$request->amount_paid;
+        $invoices   = [];
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            // Distribute paid amount proportionally across orders
+            $grandSubtotal = $orders->sum('subtotal');
+
+            foreach ($orders as $order) {
+                $subtotal      = $order->subtotal;
+                $gstAmount     = round($subtotal * ($gstRate / 100), 2);
+                $total         = $subtotal + $gstAmount;
+                $proportion    = $grandSubtotal > 0 ? $subtotal / $grandSubtotal : 1 / $orders->count();
+                $paid          = round($amtPaid * $proportion, 2);
+                $due           = max(0, $total - $paid);
+                $status        = $due <= 0 ? 'paid' : ($paid > 0 ? 'partial' : 'unpaid');
+
+                $invoice = Invoice::create([
+                    'tenant_id'       => $tenantId,
+                    'order_id'        => $order->id,
+                    'customer_name'   => $request->customer_name,
+                    'customer_phone'  => $request->customer_phone,
+                    'subtotal'        => $subtotal,
+                    'gst_rate'        => $gstRate,
+                    'gst_amount'      => $gstAmount,
+                    'discount_type'   => 0,
+                    'discount_value'  => 0,
+                    'discount_amount' => 0,
+                    'total'           => $total,
+                    'payment_method'  => $request->payment_method,
+                    'amount_paid'     => $paid,
+                    'amount_due'      => $due,
+                    'status'          => $status,
+                    'created_by'      => auth()->id(),
+                ]);
+                $order->update(['status' => 'served']);
+                $invoices[] = $invoice->id;
+            }
+
+            $table->free();
+            \Illuminate\Support\Facades\DB::commit();
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            return $this->error('Failed: ' . $e->getMessage(), 500);
+        }
+
+        return $this->success(['invoice_ids' => $invoices], 'All orders billed and table closed');
     }
 
     public function show(Invoice $invoice): JsonResponse
@@ -115,10 +516,10 @@ class InvoiceController extends Controller
         if ($invoice->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
         $invoice->load('order.items', 'order.table', 'tenant');
 
-        $upiId  = request()->query('upi_id', 'restaurant@upi');
+        $upiId  = request()->query('upi_id', $invoice->tenant->upi_id ?? 'restaurant@upi');
         $amount = $invoice->amount_due > 0 ? $invoice->amount_due : $invoice->total;
         $upiUrl = "upi://pay?pa={$upiId}&pn=" . urlencode($invoice->tenant->name) . "&am={$amount}&cu=INR";
-        $upiQr  = base64_encode(QrCode::format('png')->size(120)->generate($upiUrl));
+        $upiQr  = QrCode::format('svg')->size(120)->generate($upiUrl);
 
         $pdf = Pdf::loadView('invoices.receipt', [
             'invoice' => $invoice,

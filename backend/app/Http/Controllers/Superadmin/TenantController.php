@@ -84,6 +84,17 @@ class TenantController extends Controller
                 'feedback'   => $request->input('modules.feedback', false),
             ]);
 
+            // Create owner user with a random password
+            $plainPassword = Str::random(10);
+            $owner = \App\Models\User::create([
+                'name'      => $request->name . ' Owner',
+                'email'     => $request->email,
+                'password'  => bcrypt($plainPassword),
+                'role'      => 'owner',
+                'tenant_id' => $tenant->id,
+                'is_active' => true,
+            ]);
+
             AuditLog::record('tenant.created', $tenant, [], $tenant->toArray());
 
             // Seed default tables, menu, rooms & feedback QR for new tenant
@@ -91,7 +102,10 @@ class TenantController extends Controller
 
             DB::commit();
 
-            return $this->created($tenant->load('modules'), 'Tenant created successfully');
+            return $this->created(array_merge($tenant->load('modules')->toArray(), [
+                'owner_email'    => $owner->email,
+                'owner_password' => $plainPassword,
+            ]), 'Tenant created successfully');
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->error('Failed to create tenant: ' . $e->getMessage(), 500);
@@ -103,12 +117,37 @@ class TenantController extends Controller
         $tenant->load(['modules', 'subscription.plan', 'users' => fn($q) => $q->select('id', 'name', 'email', 'role', 'is_active', 'tenant_id')]);
         $tenant->loadCount('users');
 
+        // Reset usage counter display if it's a new month
+        $today = now()->startOfMonth()->toDateString();
+        if ($tenant->ai_usage_reset_at === null || $tenant->ai_usage_reset_at->toDateString() < $today) {
+            $tenant->update(['ai_usage_this_month' => 0, 'ai_usage_reset_at' => $today]);
+            $tenant->refresh();
+        }
+
         $stats = [
-            'total_users'    => $tenant->users_count,
-            'active_users'   => $tenant->users->where('is_active', true)->count(),
+            'total_users'  => $tenant->users_count,
+            'active_users' => $tenant->users->where('is_active', true)->count(),
         ];
 
         return $this->success(['tenant' => $tenant, 'stats' => $stats]);
+    }
+
+    public function updateAiSettings(Request $request, Tenant $tenant): JsonResponse
+    {
+        $data = $request->validate([
+            'ai_suggestions_enabled' => 'required|boolean',
+            'ai_monthly_quota'       => 'required|integer|min:0|max:10000',
+        ]);
+
+        $tenant->update($data);
+
+        AuditLog::record('tenant.ai_settings_updated', $tenant, [], $data);
+
+        return $this->success([
+            'ai_suggestions_enabled' => $tenant->ai_suggestions_enabled,
+            'ai_monthly_quota'       => $tenant->ai_monthly_quota,
+            'ai_usage_this_month'    => $tenant->ai_usage_this_month,
+        ], 'AI settings updated');
     }
 
     public function update(Request $request, Tenant $tenant): JsonResponse

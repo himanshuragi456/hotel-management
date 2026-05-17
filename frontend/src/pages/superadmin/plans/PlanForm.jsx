@@ -68,7 +68,7 @@ export default function PlanForm({ plan, onSuccess }) {
       <div>
         <p className="text-xs font-medium text-gray-700 mb-2">Included Modules</p>
         <div className="flex gap-4">
-          {[['module_restaurant', '🍽 Restaurant'], ['module_hotel', '🏨 Hotel'], ['module_feedback', '⭐ Feedback']].map(([key, label]) => (
+          {[['module_restaurant', 'Restaurant'], ['module_hotel', 'Hotel'], ['module_feedback', 'Feedback']].map(([key, label]) => (
             <label key={key} className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form[key]} onChange={e => set(key, e.target.checked)} className="rounded" />
               <span className="text-sm">{label}</span>
@@ -107,7 +107,7 @@ export default function PlanForm({ plan, onSuccess }) {
 
       <div className="flex justify-end pt-2">
         <button type="submit" disabled={mutation.isPending}
-          className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow disabled:opacity-50">
           {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Plan'}
         </button>
       </div>

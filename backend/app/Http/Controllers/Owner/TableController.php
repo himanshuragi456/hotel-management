@@ -23,7 +23,7 @@ class TableController extends Controller
             ->map(function ($table) {
                 $data = $table->toArray();
                 $data['occupied_minutes'] = $table->occupied_since
-                    ? now()->diffInMinutes($table->occupied_since)
+                    ? (int) abs(now()->diffInMinutes($table->occupied_since))
                     : null;
                 return $data;
             });
@@ -80,9 +80,9 @@ class TableController extends Controller
         $url = config('app.frontend_url', config('app.url')) . "/menu/{$tenant->slug}/{$restaurantTable->qr_token}";
 
         return response(
-            QrCode::format('png')->size(300)->generate($url),
+            QrCode::format('svg')->size(300)->generate($url),
             200,
-            ['Content-Type' => 'image/png']
+            ['Content-Type' => 'image/svg+xml']
         );
     }
 }

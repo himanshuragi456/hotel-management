@@ -5,6 +5,16 @@ import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
 import Pusher from 'pusher-js'
+import {
+  ClockIcon,
+  FireIcon,
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
+  ArrowRightOnRectangleIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  SparklesIcon,
+} from '@heroicons/react/24/outline'
 
 const STATUS_FLOW = { pending: 'preparing', preparing: 'ready' }
 const STATUS_LABEL = { pending: 'Start Preparing', preparing: 'Mark Ready' }
@@ -16,55 +26,132 @@ const urgencyStyle = (mins, status) => {
   return 'border-blue-500 bg-gray-900'
 }
 
+const urgencyCardClass = (mins, status) => {
+  if (status === 'ready')  return 'border-green-500 bg-white/5 backdrop-blur-sm border border-white/10'
+  if (mins > 30)           return 'border-red-500 bg-red-950/60'
+  if (mins > 15)           return 'border-yellow-500 bg-yellow-950/60'
+  return 'border-blue-500 bg-slate-800/60'
+}
+
+function StatusPill({ status }) {
+  const map = {
+    pending:   'bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/40',
+    preparing: 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/40',
+    ready:     'bg-green-500/20 text-green-300 ring-1 ring-green-500/40',
+  }
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${map[status] ?? ''}`}>
+      {status}
+    </span>
+  )
+}
+
 function OrderCard({ order, onStatusChange }) {
   const next = STATUS_FLOW[order.status]
+  const isReady = order.status === 'ready'
+
   return (
-    <div className={`rounded-2xl border-l-4 p-4 ${urgencyStyle(order.elapsed_minutes, order.status)}`}>
+    <div
+      className={`rounded-2xl border-l-4 p-4 transition-all duration-200 ${urgencyCardClass(order.elapsed_minutes, order.status)}`}
+    >
+      {/* Card header */}
       <div className="flex items-start justify-between mb-3">
         <div>
-          <span className="text-white font-bold text-lg">Table {order.table?.number ?? 'Room'}</span>
-          <div className="text-gray-400 text-xs mt-0.5">{order.order_number}</div>
+          <span className="text-white font-bold text-lg leading-tight">
+            {order.table?.number
+              ? `Table ${order.table.number}`
+              : `Room ${order.room?.number ?? '—'}`}
+          </span>
+          <div className="text-slate-500 text-xs mt-0.5 font-mono">{order.order_number}</div>
         </div>
-        <div className="text-right">
-          <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-            order.status === 'pending' ? 'bg-yellow-900 text-yellow-300' :
-            order.status === 'preparing' ? 'bg-blue-900 text-blue-300' :
-            'bg-green-900 text-green-300'
-          } capitalize`}>{order.status}</span>
-          <div className={`text-xs mt-1 font-mono ${order.elapsed_minutes > 30 ? 'text-red-400' : 'text-gray-400'}`}>
-            {order.elapsed_minutes}m ago
+        <div className="flex flex-col items-end gap-1.5">
+          <StatusPill status={order.status} />
+          <div className={`flex items-center gap-1 text-xs font-mono ${order.elapsed_minutes > 30 ? 'text-red-400' : 'text-slate-400'}`}>
+            <ClockIcon className="w-3.5 h-3.5 shrink-0" />
+            <span>{order.elapsed_label} ago</span>
           </div>
+          {order.kitchen_label && (
+            <div className={`flex items-center gap-1 text-xs font-mono ${order.kitchen_minutes > 15 ? 'text-orange-400' : 'text-blue-400'}`}>
+              <FireIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>In kitchen {order.kitchen_label}</span>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="space-y-1.5 mb-4">
+      {/* Items list */}
+      <div className="space-y-2 mb-4">
         {order.items?.map((item, i) => (
           <div key={i} className="flex items-start gap-2">
-            <span className="text-orange-400 font-bold text-sm min-w-[2rem]">{item.quantity}×</span>
-            <div>
-              <div className="text-white text-sm">{item.item_name}</div>
-              {item.notes && <div className="text-yellow-300 text-xs italic">⚠ {item.notes}</div>}
+            <span className="inline-flex items-center justify-center min-w-[1.75rem] h-6 px-1.5 rounded-md bg-orange-500/20 text-orange-400 font-bold text-xs ring-1 ring-orange-500/30">
+              {item.quantity}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-white text-sm leading-snug">{item.item_name}</div>
+              {item.notes && (
+                <div className="flex items-center gap-1 mt-1 px-2 py-1 rounded-md bg-amber-500/15 ring-1 ring-amber-500/30">
+                  <ExclamationTriangleIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-amber-300 text-xs italic leading-snug">{item.notes}</span>
+                </div>
+              )}
             </div>
           </div>
         ))}
       </div>
 
+      {/* Order-level note */}
       {order.notes && (
-        <div className="text-yellow-200 text-xs bg-yellow-900/30 rounded-lg px-3 py-2 mb-3 italic">
-          Order note: {order.notes}
+        <div className="flex items-start gap-2 px-3 py-2 mb-3 rounded-lg bg-amber-500/10 ring-1 ring-amber-500/20">
+          <ExclamationTriangleIcon className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <span className="text-amber-200 text-xs italic">{order.notes}</span>
         </div>
       )}
 
+      {/* CTA button */}
       {next && (
         <button
           onClick={() => onStatusChange(order.id, next)}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold ${
-            next === 'preparing' ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-green-600 hover:bg-green-500 text-white'
+          className={`w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 active:opacity-75 ${
+            next === 'preparing'
+              ? 'bg-gradient-to-r from-indigo-600 to-indigo-500'
+              : 'bg-gradient-to-r from-emerald-600 to-emerald-500'
           }`}
         >
+          {next === 'ready' && (
+            <CheckCircleIcon className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+          )}
           {STATUS_LABEL[order.status]}
         </button>
       )}
+    </div>
+  )
+}
+
+function EmptyColumn({ message }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 rounded-2xl border border-dashed border-slate-800 text-slate-600">
+      <SparklesIcon className="w-8 h-8 mb-2 opacity-40" />
+      <span className="text-sm">{message}</span>
+    </div>
+  )
+}
+
+function Column({ title, colorClass, pillClass, count, orders, onStatusChange, emptyMessage }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Column header */}
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${colorClass}`}>
+        <h2 className="flex-1 font-semibold uppercase text-xs tracking-widest">{title}</h2>
+        <span className={`inline-flex items-center justify-center min-w-[1.5rem] h-5 px-2 rounded-full text-xs font-bold ${pillClass}`}>
+          {count}
+        </span>
+      </div>
+
+      {/* Cards */}
+      {orders.map(o => (
+        <OrderCard key={o.id} order={o} onStatusChange={onStatusChange} />
+      ))}
+      {!orders.length && <EmptyColumn message={emptyMessage} />}
     </div>
   )
 }
@@ -92,9 +179,18 @@ export default function ChefDashboard() {
   useEffect(() => {
     if (!tenantId) return
 
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
-      cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'ap2',
-    })
+    const pusherConfig = {
+      cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1',
+    }
+    if (import.meta.env.VITE_PUSHER_HOST) {
+      pusherConfig.wsHost = import.meta.env.VITE_PUSHER_HOST
+      pusherConfig.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      pusherConfig.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      pusherConfig.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
+      pusherConfig.disableStats = true
+      pusherConfig.enabledTransports = ['ws']
+    }
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, pusherConfig)
 
     const channel = pusher.subscribe(`tenant.${tenantId}.kitchen`)
     channel.bind('order.updated', () => {
@@ -121,68 +217,101 @@ export default function ChefDashboard() {
   const ready     = orders?.filter(o => o.status === 'ready')     ?? []
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      {/* hidden audio ping */}
+    <div className="min-h-screen bg-slate-950 text-white">
+      {/* Hidden audio ping */}
       <audio ref={audioRef} preload="auto">
-        <source src="/sounds/ding.mp3" type="audio/mpeg" />
+        <source src="/sounds/ding.wav" type="audio/wav" />
       </audio>
 
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+      {/* Header */}
+      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold">Kitchen</h1>
-          <span className="text-gray-500 text-sm">{user?.name}</span>
+          {/* Brand mark */}
           <div className="flex items-center gap-2">
+            <FireIcon className="w-6 h-6 text-orange-400" />
+            <span className="text-white font-bold text-base tracking-tight">Kitchen</span>
+          </div>
+
+          {/* Operator name */}
+          {user?.name && (
+            <span className="text-slate-500 text-sm hidden sm:block">{user.name}</span>
+          )}
+
+          {/* Live indicator */}
+          <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs text-gray-400">Live</span>
+            <span className="text-xs text-slate-400">Live</span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={() => setSoundEnabled(s => !s)} className={`text-xs px-3 py-1.5 rounded-full ${soundEnabled ? 'bg-green-900 text-green-300' : 'bg-gray-800 text-gray-500'}`}>
-            {soundEnabled ? '🔔 Sound on' : '🔕 Sound off'}
+
+        <div className="flex items-center gap-2">
+          {/* Sound toggle */}
+          <button
+            onClick={() => setSoundEnabled(s => !s)}
+            title={soundEnabled ? 'Sound on' : 'Sound off'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              soundEnabled
+                ? 'bg-green-900/50 text-green-300 ring-1 ring-green-700/50 hover:bg-green-900/80'
+                : 'bg-slate-800 text-slate-500 ring-1 ring-slate-700 hover:bg-slate-700'
+            }`}
+          >
+            {soundEnabled
+              ? <SpeakerWaveIcon className="w-4 h-4" />
+              : <SpeakerXMarkIcon className="w-4 h-4" />}
+            <span className="hidden sm:inline">{soundEnabled ? 'Sound on' : 'Sound off'}</span>
           </button>
-          <button onClick={handleLogout} className="text-sm text-red-400 hover:underline">Logout</button>
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            title="Logout"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-red-400 ring-1 ring-red-900/50 bg-red-950/30 hover:bg-red-950/60 transition-colors"
+          >
+            <ArrowRightOnRectangleIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
         </div>
       </header>
 
+      {/* Board */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-64 text-gray-500">Loading orders…</div>
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center gap-3 text-slate-500">
+            <ClockIcon className="w-5 h-5 animate-spin" />
+            <span className="text-sm">Loading orders…</span>
+          </div>
+        </div>
       ) : (
-        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Pending column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="font-semibold text-yellow-300 uppercase text-xs tracking-widest">Pending</h2>
-              <span className="bg-yellow-900 text-yellow-300 text-xs px-2 py-0.5 rounded-full font-bold">{pending.length}</span>
-            </div>
-            <div className="space-y-3">
-              {pending.map(o => <OrderCard key={o.id} order={o} onStatusChange={(id, status) => updateStatus.mutate({ id, status })} />)}
-              {!pending.length && <div className="text-center py-8 text-gray-700 text-sm border border-dashed border-gray-800 rounded-xl">No pending orders</div>}
-            </div>
-          </div>
+        <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+          <Column
+            title="Pending"
+            colorClass="bg-yellow-500/10 text-yellow-400"
+            pillClass="bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/40"
+            count={pending.length}
+            orders={pending}
+            onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
+            emptyMessage="No pending orders"
+          />
 
-          {/* Preparing column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="font-semibold text-blue-300 uppercase text-xs tracking-widest">Preparing</h2>
-              <span className="bg-blue-900 text-blue-300 text-xs px-2 py-0.5 rounded-full font-bold">{preparing.length}</span>
-            </div>
-            <div className="space-y-3">
-              {preparing.map(o => <OrderCard key={o.id} order={o} onStatusChange={(id, status) => updateStatus.mutate({ id, status })} />)}
-              {!preparing.length && <div className="text-center py-8 text-gray-700 text-sm border border-dashed border-gray-800 rounded-xl">Nothing being prepared</div>}
-            </div>
-          </div>
+          <Column
+            title="Preparing"
+            colorClass="bg-blue-500/10 text-blue-400"
+            pillClass="bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/40"
+            count={preparing.length}
+            orders={preparing}
+            onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
+            emptyMessage="Nothing being prepared"
+          />
 
-          {/* Ready column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="font-semibold text-green-300 uppercase text-xs tracking-widest">Ready</h2>
-              <span className="bg-green-900 text-green-300 text-xs px-2 py-0.5 rounded-full font-bold">{ready.length}</span>
-            </div>
-            <div className="space-y-3">
-              {ready.map(o => <OrderCard key={o.id} order={o} onStatusChange={(id, status) => updateStatus.mutate({ id, status })} />)}
-              {!ready.length && <div className="text-center py-8 text-gray-700 text-sm border border-dashed border-gray-800 rounded-xl">Nothing ready yet</div>}
-            </div>
-          </div>
+          <Column
+            title="Ready"
+            colorClass="bg-green-500/10 text-green-400"
+            pillClass="bg-green-500/20 text-green-300 ring-1 ring-green-500/40"
+            count={ready.length}
+            orders={ready}
+            onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
+            emptyMessage="Nothing ready yet"
+          />
         </div>
       )}
     </div>

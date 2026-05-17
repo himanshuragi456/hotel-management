@@ -12,12 +12,17 @@ export const updateMenuItem = (id, data) => api.post(`/owner/menu/items/${id}?_m
 export const deleteMenuItem = (id) => api.delete(`/owner/menu/items/${id}`)
 export const bulkToggleItems = (ids, is_available) => api.post('/owner/menu/items/bulk-toggle', { ids, is_available })
 
+// Waiter — tables & menu (separate from owner routes)
+export const getWaiterTables      = ()         => api.get('/waiter/tables')
+export const getWaiterMenu        = ()         => api.get('/waiter/menu')
+export const getWaiterTableOrders = (tableId)  => api.get(`/waiter/tables/${tableId}/orders`)
+
 // Owner — Tables
 export const getTables = () => api.get('/owner/tables')
 export const createTable = (data) => api.post('/owner/tables', data)
 export const updateTable = (id, data) => api.put(`/owner/tables/${id}`, data)
 export const deleteTable = (id) => api.delete(`/owner/tables/${id}`)
-export const getTableQr = (id) => api.get(`/owner/tables/${id}/qr`, { responseType: 'blob' })
+export const getTableQr = (id) => api.get(`/owner/tables/${id}/qr`, { responseType: 'text' })
 
 // Owner — Revenue
 export const getLiveOrders = () => api.get('/owner/orders/live')
@@ -31,22 +36,48 @@ export const createExpense = (data) => api.post('/owner/expenses', data)
 export const deleteExpense = (id) => api.delete(`/owner/expenses/${id}`)
 
 // Waiter
-export const getWaiterTables = () => api.get('/waiter/tables')
-export const getWaiterMenu = () => api.get('/waiter/menu')
-export const placeOrder = (data) => api.post('/waiter/orders', data)
-export const addOrderItems = (orderId, data) => api.post(`/waiter/orders/${orderId}/items`, data)
-export const getMyOrders = () => api.get('/waiter/orders/my')
+export const placeOrder      = (data)            => api.post('/waiter/orders', data)
+export const getWaiterOrder  = (id)              => api.get(`/waiter/orders/${id}`)
+export const addOrderItems   = (orderId, data)   => api.post(`/waiter/orders/${orderId}/items`, data)
+export const requestBill     = (orderId)         => api.post(`/waiter/orders/${orderId}/request-bill`)
+export const markServed      = (orderId)         => api.post(`/waiter/orders/${orderId}/mark-served`)
+export const getMyOrders     = ()                => api.get('/waiter/orders/my')
 
 // Chef
 export const getKitchenOrders = () => api.get('/chef/orders')
 export const updateOrderStatus = (id, status) => api.put(`/chef/orders/${id}/status`, { status })
 
+// Billing — Hotel (billing role has access to these)
+export const getBillingRoomStatus   = ()         => api.get('/billing/hotel/rooms/status')
+export const getBillingRooms        = ()         => api.get('/billing/hotel/rooms')
+export const getBillingActiveRooms  = ()         => api.get('/billing/hotel/active-rooms')
+export const getBillingBookings     = (params)   => api.get('/billing/hotel/bookings', { params })
+export const createBillingBooking   = (data)     => api.post('/billing/hotel/bookings', data)
+export const getBillingBooking      = (id)       => api.get(`/billing/hotel/bookings/${id}`)
+export const checkInBillingBooking  = (id)       => api.post(`/billing/hotel/bookings/${id}/check-in`)
+export const checkOutBillingBooking              = (id, data) => api.post(`/billing/hotel/bookings/${id}/check-out`, data)
+export const cancelBillingBooking                = (id)       => api.post(`/billing/hotel/bookings/${id}/cancel`)
+export const getBillingBookingCheckoutSummary    = (id)       => api.get(`/billing/hotel/bookings/${id}/checkout-summary`)
+export const extendBillingBookingStay            = (id, data) => api.patch(`/billing/hotel/bookings/${id}/extend`, data)
+export const searchBillingGuests    = (q)        => api.get('/billing/hotel/guests/search', { params: { q } })
+export const createBillingGuest     = (data)     => api.post('/billing/hotel/guests', data)
+
 // Billing
-export const getReadyOrders = () => api.get('/billing/orders/ready')
-export const getAllBillingOrders = (params) => api.get('/billing/orders', { params })
-export const createInvoice = (data) => api.post('/billing/invoices', data)
-export const getInvoice = (id) => api.get(`/billing/invoices/${id}`)
-export const downloadInvoicePdf = (id, upiId) => api.get(`/billing/invoices/${id}/pdf`, { params: { upi_id: upiId }, responseType: 'blob' })
+export const getReadyOrders      = ()              => api.get('/billing/orders/ready')
+export const getActiveOrders     = ()              => api.get('/billing/orders/active')
+export const getAllBillingOrders  = (params)        => api.get('/billing/orders', { params })
+export const getBillingTables    = ()              => api.get('/billing/tables')
+export const getBillingTableOrders   = (tableId) => api.get(`/billing/tables/${tableId}/orders`)
+export const getBillingTableHistory  = (tableId) => api.get(`/billing/tables/${tableId}/history`)
+export const closeBillingTable   = (tableId)       => api.post(`/billing/tables/${tableId}/close`)
+export const billAllOrders       = (tableId, data) => api.post(`/billing/tables/${tableId}/bill-all`, data)
+export const billingNewOrder     = (data)          => api.post('/billing/orders', data)
+export const billingAddItems     = (orderId, data) => api.post(`/billing/orders/${orderId}/items`, data)
+export const billingMarkServed   = (orderId)       => api.post(`/billing/orders/${orderId}/mark-served`)
+export const getBillingMenu      = ()              => api.get('/billing/menu')
+export const createInvoice       = (data)          => api.post('/billing/invoices', data)
+export const getInvoice          = (id)            => api.get(`/billing/invoices/${id}`)
+export const downloadInvoicePdf  = (id, upiId)     => api.get(`/billing/invoices/${id}/pdf`, { params: { upi_id: upiId }, responseType: 'blob' })
 
 // Waiter aliases
 export const getWaiterOrders = () => api.get('/waiter/orders/my')
@@ -65,9 +96,10 @@ export const getFeedbackQrCodes      = ()         => api.get('/owner/feedback/qr
 export const createFeedbackQrCode    = (data)     => api.post('/owner/feedback/qr-codes', data)
 export const updateFeedbackQrCode    = (id, data) => api.put(`/owner/feedback/qr-codes/${id}`, data)
 export const deleteFeedbackQrCode    = (id)       => api.delete(`/owner/feedback/qr-codes/${id}`)
-export const downloadFeedbackQr      = (id)       => api.get(`/owner/feedback/qr-codes/${id}/download`, { responseType: 'blob' })
+export const downloadFeedbackQr      = (id)       => api.get(`/owner/feedback/qr-codes/${id}/download`, { responseType: 'text' })
 export const getReviewConfig         = ()         => api.get('/owner/feedback/review-config')
 export const updateReviewConfig      = (data)     => api.put('/owner/feedback/review-config', data)
+export const findGooglePlace         = (data)     => api.post('/owner/feedback/find-place', data)
 export const getFeedbackDashboard    = (params)   => api.get('/owner/feedback/dashboard', { params })
 
 // Public — Feedback submission
@@ -95,10 +127,12 @@ export const getBookingCalendar= (params)   => api.get('/owner/hotel/bookings/ca
 export const getOccupancyReport= (params)   => api.get('/owner/hotel/bookings/occupancy', { params })
 export const createBooking     = (data)     => api.post('/owner/hotel/bookings', data)
 export const updateBooking     = (id, data) => api.put(`/owner/hotel/bookings/${id}`, data)
-export const getBooking        = (id)       => api.get(`/owner/hotel/bookings/${id}`)
-export const checkInBooking    = (id)       => api.post(`/owner/hotel/bookings/${id}/check-in`)
-export const checkOutBooking   = (id, data) => api.post(`/owner/hotel/bookings/${id}/check-out`, data)
-export const cancelBooking     = (id)       => api.post(`/owner/hotel/bookings/${id}/cancel`)
+export const getBooking              = (id)       => api.get(`/owner/hotel/bookings/${id}`)
+export const checkInBooking          = (id)       => api.post(`/owner/hotel/bookings/${id}/check-in`)
+export const checkOutBooking         = (id, data) => api.post(`/owner/hotel/bookings/${id}/check-out`, data)
+export const cancelBooking           = (id)       => api.post(`/owner/hotel/bookings/${id}/cancel`)
+export const getBookingCheckoutSummary = (id)     => api.get(`/owner/hotel/bookings/${id}/checkout-summary`)
+export const extendBookingStay         = (id, data) => api.patch(`/owner/hotel/bookings/${id}/extend`, data)
 
 // Waiter — Room Service
 export const getActiveRooms    = ()         => api.get('/waiter/room-service/active-rooms')
@@ -110,3 +144,19 @@ export const placePublicOrder = (slug, token, data) => api.post(`/public/menu/${
 export const getCustomerMenu = (slug, token) => api.get(`/public/menu/${slug}/${token}`)
 export const customerPlaceOrder = (slug, token, data) => api.post(`/public/menu/${slug}/${token}/order`, data)
 export const getOrderStatus = (orderNumber) => api.get(`/public/orders/${orderNumber}/status`)
+
+// Owner — Staff
+export const getBillingWaiters        = ()         => api.get('/billing/staff/waiters')
+export const billingPlaceRoomService  = (data)     => api.post('/billing/hotel/room-service/orders', data)
+export const getBillingBookingOrders  = (bookingId) => api.get(`/billing/hotel/bookings/${bookingId}/orders`)
+export const billingMarkServedRoom    = (orderId)   => api.post(`/billing/orders/${orderId}/mark-served-room`)
+export const getStaff          = ()         => api.get('/owner/staff')
+export const createStaff       = (data)     => api.post('/owner/staff', data)
+export const updateStaff       = (id, data) => api.put(`/owner/staff/${id}`, data)
+export const deleteStaff       = (id)       => api.delete(`/owner/staff/${id}`)
+export const toggleStaffActive = (id)       => api.post(`/owner/staff/${id}/toggle-active`)
+
+
+// Owner — Settings
+export const getOwnerSettings    = ()     => api.get('/owner/settings')
+export const updateOwnerSettings = (data) => api.put('/owner/settings', data)

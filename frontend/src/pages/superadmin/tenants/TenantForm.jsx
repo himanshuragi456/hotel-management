@@ -2,6 +2,64 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { createTenant, updateTenant } from '@/services/superadminService'
 
+function CredentialsModal({ email, password, onClose }) {
+  const [copied, setCopied] = useState(false)
+
+  const copyAll = () => {
+    navigator.clipboard?.writeText(`Email: ${email}\nPassword: ${password}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+            <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Tenant Created</h3>
+            <p className="text-xs text-gray-400">Share these credentials with the owner</p>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 rounded-xl p-4 space-y-3 mb-4">
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Email</p>
+            <p className="text-sm font-mono font-medium text-gray-900">{email}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Password</p>
+            <p className="text-sm font-mono font-medium text-gray-900 tracking-wider">{password}</p>
+          </div>
+        </div>
+
+        <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-4">
+          Save this password now — it won't be shown again.
+        </p>
+
+        <div className="flex gap-2">
+          <button
+            onClick={copyAll}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-xl transition-colors"
+          >
+            {copied ? '✓ Copied' : 'Copy Credentials'}
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium py-2.5 rounded-xl transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function TenantForm({ tenant, onSuccess }) {
   const isEdit = !!tenant
   const [form, setForm] = useState({
@@ -20,12 +78,19 @@ export default function TenantForm({ tenant, onSuccess }) {
     },
   })
   const [error, setError] = useState('')
+  const [credentials, setCredentials] = useState(null)
 
   const mutation = useMutation({
     mutationFn: isEdit
       ? (data) => updateTenant(tenant.id, data)
       : createTenant,
-    onSuccess: () => onSuccess?.(),
+    onSuccess: (res) => {
+      if (!isEdit && res.data?.data?.owner_password) {
+        setCredentials({ email: res.data.data.owner_email, password: res.data.data.owner_password })
+      } else {
+        onSuccess?.()
+      }
+    },
     onError: (err) => setError(err.response?.data?.message ?? 'Failed to save'),
   })
 
@@ -41,12 +106,20 @@ export default function TenantForm({ tenant, onSuccess }) {
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 
   return (
+    <>
+    {credentials && (
+      <CredentialsModal
+        email={credentials.email}
+        password={credentials.password}
+        onClose={() => { setCredentials(null); onSuccess?.() }}
+      />
+    )}
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">{error}</div>}
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Restaurant Name *</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Business Name *</label>
           <input required value={form.name} onChange={e => set('name', e.target.value)} className={inputCls} />
         </div>
         <div>
@@ -88,7 +161,7 @@ export default function TenantForm({ tenant, onSuccess }) {
       <div>
         <p className="text-xs font-medium text-gray-700 mb-2">Modules</p>
         <div className="flex gap-4">
-          {[['restaurant', '🍽 Restaurant'], ['hotel', '🏨 Hotel'], ['feedback', '⭐ Feedback']].map(([key, label]) => (
+          {[['restaurant', 'Restaurant'], ['hotel', 'Hotel'], ['feedback', 'Feedback']].map(([key, label]) => (
             <label key={key} className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -108,5 +181,6 @@ export default function TenantForm({ tenant, onSuccess }) {
         </button>
       </div>
     </form>
+    </>
   )
 }

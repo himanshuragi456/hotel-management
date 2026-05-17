@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  DocumentTextIcon, FunnelIcon, TrashIcon, ClockIcon, UserCircleIcon,
+  BuildingStorefrontIcon, ComputerDesktopIcon,
+} from '@heroicons/react/24/outline'
 import { getAuditLogs, purgeAuditLogs } from '@/services/superadminService'
 import Pagination from '@/components/shared/Pagination'
 
@@ -21,58 +25,101 @@ export default function AuditLogs() {
   })
 
   const set = (k, v) => setFilters(f => ({ ...f, [k]: v, page: 1 }))
+  const inp = 'border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white'
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">Audit Logs</h2>
+      <div className="flex items-center justify-between mb-7">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Audit Logs</h2>
+          <p className="text-sm text-gray-400 mt-0.5">Platform-wide activity trail</p>
+        </div>
         <button
           onClick={() => confirm('Purge logs older than 90 days?') && purgeMutation.mutate()}
           disabled={purgeMutation.isPending}
-          className="text-sm text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50"
+          className="inline-flex items-center gap-1.5 text-sm text-red-600 border border-red-200 px-3 py-1.5 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
         >
+          <TrashIcon className="w-4 h-4" />
           Purge Old Logs
         </button>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-4 flex-wrap">
-        <input value={filters.action} onChange={e => set('action', e.target.value)}
-          placeholder="Filter by action…"
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="date" value={filters.from} onChange={e => set('from', e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="date" value={filters.to} onChange={e => set('to', e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
+        <div className="flex items-center gap-2 mb-3">
+          <FunnelIcon className="w-4 h-4 text-gray-400" />
+          <span className="text-sm font-semibold text-gray-600">Filters</span>
+        </div>
+        <div className="flex gap-3 flex-wrap">
+          <input value={filters.action} onChange={e => set('action', e.target.value)}
+            placeholder="Filter by action…"
+            className={inp} />
+          <input type="date" value={filters.from} onChange={e => set('from', e.target.value)}
+            className={inp} />
+          <input type="date" value={filters.to} onChange={e => set('to', e.target.value)}
+            className={inp} />
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Time</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Action</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">User</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Tenant</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">IP</th>
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50/60">
+              {['Time', 'Action', 'User', 'Tenant', 'IP'].map(h => (
+                <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+              ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-50">
             {isLoading ? (
-              <tr><td colSpan={5} className="text-center py-8 text-gray-400">Loading…</td></tr>
+              Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 5 }).map((_, j) => (
+                    <td key={j} className="px-5 py-4">
+                      <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: `${50 + Math.random() * 50}%` }} />
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : data?.data?.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-8 text-gray-400">No logs found</td></tr>
+              <tr>
+                <td colSpan={5} className="text-center py-16">
+                  <DocumentTextIcon className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                  <p className="text-gray-400 font-medium">No logs found</p>
+                </td>
+              </tr>
             ) : data?.data?.map(log => (
-              <tr key={log.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                  {new Date(log.created_at).toLocaleString()}
+              <tr key={log.id} className="hover:bg-gray-50/80 transition-colors">
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <ClockIcon className="w-3.5 h-3.5 text-gray-400" />
+                    {new Date(log.created_at).toLocaleString()}
+                  </div>
                 </td>
-                <td className="px-4 py-3">
-                  <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{log.action}</code>
+                <td className="px-5 py-4">
+                  <code className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-lg font-mono">{log.action}</code>
                 </td>
-                <td className="px-4 py-3 text-gray-700">{log.user?.name ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-700">{log.tenant?.name ?? 'Platform'}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{log.ip_address ?? '—'}</td>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-1.5">
+                    <UserCircleIcon className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-700 text-xs">{log.user?.name ?? '—'}</span>
+                    {log.user?.role && (
+                      <span className="text-xs text-gray-400 capitalize">({log.user.role})</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-1.5">
+                    <BuildingStorefrontIcon className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-700 text-xs">{log.tenant?.name ?? 'Platform'}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-1.5">
+                    <ComputerDesktopIcon className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-gray-500 text-xs font-mono">{log.ip_address ?? '—'}</span>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

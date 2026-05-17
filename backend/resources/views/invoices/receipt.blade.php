@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: monospace; font-size: 11px; width: 220px; }
+  body { font-family: 'DejaVu Sans', sans-serif; font-size: 11px; width: 220px; }
   .center { text-align: center; }
   .bold { font-weight: bold; }
   .line { border-top: 1px dashed #000; margin: 4px 0; }
@@ -49,7 +49,7 @@
     <tr>
       <td>{{ $item->item_name }}</td>
       <td class="center">{{ $item->quantity }}</td>
-      <td class="right">₹{{ number_format($item->subtotal, 2) }}</td>
+      <td class="right">&#8377;{{ number_format($item->subtotal, 2) }}</td>
     </tr>
     @if($item->notes)
     <tr><td colspan="3" style="font-size:10px;color:#555;">  * {{ $item->notes }}</td></tr>
@@ -59,23 +59,27 @@
 
   <div class="line"></div>
   <table>
-    <tr><td>Subtotal</td><td class="right">₹{{ number_format($invoice->subtotal, 2) }}</td></tr>
-    <tr><td>GST ({{ $invoice->gst_rate }}%)</td><td class="right">₹{{ number_format($invoice->gst_amount, 2) }}</td></tr>
+    <tr><td>Subtotal</td><td class="right">&#8377;{{ number_format($invoice->subtotal, 2) }}</td></tr>
+    <tr><td>GST ({{ $invoice->gst_rate }}%)</td><td class="right">&#8377;{{ number_format($invoice->gst_amount, 2) }}</td></tr>
     @if($invoice->discount_amount > 0)
-    <tr><td>Discount</td><td class="right">-₹{{ number_format($invoice->discount_amount, 2) }}</td></tr>
+    <tr><td>Discount</td><td class="right">-&#8377;{{ number_format($invoice->discount_amount, 2) }}</td></tr>
     @endif
-    <tr class="total-row"><td>TOTAL</td><td class="right">₹{{ number_format($invoice->total, 2) }}</td></tr>
-    <tr><td>Paid ({{ strtoupper($invoice->payment_method) }})</td><td class="right">₹{{ number_format($invoice->amount_paid, 2) }}</td></tr>
+    <tr class="total-row"><td>TOTAL</td><td class="right">&#8377;{{ number_format($invoice->total, 2) }}</td></tr>
+    <tr><td>Paid ({{ strtoupper($invoice->payment_method) }})</td><td class="right">&#8377;{{ number_format($invoice->amount_paid, 2) }}</td></tr>
     @if($invoice->amount_due > 0)
-    <tr><td class="bold">Balance Due</td><td class="right bold">₹{{ number_format($invoice->amount_due, 2) }}</td></tr>
+    <tr><td class="bold">Balance Due</td><td class="right bold">&#8377;{{ number_format($invoice->amount_due, 2) }}</td></tr>
     @endif
   </table>
 
-  @if(isset($upiQr) && $invoice->amount_due > 0)
+  @if(isset($upiQr))
   <div class="line"></div>
   <div class="upi">
-    <div style="font-size:10px;margin-bottom:3px;">Scan to pay ₹{{ number_format($invoice->amount_due, 2) }}</div>
-    <img src="data:image/png;base64,{{ $upiQr }}" width="100" height="100" />
+    @if($invoice->amount_due > 0)
+    <div style="font-size:10px;margin-bottom:3px;">Scan to pay balance &#8377;{{ number_format($invoice->amount_due, 2) }}</div>
+    @else
+    <div style="font-size:10px;margin-bottom:3px;">UPI Payment</div>
+    @endif
+    {!! $upiQr !!}
   </div>
   @endif
 

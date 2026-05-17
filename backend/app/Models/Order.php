@@ -8,10 +8,14 @@ use Illuminate\Support\Str;
 class Order extends Model
 {
     protected $fillable = [
-        'tenant_id', 'restaurant_table_id', 'room_id', 'waiter_id',
-        'order_number', 'type', 'status', 'notes',
+        'tenant_id', 'restaurant_table_id', 'room_id', 'booking_id', 'waiter_id',
+        'order_number', 'type', 'status', 'preparing_at', 'notes',
         'subtotal', 'tax', 'discount', 'total',
         'customer_name', 'customer_phone',
+    ];
+
+    protected $casts = [
+        'preparing_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -27,6 +31,7 @@ class Order extends Model
     public function items()   { return $this->hasMany(OrderItem::class); }
     public function invoice() { return $this->hasOne(Invoice::class); }
     public function booking() { return $this->belongsTo(Booking::class); }
+    public function room()    { return $this->belongsTo(Room::class, 'room_id'); }
 
     public function recalculate(): void
     {

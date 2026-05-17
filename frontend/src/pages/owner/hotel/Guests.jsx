@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  PlusIcon, MagnifyingGlassIcon, PencilSquareIcon, UsersIcon,
+} from '@heroicons/react/24/outline'
 import { getGuests, createGuest, updateGuest, getGuest } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
 
@@ -138,40 +141,60 @@ export default function Guests() {
   return (
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">Guests</h2>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Guests</h2>
+          <p className="text-sm text-gray-400 mt-0.5">{guests.length} registered guests</p>
+        </div>
         <button onClick={() => { setEditing(null); setShowForm(true) }}
-          className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600">
-          + Add Guest
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+          <PlusIcon className="w-4 h-4" />Add Guest
         </button>
       </div>
 
-      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name or phone…"
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+      <div className="relative mb-5">
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name or phone…"
+          className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white" />
+      </div>
 
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">ID Proof</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Company</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Stays</th>
-              <th className="px-4 py-3"></th>
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50/60">
+              {['Name', 'Phone', 'ID Proof', 'Company', 'Stays', ''].map(h => (
+                <th key={h} className={`${h === 'Stays' ? 'text-right' : 'text-left'} px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider`}>{h}</th>
+              ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-50">
             {guests.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">No guests found</td></tr>
+              <tr>
+                <td colSpan={6} className="text-center py-16">
+                  <UsersIcon className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                  <p className="text-gray-400 font-medium">No guests found</p>
+                </td>
+              </tr>
             ) : guests.map(g => (
-              <tr key={g.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setViewGuest(g.id)}>
-                <td className="px-4 py-3 font-medium text-gray-900">{g.name}</td>
-                <td className="px-4 py-3 text-gray-600">{g.phone}</td>
-                <td className="px-4 py-3 text-gray-500 capitalize">{g.id_proof_type?.replace('_', ' ') ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-500">{g.company ?? '—'}</td>
-                <td className="px-4 py-3 text-right text-gray-600">{g.bookings_count ?? 0}</td>
-                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => { setEditing(g); setShowForm(true) }} className="text-blue-500 text-xs hover:underline">Edit</button>
+              <tr key={g.id} className="hover:bg-gray-50/80 transition-colors cursor-pointer" onClick={() => setViewGuest(g.id)}>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center font-bold text-white text-xs shrink-0">
+                      {g.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-semibold text-gray-900">{g.name}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-4 text-gray-600 text-sm">{g.phone}</td>
+                <td className="px-5 py-4 text-gray-500 text-xs capitalize">{g.id_proof_type?.replace('_', ' ') ?? '—'}</td>
+                <td className="px-5 py-4 text-gray-500 text-sm">{g.company ?? '—'}</td>
+                <td className="px-5 py-4 text-right">
+                  <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{g.bookings_count ?? 0}</span>
+                </td>
+                <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => { setEditing(g); setShowForm(true) }}
+                    className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">
+                    <PencilSquareIcon className="w-3.5 h-3.5" />Edit
+                  </button>
                 </td>
               </tr>
             ))}

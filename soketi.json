@@ -1,0 +1,20 @@
+{
+  "debug": false,
+  "host": "127.0.0.1",
+  "port": 6001,
+  "appManager.driver": "array",
+  "appManager.array.apps": [
+    {
+      "id": "hotel-app",
+      "key": "hotel-local-key",
+      "secret": "hotel-local-secret",
+      "maxConnections": -1,
+      "enableClientMessages": false,
+      "enabled": true,
+      "maxBackendEventsPerSecond": -1,
+      "maxClientEventsPerSecond": -1,
+      "maxReadRequestsPerSecond": -1,
+      "webhooks": []
+    }
+  ]
+}

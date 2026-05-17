@@ -29,7 +29,9 @@ class RestaurantTable extends Model
 
     public function occupy(): void
     {
-        $this->update(['status' => 'occupied', 'occupied_since' => now()]);
+        if ($this->status !== 'occupied') {
+            $this->update(['status' => 'occupied', 'occupied_since' => now()]);
+        }
     }
 
     public function free(): void

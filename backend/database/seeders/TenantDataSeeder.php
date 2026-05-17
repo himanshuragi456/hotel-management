@@ -192,10 +192,21 @@ class TenantDataSeeder extends Seeder
                     ['name' => 'Fresh Lime Soda',       'price' => 70,  'type' => 'veg', 'description' => 'Sweet or salted lime soda'],
                     ['name' => 'Mango Lassi',           'price' => 100, 'type' => 'veg', 'description' => 'Thick yogurt drink blended with fresh mango'],
                     ['name' => 'Sweet Lassi',           'price' => 80,  'type' => 'veg', 'description' => 'Chilled sweetened yogurt drink'],
-                    ['name' => 'Mineral Water (1L)',    'price' => 30,  'type' => 'veg', 'description' => 'Packaged mineral water'],
-                    ['name' => 'Soft Drink',            'price' => 50,  'type' => 'veg', 'description' => 'Pepsi / Coke / Sprite (330ml can)'],
+                    ['name' => 'Mineral Water (1L)',    'price' => 30,  'type' => 'veg', 'description' => 'Packaged mineral water',    'is_ready_made' => true],
+                    ['name' => 'Mineral Water (500ml)', 'price' => 20,  'type' => 'veg', 'description' => 'Packaged mineral water',    'is_ready_made' => true],
+                    ['name' => 'Soft Drink',            'price' => 50,  'type' => 'veg', 'description' => 'Pepsi / Coke / Sprite (330ml can)', 'is_ready_made' => true],
                     ['name' => 'Mojito (Virgin)',       'price' => 120, 'type' => 'veg', 'description' => 'Mint, lime & soda mocktail'],
                     ['name' => 'Watermelon Juice',      'price' => 90,  'type' => 'veg', 'description' => 'Fresh seasonal watermelon juice'],
+                ],
+            ],
+            [
+                'name' => 'Packaged Snacks', 'sort_order' => 10,
+                'items' => [
+                    ['name' => 'Kurkure',               'price' => 20,  'type' => 'veg', 'description' => 'Masala puffed corn snack (30g)',   'is_ready_made' => true],
+                    ['name' => 'Lays Classic',           'price' => 20,  'type' => 'veg', 'description' => 'Salted potato chips (26g)',         'is_ready_made' => true],
+                    ['name' => 'Lays Masala',            'price' => 20,  'type' => 'veg', 'description' => 'Masala flavour chips (26g)',         'is_ready_made' => true],
+                    ['name' => 'Biscuits (Parle-G)',     'price' => 10,  'type' => 'veg', 'description' => 'Classic Parle-G biscuit pack',       'is_ready_made' => true],
+                    ['name' => 'Peanuts (Salted)',       'price' => 30,  'type' => 'veg', 'description' => 'Roasted salted peanuts',             'is_ready_made' => true],
                 ],
             ],
         ];
@@ -217,6 +228,7 @@ class TenantDataSeeder extends Seeder
                     'price'            => $item['price'],
                     'type'             => $item['type'],
                     'is_available'     => true,
+                    'is_ready_made'    => $item['is_ready_made'] ?? false,
                     'sort_order'       => $i + 1,
                 ]);
             }
@@ -271,21 +283,6 @@ class TenantDataSeeder extends Seeder
     // -------------------------------------------------------------------------
     private function seedFeedbackQr(int $tid, string $tenantName): void
     {
-        if (FeedbackQrCode::where('tenant_id', $tid)->exists()) return;
-
-        $placements = [
-            ['label' => 'Reception',      'placement' => 'reception'],
-            ['label' => 'Dining Table',   'placement' => 'table'],
-            ['label' => 'Hotel Room',     'placement' => 'room'],
-        ];
-
-        foreach ($placements as $p) {
-            FeedbackQrCode::create([
-                'tenant_id' => $tid,
-                'label'     => $p['label'],
-                'placement' => $p['placement'],
-                'is_active' => true,
-            ]);
-        }
+        // QR codes are created by the owner after configuring their business — not pre-seeded.
     }
 }

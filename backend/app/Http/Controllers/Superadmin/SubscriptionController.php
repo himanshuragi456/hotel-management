@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Superadmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use Carbon\Carbon;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\TenantModule;
@@ -38,8 +39,10 @@ class SubscriptionController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'subscription_plan_id' => 'required|exists:subscription_plans,id',
-            'billing_cycle'        => 'required|in:monthly,yearly',
+            'billing_cycle'        => 'required|in:monthly,yearly,custom',
             'payment_gateway'      => 'required|in:stripe,razorpay,manual',
+            'expires_at'           => 'nullable|date|after:today',
+            'duration_months'      => 'nullable|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -48,6 +51,17 @@ class SubscriptionController extends Controller
 
         $plan = \App\Models\SubscriptionPlan::findOrFail($request->subscription_plan_id);
         $amount = $request->billing_cycle === 'yearly' ? $plan->price_yearly : $plan->price_monthly;
+
+        // Determine period end
+        if ($request->expires_at) {
+            $periodEnd = \Carbon\Carbon::parse($request->expires_at)->endOfDay();
+        } elseif ($request->duration_months) {
+            $periodEnd = now()->addMonths($request->duration_months);
+        } elseif ($request->billing_cycle === 'yearly') {
+            $periodEnd = now()->addYear();
+        } else {
+            $periodEnd = now()->addMonth();
+        }
 
         // Cancel existing active subscription
         Subscription::where('tenant_id', $tenant->id)
@@ -60,11 +74,9 @@ class SubscriptionController extends Controller
             'billing_cycle'        => $request->billing_cycle,
             'status'               => 'active',
             'payment_gateway'      => $request->payment_gateway,
-            'amount'               => $amount,
+            'amount'               => $request->amount ?? $amount,
             'current_period_start' => now(),
-            'current_period_end'   => $request->billing_cycle === 'yearly'
-                ? now()->addYear()
-                : now()->addMonth(),
+            'current_period_end'   => $periodEnd,
         ]);
 
         // Sync modules based on plan

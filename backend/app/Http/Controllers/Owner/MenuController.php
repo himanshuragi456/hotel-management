@@ -81,6 +81,7 @@ class MenuController extends Controller
             'price'            => 'required|numeric|min:0',
             'description'      => 'nullable|string',
             'type'             => 'in:veg,non-veg,vegan',
+            'is_ready_made'    => 'boolean',
             'image'            => 'nullable|image|max:2048',
             'sort_order'       => 'integer|min:0',
         ]);
@@ -98,6 +99,7 @@ class MenuController extends Controller
             'price'            => $request->price,
             'description'      => $request->description,
             'type'             => $request->type ?? 'veg',
+            'is_ready_made'    => $request->boolean('is_ready_made', false),
             'image'            => $imagePath,
             'sort_order'       => $request->sort_order ?? 0,
         ]);
@@ -113,6 +115,7 @@ class MenuController extends Controller
             'description'      => 'nullable|string',
             'type'             => 'in:veg,non-veg,vegan',
             'is_available'     => 'boolean',
+            'is_ready_made'    => 'boolean',
             'image'            => 'nullable|image|max:2048',
             'sort_order'       => 'integer|min:0',
             'menu_category_id' => 'exists:menu_categories,id',
@@ -126,7 +129,7 @@ class MenuController extends Controller
 
         $menuItem->update($request->only([
             'name', 'price', 'description', 'type',
-            'is_available', 'sort_order', 'menu_category_id',
+            'is_available', 'is_ready_made', 'sort_order', 'menu_category_id',
         ]));
         return $this->success($menuItem->load('category'));
     }

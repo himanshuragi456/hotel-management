@@ -14,9 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role'         => \App\Http\Middleware\CheckRole::class,
-            'tenant.scope' => \App\Http\Middleware\TenantScope::class,
-            'module'       => \App\Http\Middleware\CheckModule::class,
+            'role'                => \App\Http\Middleware\CheckRole::class,
+            'tenant.scope'        => \App\Http\Middleware\TenantScope::class,
+            'module'              => \App\Http\Middleware\CheckModule::class,
+            'check.subscription'  => \App\Http\Middleware\CheckSubscription::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

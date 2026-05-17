@@ -16,16 +16,35 @@ class KitchenController extends Controller
     public function orders(): JsonResponse
     {
         $orders = Order::where('tenant_id', auth()->user()->tenant_id)
-            ->whereIn('status', ['pending', 'preparing'])
-            ->with(['items', 'table'])
+            ->whereIn('status', ['pending', 'preparing', 'ready'])
+            ->with(['items', 'table', 'room'])
             ->oldest()
             ->get()
-            ->map(function ($order) {
-                $data = $order->toArray();
-                $data['elapsed_minutes'] = now()->diffInMinutes($order->created_at);
-                return $data;
-            });
+            ->map(fn($order) => $this->withTimings($order));
         return $this->success($orders);
+    }
+
+    private function withTimings(Order $order): array
+    {
+        $data = $order->toArray();
+        $mins = (int) round(abs(now()->diffInRealMinutes($order->created_at)));
+        $data['elapsed_minutes'] = $mins;
+        $data['elapsed_label']   = $this->fmtMins($mins);
+
+        if ($order->preparing_at) {
+            $km = (int) round(abs(now()->diffInRealMinutes($order->preparing_at)));
+            $data['kitchen_minutes'] = $km;
+            $data['kitchen_label']   = $this->fmtMins($km);
+        } else {
+            $data['kitchen_minutes'] = null;
+            $data['kitchen_label']   = null;
+        }
+        return $data;
+    }
+
+    private function fmtMins(int $mins): string
+    {
+        return $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm' : $mins . 'm';
     }
 
     public function updateStatus(Request $request, Order $order): JsonResponse
@@ -44,8 +63,11 @@ class KitchenController extends Controller
             return $this->error("Invalid status transition to '{$next}'");
         }
 
-        $order->update(['status' => $next]);
-        broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
+        $order->update([
+            'status'       => $next,
+            'preparing_at' => $next === 'preparing' ? now() : $order->preparing_at,
+        ]);
+        broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers();
 
         return $this->success(['status' => $order->fresh()->status], 'Status updated');
     }

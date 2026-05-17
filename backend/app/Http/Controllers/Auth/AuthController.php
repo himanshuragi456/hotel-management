@@ -53,6 +53,19 @@ class AuthController extends Controller
         return $this->success(null, 'Logged out successfully');
     }
 
+    public function loginAs(Request $request): JsonResponse
+    {
+        $tenantId = $request->input('tenant_id');
+        $owner = User::where('tenant_id', $tenantId)->where('role', 'owner')->first();
+
+        if (! $owner) {
+            return $this->notFound('No owner found for this tenant');
+        }
+
+        $token = JWTAuth::fromUser($owner);
+        return $this->respondWithToken($token, $owner);
+    }
+
     public function refresh(): JsonResponse
     {
         try {
@@ -65,6 +78,16 @@ class AuthController extends Controller
 
     private function respondWithToken(string $token, User $user): JsonResponse
     {
+        $modules = null;
+        if ($user->tenant_id) {
+            $m = \App\Models\TenantModule::where('tenant_id', $user->tenant_id)->first();
+            $modules = $m ? [
+                'restaurant' => (bool) $m->restaurant,
+                'hotel'      => (bool) $m->hotel,
+                'feedback'   => (bool) $m->feedback,
+            ] : null;
+        }
+
         return $this->success([
             'access_token' => $token,
             'token_type'   => 'bearer',
@@ -76,6 +99,7 @@ class AuthController extends Controller
                 'role'      => $user->role,
                 'tenant_id' => $user->tenant_id,
                 'phone'     => $user->phone,
+                'modules'   => $modules,
             ],
         ]);
     }

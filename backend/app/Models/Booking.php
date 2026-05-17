@@ -50,7 +50,7 @@ class Booking extends Model
 
     public function getServiceChargesAttribute(): float
     {
-        return (float) $this->orders()->sum('total');
+        return (float) $this->orders()->whereNotIn('status', ['cancelled'])->whereDoesntHave('invoice')->sum('total');
     }
 
     public function getTotalAmountAttribute(): float

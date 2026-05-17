@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Room;
 use App\Traits\ApiResponse;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,6 +22,8 @@ class BookingController extends Controller
             'service_charges' => $booking->service_charges,
             'total_amount'    => $booking->total_amount,
             'balance_due'     => $booking->balance_due,
+            'is_overdue'      => $booking->status === 'checked_in'
+                                 && now()->startOfDay()->gt(\Carbon\Carbon::parse($booking->check_out_date)->startOfDay()),
         ]);
     }
 
@@ -82,6 +85,9 @@ class BookingController extends Controller
             'tenant_id'      => $tid,
             'created_by'     => auth()->id(),
             'price_per_night'=> $room->price_per_night,
+            'advance_paid'   => $data['advance_paid'] ?? 0,
+            'adults'         => $data['adults'] ?? 1,
+            'children'       => $data['children'] ?? 0,
         ]));
 
         $booking->load(['guest', 'room']);
@@ -130,6 +136,64 @@ class BookingController extends Controller
         $booking->room->occupy();
 
         return $this->success($this->bookingData($booking->fresh()->load(['guest', 'room'])), 'Checked in successfully');
+    }
+
+    public function checkoutSummary(Request $request, Booking $booking): JsonResponse
+    {
+        if ($booking->tenant_id !== $request->_tenant_id) return $this->notFound();
+
+        $booking->load(['guest', 'room']);
+
+        $unbilledOrders = $booking->orders()
+            ->whereNotIn('status', ['cancelled'])
+            ->whereDoesntHave('invoice')
+            ->with('items')
+            ->orderBy('created_at')
+            ->get();
+
+        // Group by date so the frontend can render a timeline per day
+        $byDate = $unbilledOrders->groupBy(fn($o) => Carbon::parse($o->created_at)->toDateString())
+            ->map(fn($orders, $date) => [
+                'date'   => $date,
+                'orders' => $orders->map(fn($o) => [
+                    'id'           => $o->id,
+                    'order_number' => $o->order_number,
+                    'status'       => $o->status,
+                    'total'        => $o->total,
+                    'items'        => $o->items->map(fn($i) => [
+                        'name'      => $i->item_name,
+                        'quantity'  => $i->quantity,
+                        'price'     => $i->item_price,
+                        'subtotal'  => $i->subtotal,
+                    ]),
+                ]),
+                'day_total' => $orders->sum('total'),
+            ])->values();
+
+        return $this->success(array_merge($this->bookingData($booking), [
+            'unbilled_orders'       => $unbilledOrders,
+            'unbilled_orders_by_date' => $byDate,
+            'unbilled_food_total'   => $unbilledOrders->sum('total'),
+        ]));
+    }
+
+    public function extendStay(Request $request, Booking $booking): JsonResponse
+    {
+        if ($booking->tenant_id !== $request->_tenant_id) return $this->notFound();
+        if ($booking->status !== 'checked_in') {
+            return $this->error('Can only extend an active check-in', 422);
+        }
+
+        $data = $request->validate([
+            'check_out_date' => 'required|date|after:' . $booking->check_in_date . '|after_or_equal:today',
+        ]);
+
+        $booking->update(['check_out_date' => $data['check_out_date']]);
+
+        return $this->success(
+            $this->bookingData($booking->fresh()->load(['guest', 'room'])),
+            'Stay extended successfully'
+        );
     }
 
     public function checkOut(Request $request, Booking $booking): JsonResponse
@@ -214,9 +278,9 @@ class BookingController extends Controller
         $revenue = $bookings->sum('room_charges');
         $nights  = $bookings->sum('nights');
 
-        $byType = Booking::where('tenant_id', $tid)
-            ->whereNotIn('status', ['cancelled'])
-            ->whereBetween('check_in_date', [$from, $to])
+        $byType = Booking::where('bookings.tenant_id', $tid)
+            ->whereNotIn('bookings.status', ['cancelled'])
+            ->whereBetween('bookings.check_in_date', [$from, $to])
             ->join('rooms', 'bookings.room_id', '=', 'rooms.id')
             ->selectRaw('rooms.type, count(*) as bookings, sum(bookings.price_per_night * DATEDIFF(bookings.check_out_date, bookings.check_in_date)) as revenue')
             ->groupBy('rooms.type')

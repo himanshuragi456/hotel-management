@@ -6,6 +6,8 @@ use App\Http\Controllers\Chef\KitchenController;
 use App\Http\Controllers\Customer\MenuController as CustomerMenuController;
 use App\Http\Controllers\Owner\MenuController as OwnerMenuController;
 use App\Http\Controllers\Owner\RevenueController;
+use App\Http\Controllers\Owner\SettingsController;
+use App\Http\Controllers\Owner\StaffController;
 use App\Http\Controllers\Owner\TableController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Owner\AnalyticsController;
@@ -13,7 +15,9 @@ use App\Http\Controllers\Owner\Feedback\FeedbackController;
 use App\Http\Controllers\Owner\Hotel\BookingController;
 use App\Http\Controllers\Owner\Hotel\GuestController;
 use App\Http\Controllers\Owner\Hotel\RoomController;
+use App\Http\Controllers\Public\BrandingController as PublicBrandingController;
 use App\Http\Controllers\Public\FeedbackSubmissionController;
+use App\Http\Controllers\Superadmin\BrandingController as SuperadminBrandingController;
 use App\Http\Controllers\Waiter\OrderController as WaiterOrderController;
 use App\Http\Controllers\Waiter\RoomServiceController;
 use App\Http\Controllers\Superadmin\AuditLogController;
@@ -51,6 +55,8 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('refresh', [AuthController::class, 'refresh']);
     });
 
+    Route::middleware(['role:superadmin'])->post('auth/login-as', [AuthController::class, 'loginAs']);
+
     /*
     |----------------------------------------------------------------------
     | Superadmin routes
@@ -65,6 +71,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::delete('tenants/{tenant}', [TenantController::class, 'destroy']);
         Route::put('tenants/{tenant}/modules', [TenantController::class, 'updateModules']);
         Route::get('tenants/{tenant}/stats', [TenantController::class, 'stats']);
+        Route::put('tenants/{tenant}/ai-settings', [TenantController::class, 'updateAiSettings']);
 
         // Subscription plans
         Route::apiResource('plans', SubscriptionPlanController::class);
@@ -87,6 +94,10 @@ Route::middleware(['auth:api'])->group(function () {
         // Audit logs
         Route::get('audit-logs', [AuditLogController::class, 'index']);
         Route::delete('audit-logs/purge', [AuditLogController::class, 'purge']);
+
+        // Branding / sales config
+        Route::get('branding', [SuperadminBrandingController::class, 'show']);
+        Route::post('branding', [SuperadminBrandingController::class, 'update']);
     });
 
     /*
@@ -94,94 +105,150 @@ Route::middleware(['auth:api'])->group(function () {
     | Tenant-scoped routes (all non-superadmin roles)
     |----------------------------------------------------------------------
     */
-    Route::middleware(['tenant.scope'])->group(function () {
+    Route::middleware(['tenant.scope', 'check.subscription'])->group(function () {
 
         // Owner routes
         Route::middleware(['role:owner'])->prefix('owner')->group(function () {
-            // Menu categories
-            Route::get('menu/categories', [OwnerMenuController::class, 'categories']);
-            Route::post('menu/categories', [OwnerMenuController::class, 'storeCategory']);
-            Route::put('menu/categories/{menuCategory}', [OwnerMenuController::class, 'updateCategory']);
-            Route::delete('menu/categories/{menuCategory}', [OwnerMenuController::class, 'destroyCategory']);
-            // Menu items
-            Route::get('menu/items', [OwnerMenuController::class, 'items']);
-            Route::post('menu/items', [OwnerMenuController::class, 'storeItem']);
-            Route::put('menu/items/{menuItem}', [OwnerMenuController::class, 'updateItem']);
-            Route::delete('menu/items/{menuItem}', [OwnerMenuController::class, 'destroyItem']);
-            Route::post('menu/items/bulk-toggle', [OwnerMenuController::class, 'bulkToggle']);
-            // Tables
-            Route::get('tables', [TableController::class, 'index']);
-            Route::post('tables', [TableController::class, 'store']);
-            Route::put('tables/{restaurantTable}', [TableController::class, 'update']);
-            Route::delete('tables/{restaurantTable}', [TableController::class, 'destroy']);
-            Route::get('tables/{restaurantTable}/qr', [TableController::class, 'qrCode']);
-            // Revenue & reports
-            Route::get('orders/live', [RevenueController::class, 'liveOrders']);
-            Route::get('revenue/today', [RevenueController::class, 'todayRevenue']);
-            Route::get('orders/report', [RevenueController::class, 'ordersReport']);
-            Route::get('orders/export/pdf', [RevenueController::class, 'exportPdf']);
-            // Expenses
+            // Restaurant module — menu, tables, revenue, expenses, reports
+            Route::middleware(['module:restaurant'])->group(function () {
+                Route::get('menu/categories', [OwnerMenuController::class, 'categories']);
+                Route::post('menu/categories', [OwnerMenuController::class, 'storeCategory']);
+                Route::put('menu/categories/{menuCategory}', [OwnerMenuController::class, 'updateCategory']);
+                Route::delete('menu/categories/{menuCategory}', [OwnerMenuController::class, 'destroyCategory']);
+                Route::get('menu/items', [OwnerMenuController::class, 'items']);
+                Route::post('menu/items', [OwnerMenuController::class, 'storeItem']);
+                Route::put('menu/items/{menuItem}', [OwnerMenuController::class, 'updateItem']);
+                Route::delete('menu/items/{menuItem}', [OwnerMenuController::class, 'destroyItem']);
+                Route::post('menu/items/bulk-toggle', [OwnerMenuController::class, 'bulkToggle']);
+                Route::get('tables', [TableController::class, 'index']);
+                Route::post('tables', [TableController::class, 'store']);
+                Route::put('tables/{restaurantTable}', [TableController::class, 'update']);
+                Route::delete('tables/{restaurantTable}', [TableController::class, 'destroy']);
+                Route::get('tables/{restaurantTable}/qr', [TableController::class, 'qrCode']);
+                Route::get('orders/report', [RevenueController::class, 'ordersReport']);
+                Route::get('orders/export/pdf', [RevenueController::class, 'exportPdf']);
+                // Settings (qr_ordering_enabled — restaurant only)
+                Route::get('settings', [SettingsController::class, 'show']);
+                Route::put('settings', [SettingsController::class, 'update']);
+            });
+            // Expenses — available to all modules (hotel has salary, maintenance, etc.)
             Route::get('expenses', [RevenueController::class, 'expenses']);
             Route::post('expenses', [RevenueController::class, 'storeExpense']);
             Route::delete('expenses/{expense}', [RevenueController::class, 'destroyExpense']);
-            // Hotel — Rooms
-            Route::get('hotel/rooms', [RoomController::class, 'index']);
-            Route::post('hotel/rooms', [RoomController::class, 'store']);
-            Route::get('hotel/rooms/status', [RoomController::class, 'statusBoard']);
-            Route::get('hotel/rooms/{room}', [RoomController::class, 'show']);
-            Route::put('hotel/rooms/{room}', [RoomController::class, 'update']);
-            Route::delete('hotel/rooms/{room}', [RoomController::class, 'destroy']);
-            // Hotel — Guests
-            Route::get('hotel/guests', [GuestController::class, 'index']);
-            Route::post('hotel/guests', [GuestController::class, 'store']);
-            Route::get('hotel/guests/search', [GuestController::class, 'search']);
-            Route::get('hotel/guests/{guest}', [GuestController::class, 'show']);
-            Route::put('hotel/guests/{guest}', [GuestController::class, 'update']);
-            // Analytics
+            // Hotel module — rooms, guests, bookings
+            Route::middleware(['module:hotel'])->group(function () {
+                Route::get('hotel/rooms', [RoomController::class, 'index']);
+                Route::post('hotel/rooms', [RoomController::class, 'store']);
+                Route::get('hotel/rooms/status', [RoomController::class, 'statusBoard']);
+                Route::get('hotel/rooms/{room}', [RoomController::class, 'show']);
+                Route::put('hotel/rooms/{room}', [RoomController::class, 'update']);
+                Route::delete('hotel/rooms/{room}', [RoomController::class, 'destroy']);
+                Route::get('hotel/guests', [GuestController::class, 'index']);
+                Route::post('hotel/guests', [GuestController::class, 'store']);
+                Route::get('hotel/guests/search', [GuestController::class, 'search']);
+                Route::get('hotel/guests/{guest}', [GuestController::class, 'show']);
+                Route::put('hotel/guests/{guest}', [GuestController::class, 'update']);
+                Route::get('hotel/bookings', [BookingController::class, 'index']);
+                Route::post('hotel/bookings', [BookingController::class, 'store']);
+                Route::get('hotel/bookings/calendar', [BookingController::class, 'calendar']);
+                Route::get('hotel/bookings/occupancy', [BookingController::class, 'occupancyReport']);
+                Route::get('hotel/bookings/{booking}', [BookingController::class, 'show']);
+                Route::put('hotel/bookings/{booking}', [BookingController::class, 'update']);
+                Route::post('hotel/bookings/{booking}/check-in', [BookingController::class, 'checkIn']);
+                Route::post('hotel/bookings/{booking}/check-out', [BookingController::class, 'checkOut']);
+                Route::post('hotel/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+                Route::get('hotel/bookings/{booking}/checkout-summary', [BookingController::class, 'checkoutSummary']);
+                Route::patch('hotel/bookings/{booking}/extend', [BookingController::class, 'extendStay']);
+            });
+            // Feedback module
+            Route::middleware(['module:feedback'])->group(function () {
+                Route::get('feedback/qr-codes', [FeedbackController::class, 'listQrCodes']);
+                Route::post('feedback/qr-codes', [FeedbackController::class, 'createQrCode']);
+                Route::put('feedback/qr-codes/{qrCode}', [FeedbackController::class, 'updateQrCode']);
+                Route::delete('feedback/qr-codes/{qrCode}', [FeedbackController::class, 'deleteQrCode']);
+                Route::get('feedback/qr-codes/{qrCode}/download', [FeedbackController::class, 'downloadQrPng']);
+                Route::get('feedback/review-config', [FeedbackController::class, 'getReviewConfig']);
+                Route::put('feedback/review-config', [FeedbackController::class, 'updateReviewConfig']);
+                Route::post('feedback/find-place', [FeedbackController::class, 'findPlace']);
+                Route::get('feedback/dashboard', [FeedbackController::class, 'dashboard']);
+            });
+            // Available regardless of module (dashboard stats + staff management always needed)
+            Route::get('orders/live', [RevenueController::class, 'liveOrders']);
+            Route::get('revenue/today', [RevenueController::class, 'todayRevenue']);
             Route::get('analytics/overview', [AnalyticsController::class, 'overview']);
             Route::get('analytics/audit-log', [AnalyticsController::class, 'ownerAuditLog']);
-            // Feedback — QR codes & dashboard
-            Route::get('feedback/qr-codes', [FeedbackController::class, 'listQrCodes']);
-            Route::post('feedback/qr-codes', [FeedbackController::class, 'createQrCode']);
-            Route::put('feedback/qr-codes/{qrCode}', [FeedbackController::class, 'updateQrCode']);
-            Route::delete('feedback/qr-codes/{qrCode}', [FeedbackController::class, 'deleteQrCode']);
-            Route::get('feedback/qr-codes/{qrCode}/download', [FeedbackController::class, 'downloadQrPng']);
-            Route::get('feedback/review-config', [FeedbackController::class, 'getReviewConfig']);
-            Route::put('feedback/review-config', [FeedbackController::class, 'updateReviewConfig']);
-            Route::get('feedback/dashboard', [FeedbackController::class, 'dashboard']);
-            // Hotel — Bookings
-            Route::get('hotel/bookings', [BookingController::class, 'index']);
-            Route::post('hotel/bookings', [BookingController::class, 'store']);
-            Route::get('hotel/bookings/calendar', [BookingController::class, 'calendar']);
-            Route::get('hotel/bookings/occupancy', [BookingController::class, 'occupancyReport']);
-            Route::get('hotel/bookings/{booking}', [BookingController::class, 'show']);
-            Route::put('hotel/bookings/{booking}', [BookingController::class, 'update']);
-            Route::post('hotel/bookings/{booking}/check-in', [BookingController::class, 'checkIn']);
-            Route::post('hotel/bookings/{booking}/check-out', [BookingController::class, 'checkOut']);
-            Route::post('hotel/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+            Route::get('staff', [StaffController::class, 'index']);
+            Route::post('staff', [StaffController::class, 'store']);
+            Route::put('staff/{id}', [StaffController::class, 'update']);
+            Route::delete('staff/{id}', [StaffController::class, 'destroy']);
+            Route::post('staff/{id}/toggle-active', [StaffController::class, 'toggleActive']);
         });
 
-        // Waiter routes
-        Route::middleware(['role:waiter,owner'])->prefix('waiter')->group(function () {
+        // Waiter routes — restaurant module only
+        Route::middleware(['role:waiter,owner', 'module:restaurant'])->prefix('waiter')->group(function () {
             Route::get('tables', [WaiterOrderController::class, 'tables']);
             Route::get('menu', [WaiterOrderController::class, 'menu']);
             Route::post('orders', [WaiterOrderController::class, 'store']);
-            Route::post('orders/{order}/items', [WaiterOrderController::class, 'addItems']);
             Route::get('orders/my', [WaiterOrderController::class, 'myOrders']);
-            // Room service
-            Route::get('room-service/active-rooms', [RoomServiceController::class, 'activeRooms']);
-            Route::post('room-service/orders', [RoomServiceController::class, 'placeOrder']);
+            Route::get('tables/{tableId}/orders', [WaiterOrderController::class, 'tableOrders']);
+            Route::get('orders/{order}', [WaiterOrderController::class, 'show']);
+            Route::post('orders/{order}/items', [WaiterOrderController::class, 'addItems']);
+            Route::post('orders/{order}/request-bill', [WaiterOrderController::class, 'requestBill']);
+            Route::post('orders/{order}/mark-served', [WaiterOrderController::class, 'markServed']);
+            // Room service — requires hotel module too (waiter placing room service in a combined tenant)
+            Route::middleware(['module:hotel'])->group(function () {
+                Route::get('room-service/active-rooms', [RoomServiceController::class, 'activeRooms']);
+                Route::post('room-service/orders', [RoomServiceController::class, 'placeOrder']);
+            });
         });
 
-        // Chef routes
-        Route::middleware(['role:chef,owner'])->prefix('chef')->group(function () {
+        // Chef routes — restaurant module only
+        Route::middleware(['role:chef,owner', 'module:restaurant'])->prefix('chef')->group(function () {
             Route::get('orders', [KitchenController::class, 'orders']);
             Route::put('orders/{order}/status', [KitchenController::class, 'updateStatus']);
         });
 
-        // Billing routes
+        // Billing routes — split by module
         Route::middleware(['role:billing,owner'])->prefix('billing')->group(function () {
+            // Restaurant billing — tables, food orders, invoices
+            Route::middleware(['module:restaurant'])->group(function () {
+                Route::get('tables', [InvoiceController::class, 'tables']);
+                Route::get('tables/{tableId}/orders', [InvoiceController::class, 'tableOrders']);
+                Route::get('tables/{tableId}/history', [InvoiceController::class, 'tableHistory']);
+                Route::post('tables/{tableId}/close', [InvoiceController::class, 'closeTable']);
+                Route::post('tables/{tableId}/bill-all', [InvoiceController::class, 'billAll']);
+                Route::post('orders', [InvoiceController::class, 'newOrderForTable']);
+                Route::post('orders/{order}/items', [InvoiceController::class, 'addItems']);
+                Route::post('orders/{order}/mark-served', [InvoiceController::class, 'markServed']);
+                Route::get('menu', [InvoiceController::class, 'getBillingMenu']);
+                Route::get('staff/waiters', [InvoiceController::class, 'waiters']);
+            });
+            // Hotel billing — bookings, rooms, guests
+            Route::middleware(['module:hotel'])->group(function () {
+                Route::get('hotel/rooms/status', [RoomController::class, 'statusBoard']);
+                Route::get('hotel/rooms', [RoomController::class, 'index']);
+                Route::get('hotel/active-rooms', [RoomServiceController::class, 'activeRooms']);
+                Route::get('hotel/bookings', [BookingController::class, 'index']);
+                Route::post('hotel/bookings', [BookingController::class, 'store']);
+                Route::get('hotel/bookings/{booking}', [BookingController::class, 'show']);
+                Route::put('hotel/bookings/{booking}', [BookingController::class, 'update']);
+                Route::post('hotel/bookings/{booking}/check-in', [BookingController::class, 'checkIn']);
+                Route::post('hotel/bookings/{booking}/check-out', [BookingController::class, 'checkOut']);
+                Route::post('hotel/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+                Route::get('hotel/bookings/{booking}/checkout-summary', [BookingController::class, 'checkoutSummary']);
+                Route::patch('hotel/bookings/{booking}/extend', [BookingController::class, 'extendStay']);
+                Route::get('hotel/guests/search', [GuestController::class, 'search']);
+                Route::post('hotel/guests', [GuestController::class, 'store']);
+            });
+            // Room service — only when both hotel and restaurant are active
+            Route::middleware(['module:hotel', 'module:restaurant'])->group(function () {
+                Route::get('hotel/bookings/{bookingId}/orders', [InvoiceController::class, 'bookingOrders']);
+                Route::post('orders/{order}/mark-served-room', [InvoiceController::class, 'markServedRoom']);
+                Route::post('hotel/room-service/orders', [RoomServiceController::class, 'placeOrder']);
+            });
+            // Cross-module: invoices and active-order feed available if any module active
             Route::get('orders/ready', [InvoiceController::class, 'readyOrders']);
+            Route::get('orders/active', [InvoiceController::class, 'activeOrders']);
             Route::get('orders', [InvoiceController::class, 'allOrders']);
             Route::post('invoices', [InvoiceController::class, 'store']);
             Route::get('invoices/{invoice}', [InvoiceController::class, 'show']);
@@ -197,6 +264,9 @@ Route::middleware(['auth:api'])->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('public')->group(function () {
+    // System branding (no auth — shown on all public pages)
+    Route::get('branding', [PublicBrandingController::class, 'show']);
+
     // Customer QR menu + ordering (no auth)
     Route::get('menu/{tenantSlug}/{qrToken}', [CustomerMenuController::class, 'menu']);
     Route::post('menu/{tenantSlug}/{qrToken}/order', [CustomerMenuController::class, 'placeOrder']);

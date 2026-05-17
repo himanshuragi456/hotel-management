@@ -1,31 +1,68 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  PlusIcon, PencilSquareIcon, TrashIcon, QrCodeIcon,
+  CheckCircleIcon, ClockIcon, UserGroupIcon,
+} from '@heroicons/react/24/outline'
 import { getTables, createTable, updateTable, deleteTable, getTableQr } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
-import useAuthStore from '@/store/authStore'
+import { formatOccupied } from '@/utils/time'
+
+const URGENCY_CONFIG = {
+  high:   { border: 'border-red-400',    bg: 'bg-red-50',    dot: 'bg-red-500',    text: 'text-red-700'    },
+  medium: { border: 'border-yellow-400', bg: 'bg-yellow-50', dot: 'bg-yellow-500', text: 'text-yellow-700' },
+  low:    { border: 'border-orange-300', bg: 'bg-orange-50', dot: 'bg-orange-400', text: 'text-orange-700' },
+  free:   { border: 'border-gray-200',   bg: 'bg-white',     dot: 'bg-green-500',  text: 'text-green-700'  },
+}
 
 function TableCard({ table, onEdit, onDelete, onQr }) {
-  const mins = table.occupied_minutes
-  const urgency = mins > 60 ? 'border-red-400 bg-red-50' : mins > 30 ? 'border-yellow-400 bg-yellow-50' : 'border-green-300 bg-green-50'
+  const mins = table.occupied_minutes ?? 0
+  const urgencyKey = table.status !== 'occupied' ? 'free' : mins > 60 ? 'high' : mins > 30 ? 'medium' : 'low'
+  const cfg = URGENCY_CONFIG[urgencyKey]
 
   return (
-    <div className={`rounded-xl border-2 p-4 relative ${table.status === 'occupied' ? urgency : 'border-gray-200 bg-white'}`}>
-      <div className="text-2xl font-bold text-gray-900 mb-1">T{table.number}</div>
-      {table.section && <div className="text-xs text-gray-500 mb-2">{table.section}</div>}
-      <div className={`text-xs font-medium mb-1 ${table.status === 'free' ? 'text-green-600' : 'text-orange-600'}`}>
-        {table.status === 'free' ? '✓ Free' : `🕐 ${mins}m occupied`}
+    <div className={`rounded-2xl border-2 p-4 relative transition-all hover:shadow-md ${cfg.border} ${cfg.bg}`}>
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <div className="text-2xl font-bold text-gray-900">T{table.number}</div>
+          {table.section && <div className="text-xs text-gray-500">{table.section}</div>}
+        </div>
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => onQr(table)}
+            className="w-7 h-7 rounded-lg hover:bg-white/60 flex items-center justify-center transition-colors">
+            <QrCodeIcon className="w-4 h-4 text-gray-500" />
+          </button>
+          <button onClick={() => onEdit(table)}
+            className="w-7 h-7 rounded-lg hover:bg-white/60 flex items-center justify-center transition-colors">
+            <PencilSquareIcon className="w-4 h-4 text-blue-500" />
+          </button>
+          <button onClick={() => onDelete(table)}
+            className="w-7 h-7 rounded-lg hover:bg-white/60 flex items-center justify-center transition-colors">
+            <TrashIcon className="w-4 h-4 text-red-400" />
+          </button>
+        </div>
       </div>
-      <div className="text-xs text-gray-400">{table.capacity} seats</div>
+
+      <div className={`flex items-center gap-1.5 text-xs font-semibold mb-1 ${cfg.text}`}>
+        <div className={`w-2 h-2 rounded-full ${cfg.dot} ${table.status === 'occupied' ? 'animate-pulse' : ''}`} />
+        {table.status === 'free' ? 'Free' : formatOccupied(mins)}
+      </div>
+
+      <div className="flex items-center gap-1 text-xs text-gray-400">
+        <UserGroupIcon className="w-3.5 h-3.5" />
+        {table.capacity} seats
+      </div>
+
       {table.status === 'occupied' && table.active_order && (
-        <div className="mt-2 text-xs text-gray-600">
-          {table.active_order.items?.length} items · ₹{table.active_order.total}
+        <div className="mt-2 pt-2 border-t border-white/50 text-xs">
+          <span className={`px-1.5 py-0.5 rounded-md font-medium capitalize ${
+            table.active_order.status === 'ready' ? 'bg-green-100 text-green-700' :
+            table.active_order.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
+            'bg-yellow-100 text-yellow-700'
+          }`}>{table.active_order.status}</span>
+          <span className="text-gray-500 ml-1">· {table.active_order.items?.length} items</span>
         </div>
       )}
-      <div className="absolute top-2 right-2 flex gap-1">
-        <button onClick={() => onQr(table)} className="text-gray-400 hover:text-gray-600 text-xs">QR</button>
-        <button onClick={() => onEdit(table)} className="text-blue-400 hover:text-blue-600 text-xs">✎</button>
-        <button onClick={() => onDelete(table)} className="text-red-400 hover:text-red-500 text-xs">✕</button>
-      </div>
     </div>
   )
 }
@@ -39,27 +76,28 @@ function TableForm({ table, onSuccess }) {
     onSuccess: () => onSuccess?.(),
     onError: (err) => setError(err.response?.data?.message ?? 'Error'),
   })
-  const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400'
+  const inp = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50'
   return (
-    <form onSubmit={(e) => { e.preventDefault(); setError(''); mutation.mutate(form) }} className="space-y-3">
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+    <form onSubmit={(e) => { e.preventDefault(); setError(''); mutation.mutate(form) }} className="space-y-4">
+      {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Table Number *</label>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Table Number *</label>
         <input required value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))} className={inp} placeholder="e.g. 1, A1, T-12" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Capacity</label>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity</label>
           <input type="number" min="1" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} className={inp} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Section</label>
-          <input value={form.section} onChange={e => setForm(f => ({ ...f, section: e.target.value }))} className={inp} placeholder="e.g. Ground Floor" />
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Section</label>
+          <input value={form.section} onChange={e => setForm(f => ({ ...f, section: e.target.value }))} className={inp} placeholder="Ground Floor, Terrace…" />
         </div>
       </div>
       <div className="flex justify-end">
-        <button type="submit" disabled={mutation.isPending} className="bg-orange-500 text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
-          {mutation.isPending ? 'Saving…' : isEdit ? 'Save' : 'Add Table'}
+        <button type="submit" disabled={mutation.isPending}
+          className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
+          {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Table'}
         </button>
       </div>
     </form>
@@ -84,33 +122,72 @@ export default function TableManager() {
   })
 
   const handleQr = async (table) => {
-    const blob = await getTableQr(table.id).then(r => r.data)
-    setQrUrl(URL.createObjectURL(blob))
+    const res = await getTableQr(table.id)
+    const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(res.data)
+    setQrUrl(dataUrl)
   }
 
-  const free = tables?.filter(t => t.status === 'free').length ?? 0
+  const free     = tables?.filter(t => t.status === 'free').length ?? 0
   const occupied = tables?.filter(t => t.status === 'occupied').length ?? 0
+
+  const sections = tables?.reduce((acc, t) => {
+    const s = t.section || 'Other'
+    if (!acc[s]) acc[s] = []
+    acc[s].push(t)
+    return acc
+  }, {}) ?? {}
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Tables</h2>
-          <p className="text-sm text-gray-400">{free} free · {occupied} occupied</p>
+          <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-3">
+            <span className="flex items-center gap-1"><CheckCircleIcon className="w-3.5 h-3.5 text-green-500" />{free} free</span>
+            <span className="flex items-center gap-1"><ClockIcon className="w-3.5 h-3.5 text-orange-500" />{occupied} occupied</span>
+          </p>
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true) }}
-          className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600">
-          + Add Table
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+          <PlusIcon className="w-4 h-4" />
+          Add Table
         </button>
       </div>
 
-      {isLoading ? <div className="text-gray-400">Loading…</div> : (
+      {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {tables?.map(table => (
-            <TableCard key={table.id} table={table}
-              onEdit={(t) => { setEditing(t); setShowForm(true) }}
-              onDelete={(t) => confirm(`Delete table ${t.number}?`) && delTable.mutate(t.id)}
-              onQr={handleQr} />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-28 rounded-2xl bg-gray-100 animate-pulse" />
+          ))}
+        </div>
+      ) : !tables?.length ? (
+        <div className="flex flex-col items-center justify-center py-20 rounded-2xl border-2 border-dashed border-gray-200">
+          <QrCodeIcon className="w-12 h-12 text-gray-200 mb-3" />
+          <p className="text-gray-500 font-medium mb-1">No tables yet</p>
+          <p className="text-sm text-gray-400 mb-4">Add your first table to get started</p>
+          <button onClick={() => setShowForm(true)}
+            className="bg-orange-500 text-white px-5 py-2 rounded-xl text-sm font-semibold">
+            Add Table
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(sections).map(([section, rows]) => (
+            <div key={section}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-px flex-1 bg-gray-100" />
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{section}</p>
+                <div className="h-px flex-1 bg-gray-100" />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                {rows.map(table => (
+                  <TableCard key={table.id} table={table}
+                    onEdit={(t) => { setEditing(t); setShowForm(true) }}
+                    onDelete={(t) => confirm(`Delete table ${t.number}?`) && delTable.mutate(t.id)}
+                    onQr={handleQr} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -122,10 +199,14 @@ export default function TableManager() {
       <Modal open={!!qrUrl} onClose={() => setQrUrl(null)} title="Table QR Code" size="sm">
         {qrUrl && (
           <div className="text-center">
-            <img src={qrUrl} className="mx-auto mb-4 w-48 h-48" />
-            <p className="text-xs text-gray-500 mb-3">Customers scan this to view menu and place orders</p>
-            <a href={qrUrl} download="table-qr.png" className="bg-orange-500 text-white px-5 py-2 rounded-lg text-sm font-medium inline-block">
-              Download PNG
+            <div className="bg-gray-50 rounded-2xl p-6 mb-4 inline-block">
+              <img src={qrUrl} className="mx-auto w-48 h-48" />
+            </div>
+            <p className="text-xs text-gray-500 mb-4">Customers scan this to view menu and place orders</p>
+            <a href={qrUrl} download="table-qr.svg"
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+              <QrCodeIcon className="w-4 h-4" />
+              Download QR
             </a>
           </div>
         )}

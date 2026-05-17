@@ -81,87 +81,136 @@ class FeedbackSubmissionController extends Controller
             return response()->json(['status' => false, 'message' => 'Invalid QR code'], 404);
         }
 
-        $data = $request->validate([
-            'rating'  => 'required|integer|min:4|max:5',
-            'comment' => 'nullable|string|max:500',
-        ]);
+        $tenant = Tenant::find($qr->tenant_id);
 
-        $apiKey = config('services.openai.api_key');
-
-        if (!$apiKey) {
-            // Return generic suggestions when no API key is configured
-            return response()->json([
-                'status' => true,
-                'data'   => [
-                    'suggestions' => $this->genericSuggestions($data['rating']),
-                ],
-            ]);
+        // Feature not enabled for this tenant — still show static suggestions
+        if (!$tenant->ai_suggestions_enabled) {
+            return response()->json(['status' => true, 'data' => [
+                'suggestions' => $this->threeUniqueStatics(),
+                'ai_enabled'  => false,
+            ]]);
         }
 
-        $tenant = Tenant::find($qr->tenant_id);
-        $suggestions = $this->generateWithOpenAI($apiKey, $tenant->name, $data['rating'], $data['comment'] ?? '');
+        // Reset monthly counter on first call of a new month
+        $today = now()->startOfMonth()->toDateString();
+        if ($tenant->ai_usage_reset_at === null || $tenant->ai_usage_reset_at->toDateString() < $today) {
+            $tenant->update(['ai_usage_this_month' => 0, 'ai_usage_reset_at' => $today]);
+            $tenant->refresh();
+        }
 
-        return response()->json(['status' => true, 'data' => ['suggestions' => $suggestions]]);
+        // Quota exhausted — return fallback silently (still show suggestions, just not AI)
+        if ($tenant->ai_usage_this_month >= $tenant->ai_monthly_quota) {
+            return response()->json(['status' => true, 'data' => [
+                'suggestions' => $this->threeUniqueStatics(),
+                'ai_enabled'  => false,  // quota hit — don't badge as AI
+            ]]);
+        }
+
+        // 1 AI review + 2 unique static reviews — saves tokens, stays fresh
+        $aiReview      = $this->generateOneLiveSuggestion($tenant->name, $tenant->business_domain ?? 'hotel and restaurant');
+        $staticTwo     = $this->twoUniqueStatics();
+        $suggestions   = array_values(array_merge([$aiReview], $staticTwo));
+
+        $tenant->increment('ai_usage_this_month');
+
+        return response()->json(['status' => true, 'data' => [
+            'suggestions' => $suggestions,
+            'ai_enabled'  => true,
+        ]]);
     }
 
-    private function genericSuggestions(int $rating): array
+    private function generateOneLiveSuggestion(string $businessName, string $domain): string
     {
-        $fiveStars = [
-            'The food was absolutely amazing and the service was top-notch! Highly recommend.',
-            'Had a wonderful experience here. The staff was incredibly attentive and friendly.',
-            'Perfect in every way — from the ambiance to the food quality. Will definitely return!',
-        ];
-        $fourStars = [
-            'Great experience overall. The food was delicious and the staff was very helpful.',
-            'Really enjoyed my visit. Good food, comfortable setting, and friendly service.',
-            'Would definitely come back. The quality here is consistently good.',
-        ];
-        return $rating === 5 ? $fiveStars : $fourStars;
-    }
+        $apiKey = config('services.openai.api_key');
+        if (!$apiKey) {
+            return $this->staticPool()[array_rand($this->staticPool())];
+        }
 
-    private function generateWithOpenAI(string $apiKey, string $tenantName, int $rating, string $comment): array
-    {
-        $prompt = "A customer gave {$rating} stars to \"{$tenantName}\". " .
-                  ($comment ? "Their comment: \"{$comment}\". " : '') .
-                  "Write 3 short, natural Google review suggestions (1-2 sentences each) the customer can copy. " .
-                  "Make them sound genuine and varied. Return as JSON array of strings.";
+        $langs = ['English', 'Hinglish', 'Hindi'];
+        $lang  = $langs[array_rand($langs)];
+        $seed  = substr(md5(uniqid('', true)), 0, 8);
+
+        $prompt = "One short Google review for \"{$businessName}\" ({$domain}). Language: {$lang}. Max 18 words. Natural, specific, no emojis, no names. Seed:{$seed}. Return only the plain review text, nothing else.";
 
         $ch = curl_init('https://api.openai.com/v1/chat/completions');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Bearer ' . $apiKey,
-                'Content-Type: application/json',
-            ],
-            CURLOPT_POSTFIELDS => json_encode([
-                'model'      => 'gpt-4o-mini',
-                'messages'   => [['role' => 'user', 'content' => $prompt]],
-                'max_tokens' => 300,
-                'temperature'=> 0.8,
+            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $apiKey, 'Content-Type: application/json'],
+            CURLOPT_POSTFIELDS     => json_encode([
+                'model'       => 'gpt-4o-mini',
+                'messages'    => [['role' => 'user', 'content' => $prompt]],
+                'max_tokens'  => 40,
+                'temperature' => 1.2,
             ]),
             CURLOPT_TIMEOUT => 15,
         ]);
 
         $response = curl_exec($ch);
-        $error    = curl_error($ch);
+        $err      = curl_error($ch);
         curl_close($ch);
 
-        if ($error || !$response) return $this->genericSuggestions($rating);
+        if ($err || !$response) {
+            return $this->staticPool()[array_rand($this->staticPool())];
+        }
 
         try {
             $parsed  = json_decode($response, true);
-            $content = $parsed['choices'][0]['message']['content'] ?? '';
-            // Extract JSON array from the response
-            preg_match('/\[.*\]/s', $content, $matches);
-            if ($matches) {
-                $suggestions = json_decode($matches[0], true);
-                if (is_array($suggestions) && count($suggestions) > 0) {
-                    return array_slice($suggestions, 0, 3);
-                }
-            }
+            $content = trim($parsed['choices'][0]['message']['content'] ?? '');
+            // Strip any accidental quotes GPT wraps around the text
+            $content = trim($content, '"\'');
+            if (strlen($content) > 5) return $content;
         } catch (\Throwable) {}
 
-        return $this->genericSuggestions($rating);
+        return $this->staticPool()[array_rand($this->staticPool())];
+    }
+
+    // Pick 2 unique entries from the large static pool, never the same pair
+    private function twoUniqueStatics(): array
+    {
+        $pool = $this->staticPool();
+        shuffle($pool);
+        return array_slice($pool, 0, 2);
+    }
+
+    // 3 all-static reviews when AI is off / quota hit
+    private function threeUniqueStatics(): array
+    {
+        $pool = $this->staticPool();
+        shuffle($pool);
+        return array_slice($pool, 0, 3);
+    }
+
+    private function staticPool(): array
+    {
+        return [
+            // English
+            'Absolutely loved it — the service was fast and the staff genuinely cared.',
+            'Best experience I have had in a while. Will definitely be back soon.',
+            'Great ambience, warm staff, and excellent value for money. Highly recommend.',
+            'The quality here is consistently top-notch. A must-visit for anyone in the area.',
+            'Felt right at home from the moment I walked in. Wonderful hospitality.',
+            'Everything was spotless and the team was incredibly attentive throughout.',
+            'Really impressed — exceeded my expectations on every front. Five stars easily.',
+            'One of the best places I have visited in this city. Will spread the word.',
+            'Smooth experience from start to finish. Professional, warm, and very well-managed.',
+            'The attention to detail sets this place apart. Genuinely outstanding service.',
+            'Perfect from beginning to end. The staff made us feel like VIPs.',
+            'Clean, comfortable, and run with real care. This is how it should be done.',
+            // Hinglish
+            'Yaar, ekdum mast jagah hai. Service bhi fast aur staff bhi bahut friendly tha.',
+            'Bahut achha experience raha. Definitely dobara aaunga — highly recommend!',
+            'Is jagah ka koi jawab nahi. Sab kuch top-class tha, paise bhi wasool lage.',
+            'Service itni achhi thi ki dil khush ho gaya. Zaroor try karo ek baar.',
+            'Atmosphere bilkul chill tha aur staff ne bhi bahut achhe se treat kiya.',
+            'Bhai, seriously ek baar jaao — acha lagega, guarantee hai.',
+            'Sab kuch neat aur clean tha. Staff ka behaviour bhi bahut professional tha.',
+            'First time gaya tha, but ab toh regular ban gaya hoon. Kaafi achha hai.',
+            // Hindi
+            'Bahut hi accha anubhav raha. Seva bahut tez aur staff ati vinaysheel tha.',
+            'Yahan ki sewa ne dil jeet liya. Sabse acchi jagah hai sheher mein.',
+            'Saaf-safai aur mahaul dono laajawab the. Zaroor aana chahiye ek baar.',
+            'Staff ne itne pyar se swagat kiya ki bilkul ghar jaisa laga. Bahut shukriya.',
+        ];
     }
 }
