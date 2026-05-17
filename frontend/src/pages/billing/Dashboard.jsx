@@ -297,14 +297,12 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
 }
 
 // ─── Table Panel ──────────────────────────────────────────────────────────────
-function TablePanel({ table, onClose }) {
+function TablePanel({ table, onClose, onInvoiceDone }) {
   const qc = useQueryClient()
   const { getTenantId } = useAuthStore()
   const tenantId = getTenantId?.()
   const [invoiceOrder, setInvoiceOrder] = useState(null)
   const [addingTo, setAddingTo] = useState(null) // orderId or 'new'
-  const [lastInvoiceIds, setLastInvoiceIds] = useState(null)
-
   const { data: orders, isLoading } = useQuery({
     queryKey: ['billing-table-orders', table.id],
     queryFn: () => getBillingTableOrders(table.id).then(r => r.data.data),
@@ -531,7 +529,7 @@ function TablePanel({ table, onClose }) {
           onClose={() => setInvoiceOrder(null)}
           onDone={(id) => {
             setInvoiceOrder(null)
-            setLastInvoiceIds([id])
+            onInvoiceDone?.([id])
             qc.invalidateQueries({ queryKey: ['billing-tables'] })
             qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] })
             if (unbilledOrders.length === 1) {
@@ -550,10 +548,6 @@ function TablePanel({ table, onClose }) {
         />
       )}
 
-      {lastInvoiceIds && (
-        <DownloadBar invoiceIds={lastInvoiceIds} onDismiss={() => setLastInvoiceIds(null)} />
-      )}
-
       {billAllForm && (
         <BillAllModal
           table={table}
@@ -561,7 +555,7 @@ function TablePanel({ table, onClose }) {
           onClose={() => setBillAllForm(false)}
           onDone={(ids) => {
             setBillAllForm(false)
-            setLastInvoiceIds(ids)
+            onInvoiceDone?.(ids)
             qc.invalidateQueries({ queryKey: ['billing-tables'] })
             qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] })
             onClose()
@@ -942,7 +936,11 @@ export default function BillingDashboard() {
       </div>
 
       {selectedTable && (
-        <TablePanel table={selectedTable} onClose={() => setSelectedTable(null)} />
+        <TablePanel
+          table={selectedTable}
+          onClose={() => setSelectedTable(null)}
+          onInvoiceDone={(ids) => setLastInvoiceIds(ids)}
+        />
       )}
 
       {selectedBooking && hasRestaurant && (

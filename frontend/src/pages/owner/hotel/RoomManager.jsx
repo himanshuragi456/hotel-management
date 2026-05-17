@@ -197,7 +197,7 @@ export default function RoomManager() {
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         {STAT_CHIPS.map(({ key, label, color }) => (
           <div key={key} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
             <p className="text-2xl font-bold text-gray-900">{counts[key] ?? 0}</p>
@@ -207,10 +207,10 @@ export default function RoomManager() {
       </div>
 
       {/* Status filter */}
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
         {['', 'available', 'occupied', 'cleaning', 'maintenance'].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-colors ${filterStatus === s ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+            className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-colors ${filterStatus === s ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
             {s || 'All'} {s && counts[s] !== undefined ? `(${counts[s]})` : ''}
           </button>
         ))}

@@ -99,7 +99,8 @@ export default function Expenses() {
           </div>
           <span className="text-xs font-medium text-gray-400 bg-white border border-gray-200 px-2.5 py-1 rounded-full">{expenses?.length ?? 0} entries</span>
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[460px]">
           <thead>
             <tr className="border-b border-gray-100">
               <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
@@ -137,6 +138,7 @@ export default function Expenses() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

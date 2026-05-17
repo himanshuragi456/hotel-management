@@ -201,7 +201,7 @@ export default function StaffManager() {
                         {member.email}{member.phone ? ` · ${member.phone}` : ''}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                       <button
                         onClick={() => toggleMutation.mutate(member.id)}
                         disabled={toggleMutation.isPending}

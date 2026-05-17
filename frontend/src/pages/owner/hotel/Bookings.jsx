@@ -469,7 +469,7 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 {['Booking #', 'Guest', 'Room', 'Dates', 'Total', 'Status', ''].map(h => (
