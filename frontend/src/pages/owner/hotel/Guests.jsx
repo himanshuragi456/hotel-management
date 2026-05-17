@@ -158,7 +158,8 @@ export default function Guests() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/60">
               {['Name', 'Phone', 'ID Proof', 'Company', 'Stays', ''].map(h => (
@@ -200,6 +201,7 @@ export default function Guests() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Modal open={showForm} onClose={() => { setShowForm(false); setEditing(null) }} title={editing ? 'Edit Guest' : 'Add Guest'}>

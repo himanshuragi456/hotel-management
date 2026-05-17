@@ -101,7 +101,8 @@ export default function Reports() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[540px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 {['Order #', 'Table', 'Date', 'Items', 'Total', 'Payment'].map(h => (
@@ -139,6 +140,7 @@ export default function Reports() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

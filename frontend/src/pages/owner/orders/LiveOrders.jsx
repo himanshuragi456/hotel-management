@@ -61,7 +61,7 @@ export default function LiveOrders() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {['pending', 'preparing', 'ready'].map(s => (
             <div key={s} className="space-y-3">
               <div className="h-5 w-24 bg-gray-100 rounded animate-pulse" />
@@ -72,7 +72,7 @@ export default function LiveOrders() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {Object.entries(byStatus).map(([status, list]) => {
             const cfg = STATUS_CONFIG[status]
             return (

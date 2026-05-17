@@ -229,10 +229,10 @@ export default function MenuManager() {
         </button>
       </div>
 
-      <div className="grid grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <CategoryPanel />
 
-        <div className="col-span-3">
+        <div className="lg:col-span-3">
           {/* Category filter tabs + search */}
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <button
@@ -274,7 +274,8 @@ export default function MenuManager() {
           )}
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[520px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
                   <th className="w-10 px-4 py-3.5"></th>
@@ -341,6 +342,7 @@ export default function MenuManager() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
