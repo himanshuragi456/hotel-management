@@ -220,6 +220,7 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::post('orders', [InvoiceController::class, 'newOrderForTable']);
                 Route::post('orders/{order}/items', [InvoiceController::class, 'addItems']);
                 Route::post('orders/{order}/mark-served', [InvoiceController::class, 'markServed']);
+                Route::put('orders/{order}/status', [KitchenController::class, 'updateStatus']);
                 Route::get('menu', [InvoiceController::class, 'getBillingMenu']);
                 Route::get('staff/waiters', [InvoiceController::class, 'waiters']);
             });
@@ -251,6 +252,8 @@ Route::middleware(['auth:api'])->group(function () {
             Route::get('orders/active', [InvoiceController::class, 'activeOrders']);
             Route::get('orders', [InvoiceController::class, 'allOrders']);
             Route::post('invoices', [InvoiceController::class, 'store']);
+            Route::get('invoices/recent', [InvoiceController::class, 'recent']);
+            Route::get('invoices/combined-pdf', [InvoiceController::class, 'combinedPdf']);
             Route::get('invoices/{invoice}', [InvoiceController::class, 'show']);
             Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf']);
         });
@@ -270,6 +273,7 @@ Route::prefix('public')->group(function () {
     // Customer QR menu + ordering (no auth)
     Route::get('menu/{tenantSlug}/{qrToken}', [CustomerMenuController::class, 'menu']);
     Route::post('menu/{tenantSlug}/{qrToken}/order', [CustomerMenuController::class, 'placeOrder']);
+    Route::post('menu/{tenantSlug}/{qrToken}/request-bill', [CustomerMenuController::class, 'requestBill']);
     Route::get('orders/{orderNumber}/status', [CustomerMenuController::class, 'orderStatus']);
     // Feedback submission (public — no auth)
     Route::get('feedback/{token}', [FeedbackSubmissionController::class, 'show']);

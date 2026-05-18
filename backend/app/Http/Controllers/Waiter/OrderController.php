@@ -37,7 +37,8 @@ class OrderController extends Controller
                         $mins = (int) round(abs(now()->diffInRealMinutes($t->occupied_since)));
                         return $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm' : $mins . 'm';
                     })() : null,
-                    'active_order_id'  => $t->activeOrder?->id,
+                    'active_order_id'   => $t->activeOrder?->id,
+                    'bill_requested_at' => $t->bill_requested_at,
                 ];
             });
         return $this->success($tables);

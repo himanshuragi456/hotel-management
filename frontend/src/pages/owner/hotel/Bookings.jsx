@@ -426,7 +426,7 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
   const [checkingOut, setCheckingOut] = useState(null)
   const [viewBooking, setViewBooking] = useState(null)
 
-  const { data: bookingPage } = useQuery({
+  const { data: bookingPage, isLoading } = useQuery({
     queryKey: [qk, 'bookings', status],
     queryFn: () => svc.getBookings(status ? { status } : {}).then(r => r.data.data),
     refetchInterval: 30000,
@@ -478,7 +478,14 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {bookings.length === 0 ? (
+              {isLoading && [1,2,3,4].map(i => (
+                <tr key={i}>
+                  {[140, 120, 80, 160, 80, 80, 60].map((w, j) => (
+                    <td key={j} className="px-5 py-4"><div className={`h-4 bg-gray-100 rounded animate-pulse`} style={{width: w}} /></td>
+                  ))}
+                </tr>
+              ))}
+              {!isLoading && bookings.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-16">
                     <CalendarDaysIcon className="w-10 h-10 text-gray-200 mx-auto mb-3" />

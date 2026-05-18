@@ -242,7 +242,7 @@ export default function FeedbackSetup() {
     queryFn: () => getReviewConfig().then(r => r.data.data),
   })
 
-  const { data: qrCodes } = useQuery({
+  const { data: qrCodes, isLoading: qrLoading } = useQuery({
     queryKey: ['feedback-qr-codes'],
     queryFn: () => getFeedbackQrCodes().then(r => r.data.data),
   })
@@ -333,7 +333,11 @@ export default function FeedbackSetup() {
           </button>
         </form>
 
-        {qrCodes?.length > 0 ? (
+        {qrLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[1,2,3].map(i => <div key={i} className="h-36 bg-gray-100 rounded-2xl animate-pulse" />)}
+          </div>
+        ) : qrCodes?.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {qrCodes.map(qr => (
               <QrCard

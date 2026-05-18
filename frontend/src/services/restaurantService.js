@@ -73,11 +73,14 @@ export const closeBillingTable   = (tableId)       => api.post(`/billing/tables/
 export const billAllOrders       = (tableId, data) => api.post(`/billing/tables/${tableId}/bill-all`, data)
 export const billingNewOrder     = (data)          => api.post('/billing/orders', data)
 export const billingAddItems     = (orderId, data) => api.post(`/billing/orders/${orderId}/items`, data)
-export const billingMarkServed   = (orderId)       => api.post(`/billing/orders/${orderId}/mark-served`)
+export const billingMarkServed      = (orderId)         => api.post(`/billing/orders/${orderId}/mark-served`)
+export const billingUpdateStatus    = (orderId, status) => api.put(`/billing/orders/${orderId}/status`, { status })
 export const getBillingMenu      = ()              => api.get('/billing/menu')
 export const createInvoice       = (data)          => api.post('/billing/invoices', data)
 export const getInvoice          = (id)            => api.get(`/billing/invoices/${id}`)
+export const getRecentInvoices   = ()              => api.get('/billing/invoices/recent')
 export const downloadInvoicePdf  = (id, upiId)     => api.get(`/billing/invoices/${id}/pdf`, { params: { upi_id: upiId }, responseType: 'blob' })
+export const downloadCombinedPdf = (ids)           => api.get(`/billing/invoices/combined-pdf`, { params: { ids: ids.join(',') }, responseType: 'blob' })
 
 // Waiter aliases
 export const getWaiterOrders = () => api.get('/waiter/orders/my')
@@ -143,6 +146,7 @@ export const getPublicMenu = (slug, token) => api.get(`/public/menu/${slug}/${to
 export const placePublicOrder = (slug, token, data) => api.post(`/public/menu/${slug}/${token}/order`, data)
 export const getCustomerMenu = (slug, token) => api.get(`/public/menu/${slug}/${token}`)
 export const customerPlaceOrder = (slug, token, data) => api.post(`/public/menu/${slug}/${token}/order`, data)
+export const customerRequestBill = (slug, token) => api.post(`/public/menu/${slug}/${token}/request-bill`)
 export const getOrderStatus = (orderNumber) => api.get(`/public/orders/${orderNumber}/status`)
 
 // Owner — Staff

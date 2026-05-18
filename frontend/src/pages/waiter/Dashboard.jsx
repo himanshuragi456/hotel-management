@@ -85,17 +85,25 @@ function TableGrid({ onSelect }) {
                 key={t.id}
                 onClick={() => onSelect(t)}
                 className={`relative rounded-xl border-l-4 bg-white p-3 text-center transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-95 shadow-sm ${
-                  t.status === 'occupied'
-                    ? 'border-l-orange-400'
-                    : 'border-l-green-400'
+                  t.bill_requested_at ? 'border-l-purple-400' :
+                  t.status === 'occupied' ? 'border-l-orange-400' : 'border-l-green-400'
                 }`}
               >
+                {t.bill_requested_at && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-purple-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">BILL</span>
+                )}
                 <div className="flex items-center justify-center gap-1 mb-1">
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.status === 'free' ? 'bg-green-500' : 'bg-orange-500'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    t.bill_requested_at ? 'bg-purple-500 animate-pulse' :
+                    t.status === 'free' ? 'bg-green-500' : 'bg-orange-500'
+                  }`} />
                 </div>
                 <div className="text-base font-bold text-gray-900">{t.number}</div>
-                <div className={`text-xs font-medium mt-0.5 ${t.status === 'free' ? 'text-green-600' : 'text-orange-600'}`}>
-                  {t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
+                <div className={`text-xs font-medium mt-0.5 ${
+                  t.bill_requested_at ? 'text-purple-600' :
+                  t.status === 'free' ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  {t.bill_requested_at ? '🧾 Bill' : t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
                 </div>
               </button>
             ))}
@@ -146,7 +154,7 @@ function TableOrderPanel({ table, onClose }) {
     }
   }, [tenantId, table.id, qc])
 
-  const { data: menu } = useQuery({
+  const { data: menu, isLoading: menuLoading } = useQuery({
     queryKey: ['waiter-menu'],
     queryFn: () => getWaiterMenu().then(r => r.data.data),
   })
@@ -342,27 +350,27 @@ function TableOrderPanel({ table, onClose }) {
             </div>
           )}
 
-          {/* Add Items toggle — always available unless table is fully closed */}
-          {(!hasOpenOrders && orders.length > 0 && orders.every(o => o.status === 'served')) ? null : (
-            <div className="px-5 py-3">
-              <button
-                onClick={() => setShowMenu(m => !m)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-orange-200 bg-orange-50/40 hover:bg-orange-50 text-orange-600 text-sm font-medium transition-colors"
-              >
-                {showMenu
-                  ? <><MinusIcon className="w-4 h-4" /> Hide Menu</>
-                  : <><PlusIcon className="w-4 h-4" /> New Order / Add Items</>
-                }
-              </button>
-            </div>
-          )}
+          {/* Add Items toggle — always available so waiter can place a new order even after all are served */}
+          <div className="px-5 py-3">
+            <button
+              onClick={() => setShowMenu(m => !m)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-orange-200 bg-orange-50/40 hover:bg-orange-50 text-orange-600 text-sm font-medium transition-colors"
+            >
+              {showMenu
+                ? <><MinusIcon className="w-4 h-4" /> Hide Menu</>
+                : <><PlusIcon className="w-4 h-4" /> New Order / Add Items</>
+              }
+            </button>
+          </div>
 
           {/* Menu */}
           {showMenu && (
             <div className="border-t border-gray-100">
               {/* Category pill tabs */}
               <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-gray-100 bg-gray-50/60 no-scrollbar">
-                {cats.map(c => (
+                {menuLoading
+                  ? [1,2,3].map(i => <div key={i} className="h-7 w-20 bg-gray-100 rounded-full animate-pulse shrink-0" />)
+                  : cats.map(c => (
                   <button key={c.id} onClick={() => setActiveCat(c.id)}
                     className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
                       activeCatId === c.id
@@ -376,7 +384,20 @@ function TableOrderPanel({ table, onClose }) {
 
               {/* Menu items grid */}
               <div className="divide-y divide-gray-50">
-                {visibleItems.length === 0 ? (
+                {menuLoading ? (
+                  [1,2,3,4].map(i => (
+                    <div key={i} className="flex items-center justify-between px-5 py-3 animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 bg-gray-100 rounded-sm" />
+                        <div>
+                          <div className="h-4 w-32 bg-gray-100 rounded mb-1" />
+                          <div className="h-3 w-12 bg-gray-100 rounded" />
+                        </div>
+                      </div>
+                      <div className="h-8 w-8 bg-gray-100 rounded-full" />
+                    </div>
+                  ))
+                ) : visibleItems.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 text-gray-400">
                     <SparklesIcon className="w-8 h-8 mb-2 text-gray-300" />
                     <p className="text-sm">No available items in this category.</p>
@@ -623,7 +644,7 @@ function StatusTimeline({ order }) {
 // ─── Active Orders List ───────────────────────────────────────────────────────
 function ActiveOrders({ onSelectTable }) {
   const qc = useQueryClient()
-  const { data: orders } = useQuery({
+  const { data: orders, isLoading } = useQuery({
     queryKey: ['waiter-orders'],
     queryFn: () => getWaiterOrders().then(r => r.data.data),
     refetchInterval: 8000,
@@ -636,6 +657,23 @@ function ActiveOrders({ onSelectTable }) {
       qc.invalidateQueries({ queryKey: ['waiter-tables'] })
     },
   })
+
+  if (isLoading) return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      {[1,2,3].map(i => (
+        <div key={i} className="bg-white rounded-xl border-l-4 border-l-gray-200 p-4 shadow-sm animate-pulse">
+          <div className="flex items-center justify-between mb-2">
+            <div className="h-4 w-20 bg-gray-100 rounded" />
+            <div className="h-5 w-16 bg-gray-100 rounded-full" />
+          </div>
+          <div className="space-y-1.5 mt-3">
+            <div className="h-3 w-full bg-gray-100 rounded" />
+            <div className="h-3 w-4/5 bg-gray-100 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 
   if (!orders?.length) return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-8 flex flex-col items-center text-gray-400">
@@ -756,9 +794,15 @@ function ActiveRooms({ onSelect }) {
 export default function WaiterDashboard() {
   const { user, logout: clearAuth } = useAuthStore()
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [selectedTable, setSelectedTable] = useState(null)
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [tab, setTab] = useState('tables')
+
+  const openTable = (t) => {
+    qc.invalidateQueries({ queryKey: ['waiter-table-orders', t.id] })
+    setSelectedTable(t)
+  }
 
   const handleLogout = async () => {
     try { await logoutApi() } catch (_) {}
@@ -818,7 +862,7 @@ export default function WaiterDashboard() {
               <TableCellsIcon className="w-3.5 h-3.5" />
               Tap a table to view its order or start a new one.
             </p>
-            <TableGrid onSelect={setSelectedTable} />
+            <TableGrid onSelect={openTable} />
           </div>
         )}
         {tab === 'room service' && (

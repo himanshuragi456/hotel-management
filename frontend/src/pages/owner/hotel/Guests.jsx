@@ -85,7 +85,14 @@ function GuestDetail({ guestId, onNewBooking }) {
     queryFn: () => getGuest(guestId).then(r => r.data.data),
   })
 
-  if (isLoading) return <div className="text-gray-400 text-sm p-4">Loading…</div>
+  if (isLoading) return (
+    <div className="p-1 space-y-3 animate-pulse">
+      <div className="h-6 w-40 bg-gray-100 rounded" />
+      <div className="h-4 w-56 bg-gray-100 rounded" />
+      <div className="h-4 w-32 bg-gray-100 rounded mt-4" />
+      {[1,2].map(i => <div key={i} className="h-10 bg-gray-100 rounded-lg" />)}
+    </div>
+  )
 
   return (
     <div className="p-1">
@@ -131,7 +138,7 @@ export default function Guests() {
   const [editing, setEditing] = useState(null)
   const [viewGuest, setViewGuest] = useState(null)
 
-  const { data: guestsPage } = useQuery({
+  const { data: guestsPage, isLoading } = useQuery({
     queryKey: ['guests', q],
     queryFn: () => getGuests({ q }).then(r => r.data.data),
   })
@@ -168,7 +175,17 @@ export default function Guests() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {guests.length === 0 ? (
+            {isLoading && [1,2,3,4].map(i => (
+              <tr key={i}>
+                <td className="px-5 py-4"><div className="flex items-center gap-2.5"><div className="w-8 h-8 bg-gray-100 rounded-xl animate-pulse shrink-0" /><div className="w-28 h-4 bg-gray-100 rounded animate-pulse" /></div></td>
+                <td className="px-5 py-4"><div className="w-24 h-4 bg-gray-100 rounded animate-pulse" /></td>
+                <td className="px-5 py-4"><div className="w-20 h-4 bg-gray-100 rounded animate-pulse" /></td>
+                <td className="px-5 py-4"><div className="w-24 h-4 bg-gray-100 rounded animate-pulse" /></td>
+                <td className="px-5 py-4 text-right"><div className="w-8 h-5 bg-gray-100 rounded-full animate-pulse ml-auto" /></td>
+                <td className="px-5 py-4"><div className="w-14 h-7 bg-gray-100 rounded-lg animate-pulse" /></td>
+              </tr>
+            ))}
+            {!isLoading && guests.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-center py-16">
                   <UsersIcon className="w-10 h-10 text-gray-200 mx-auto mb-3" />

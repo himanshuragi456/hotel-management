@@ -16,7 +16,8 @@ class SettingsController extends Controller
     {
         $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
         return $this->success([
-            'qr_ordering_enabled' => $tenant->qr_ordering_enabled,
+            'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
+            'customer_bill_request_enabled' => $tenant->customer_bill_request_enabled,
         ]);
     }
 
@@ -24,11 +25,13 @@ class SettingsController extends Controller
     {
         $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
         $request->validate([
-            'qr_ordering_enabled' => 'required|boolean',
+            'qr_ordering_enabled'           => 'sometimes|boolean',
+            'customer_bill_request_enabled' => 'sometimes|boolean',
         ]);
-        $tenant->update($request->only(['qr_ordering_enabled']));
+        $tenant->update($request->only(['qr_ordering_enabled', 'customer_bill_request_enabled']));
         return $this->success([
-            'qr_ordering_enabled' => $tenant->qr_ordering_enabled,
+            'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
+            'customer_bill_request_enabled' => $tenant->customer_bill_request_enabled,
         ], 'Settings updated');
     }
 }

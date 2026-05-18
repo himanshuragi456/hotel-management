@@ -34,8 +34,9 @@ class InvoiceController extends Controller
                     'occupied_since' => $t->occupied_since,
                     'occupied_minutes' => $mins,
                     'occupied_label' => $mins !== null ? ($mins >= 60 ? floor($mins / 60) . 'hr ' . ($mins % 60) . 'm' : $mins . 'm') : null,
-                    'active_order'   => $t->activeOrder,
-                    'active_order_id'=> $t->activeOrder?->id,
+                    'active_order'      => $t->activeOrder,
+                    'active_order_id'  => $t->activeOrder?->id,
+                    'bill_requested_at'=> $t->bill_requested_at,
                 ];
             });
         return $this->success($tables);
@@ -505,6 +506,86 @@ class InvoiceController extends Controller
         return $this->success(['invoice_ids' => $invoices], 'All orders billed and table closed');
     }
 
+    public function recent(): JsonResponse
+    {
+        $invoices = Invoice::where('tenant_id', auth()->user()->tenant_id)
+            ->with('order.table')
+            ->latest()
+            ->limit(50)
+            ->get();
+
+        // Group into table sessions: consecutive invoices on the same table
+        // where each invoice is within 2 hours of the previous one in that table's group.
+        $sessions = [];
+        // keyed by table_id => last invoice created_at for gap detection
+        $openSessions = []; // table_id => session index
+
+        foreach ($invoices as $inv) {
+            $tableId     = $inv->order?->restaurant_table_id;
+            $tableNumber = $inv->order?->table?->number;
+            $tableSection= $inv->order?->table?->section;
+            $createdAt   = $inv->created_at;
+
+            $row = [
+                'id'             => $inv->id,
+                'invoice_number' => $inv->invoice_number,
+                'total'          => $inv->total,
+                'payment_method' => $inv->payment_method,
+                'customer_name'  => $inv->customer_name,
+                'created_at'     => $createdAt,
+            ];
+
+            if (!$tableId) {
+                // Walk-in / no table — each invoice is its own session
+                $sessions[] = [
+                    'table_id'      => null,
+                    'table_number'  => null,
+                    'table_section' => null,
+                    'label'         => 'Walk-in',
+                    'closed_at'     => $createdAt,
+                    'session_total' => $inv->total,
+                    'invoices'      => [$row],
+                ];
+                continue;
+            }
+
+            // Check if there's an open session for this table within 2 hours
+            if (isset($openSessions[$tableId])) {
+                $idx      = $openSessions[$tableId];
+                $lastTime = $sessions[$idx]['_last_time'];
+                if ($createdAt->diffInHours($lastTime) < 2) {
+                    $sessions[$idx]['invoices'][]     = $row;
+                    $sessions[$idx]['session_total'] += $inv->total;
+                    $sessions[$idx]['_last_time']     = $createdAt;
+                    continue;
+                }
+            }
+
+            // New session for this table
+            $idx = count($sessions);
+            $openSessions[$tableId] = $idx;
+            $label = 'Table ' . $tableNumber . ($tableSection ? ' · ' . $tableSection : '');
+            $sessions[] = [
+                'table_id'      => $tableId,
+                'table_number'  => $tableNumber,
+                'table_section' => $tableSection,
+                'label'         => $label,
+                'closed_at'     => $createdAt,
+                'session_total' => $inv->total,
+                'invoices'      => [$row],
+                '_last_time'    => $createdAt,
+            ];
+        }
+
+        // Strip internal tracking key before sending
+        $sessions = array_map(function ($s) {
+            unset($s['_last_time']);
+            return $s;
+        }, $sessions);
+
+        return $this->success($sessions);
+    }
+
     public function show(Invoice $invoice): JsonResponse
     {
         if ($invoice->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
@@ -527,5 +608,43 @@ class InvoiceController extends Controller
         ])->setPaper([0, 0, 226.77, 600], 'portrait'); // ~80mm thermal width
 
         return $pdf->download("invoice-{$invoice->invoice_number}.pdf");
+    }
+
+    public function combinedPdf(Request $request): mixed
+    {
+        $ids      = array_filter(array_map('intval', explode(',', $request->query('ids', ''))));
+        $tenantId = auth()->user()->tenant_id;
+
+        if (empty($ids)) return $this->error('No invoice IDs provided');
+
+        $invoices = Invoice::whereIn('id', $ids)
+            ->where('tenant_id', $tenantId)
+            ->with('order.items', 'order.table', 'tenant')
+            ->get();
+
+        if ($invoices->isEmpty()) return $this->error('Invoices not found');
+
+        $totals = [
+            'subtotal' => $invoices->sum('subtotal'),
+            'gst'      => $invoices->sum('gst_amount'),
+            'discount' => $invoices->sum('discount_amount'),
+            'total'    => $invoices->sum('total'),
+            'paid'     => $invoices->sum('amount_paid'),
+            'due'      => $invoices->sum('amount_due'),
+        ];
+
+        $tenant = $invoices->first()->tenant;
+        $upiId  = $tenant->upi_id ?? 'restaurant@upi';
+        $amount = $totals['due'] > 0 ? $totals['due'] : $totals['total'];
+        $upiUrl = "upi://pay?pa={$upiId}&pn=" . urlencode($tenant->name) . "&am={$amount}&cu=INR";
+        $upiQr  = QrCode::format('svg')->size(120)->generate($upiUrl);
+
+        $pdf = Pdf::loadView('invoices.combined', [
+            'invoices' => $invoices,
+            'totals'   => $totals,
+            'upiQr'    => $upiQr,
+        ])->setPaper([0, 0, 226.77, 800], 'portrait');
+
+        return $pdf->download('combined-invoice.pdf');
     }
 }

@@ -35,15 +35,15 @@ class MenuController extends Controller
         // can see their orders after a page refresh
         $activeOrderNumbers = Order::where('tenant_id', $tenant->id)
             ->where('restaurant_table_id', $table->id)
-            ->whereNotIn('status', ['served', 'cancelled'])
+            ->whereNotIn('status', ['cancelled'])
             ->when($table->occupied_since, fn($q) => $q->where('created_at', '>=', $table->occupied_since))
             ->pluck('order_number')
             ->implode(',');
 
         return $this->success([
-            'tenant'               => $tenant->only(['name', 'logo', 'currency', 'gst_rate', 'qr_ordering_enabled']),
+            'tenant'               => $tenant->only(['name', 'logo', 'currency', 'gst_rate', 'qr_ordering_enabled', 'customer_bill_request_enabled']),
             'table'                => array_merge(
-                $table->only(['id', 'number', 'section']),
+                $table->only(['id', 'number', 'section', 'bill_requested_at']),
                 ['status' => $table->status]
             ),
             'active_order_numbers' => $activeOrderNumbers ?: null,
@@ -161,6 +161,25 @@ class MenuController extends Controller
             DB::rollBack();
             return $this->error('Failed to place order: ' . $e->getMessage(), 500);
         }
+    }
+
+    public function requestBill(string $tenantSlug, string $qrToken): JsonResponse
+    {
+        $tenant = Tenant::where('slug', $tenantSlug)->where('status', 'active')->firstOrFail();
+
+        if (!$tenant->customer_bill_request_enabled) {
+            return $this->error('Bill request feature is not enabled for this restaurant.', 403);
+        }
+
+        $table = RestaurantTable::where('qr_token', $qrToken)->where('tenant_id', $tenant->id)->firstOrFail();
+
+        if ($table->status !== 'occupied') {
+            return $this->error('No active session on this table.', 422);
+        }
+
+        $table->requestBill();
+
+        return $this->success(null, 'Bill request sent. Staff will assist you shortly.');
     }
 
     public function orderStatus(Request $request, string $orderNumber): JsonResponse

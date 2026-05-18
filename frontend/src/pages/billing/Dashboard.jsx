@@ -4,12 +4,12 @@ import Pusher from 'pusher-js'
 import {
   XMarkIcon, PlusIcon, MinusIcon, PrinterIcon, ArrowDownTrayIcon,
   CheckCircleIcon, ArrowRightOnRectangleIcon, UserIcon, PhoneIcon,
-  FireIcon, BanknotesIcon,
+  FireIcon, BanknotesIcon, DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import {
   getBillingTables, getBillingTableOrders, getBillingTableHistory, closeBillingTable, billAllOrders,
-  getBillingMenu, billingAddItems, billingNewOrder, billingMarkServed,
-  createInvoice, downloadInvoicePdf,
+  getBillingMenu, billingAddItems, billingNewOrder, billingMarkServed, billingUpdateStatus,
+  createInvoice, downloadInvoicePdf, downloadCombinedPdf, getRecentInvoices,
   getBillingRoomStatus, getBillingActiveRooms,
   getBillingBookings, createBillingBooking, getBillingBooking,
   checkInBillingBooking, checkOutBillingBooking, cancelBillingBooking,
@@ -350,6 +350,15 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
     },
   })
 
+  const advanceStatus = useMutation({
+    mutationFn: ({ orderId, status }) => billingUpdateStatus(orderId, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] })
+      qc.invalidateQueries({ queryKey: ['billing-tables'] })
+      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
+    },
+  })
+
   const allServed      = orders?.length > 0 && orders.every(o => o.status === 'served')
   const hasOpenOrders  = orders?.some(o => !['served', 'cancelled'].includes(o.status))
   const unbilledOrders = orders?.filter(o => o.status !== 'cancelled' && !o.invoice) ?? []
@@ -357,7 +366,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
   const [billAllForm, setBillAllForm] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
 
-  const { data: history } = useQuery({
+  const { data: history, isLoading: historyLoading } = useQuery({
     queryKey: ['billing-table-history', table.id],
     queryFn: () => getBillingTableHistory(table.id).then(r => r.data.data),
     enabled: showHistory,
@@ -368,7 +377,12 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
       <div className="bg-white w-full sm:rounded-2xl sm:max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <div>
-            <h2 className="font-bold text-gray-900">Table {table.number}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-gray-900">Table {table.number}</h2>
+              {table.bill_requested_at && (
+                <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">🧾 Bill Requested</span>
+              )}
+            </div>
             <p className="text-xs text-gray-400">
               {table.section} · {table.status === 'occupied' ? `Occupied ${table.occupied_label ?? ''}` : 'Free'}
             </p>
@@ -418,9 +432,11 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {showHistory ? (
-            !history ? (
-              <div className="text-gray-400 text-sm">Loading history…</div>
-            ) : !history.length ? (
+            historyLoading ? (
+              <div className="p-4 space-y-2">
+                {[1,2,3].map(i => <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />)}
+              </div>
+            ) : !history?.length ? (
               <div className="text-center py-12 text-gray-400">No history for this table.</div>
             ) : history.map(order => (
               <div key={order.id} className="bg-gray-50 rounded-xl p-4 border-l-4 border-gray-200">
@@ -445,7 +461,20 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
               </div>
             ))
           ) : isLoading ? (
-            <div className="text-gray-400 text-sm">Loading orders…</div>
+            <div className="p-4 space-y-3">
+              {[1,2].map(i => (
+                <div key={i} className="bg-gray-50 rounded-xl p-4 animate-pulse">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="h-4 w-28 bg-gray-200 rounded" />
+                    <div className="h-5 w-16 bg-gray-200 rounded-full" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="h-3 w-full bg-gray-200 rounded" />
+                    <div className="h-3 w-4/5 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : !orders?.length ? (
             <div className="text-center py-12 text-gray-400">
               <p className="text-lg mb-2">Table is free</p>
@@ -487,11 +516,29 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
 
                 <div className="flex gap-2 flex-wrap">
                   {order.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => setAddingTo(order.id)}
+                        className="flex-1 text-xs border border-orange-300 text-orange-600 py-1.5 rounded-lg font-medium hover:bg-orange-50"
+                      >
+                        + Add Items
+                      </button>
+                      <button
+                        onClick={() => advanceStatus.mutate({ orderId: order.id, status: 'preparing' })}
+                        disabled={advanceStatus.isPending}
+                        className="flex-1 text-xs bg-blue-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
+                      >
+                        → Preparing
+                      </button>
+                    </>
+                  )}
+                  {order.status === 'preparing' && (
                     <button
-                      onClick={() => setAddingTo(order.id)}
-                      className="flex-1 text-xs border border-orange-300 text-orange-600 py-1.5 rounded-lg font-medium hover:bg-orange-50"
+                      onClick={() => advanceStatus.mutate({ orderId: order.id, status: 'ready' })}
+                      disabled={advanceStatus.isPending}
+                      className="flex-1 text-xs bg-green-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
                     >
-                      + Add Items
+                      → Mark Ready
                     </button>
                   )}
                   {order.status === 'ready' && (
@@ -639,49 +686,55 @@ function BillAllModal({ table, total, onClose, onDone }) {
 }
 
 // ─── Download Bar ─────────────────────────────────────────────────────────────
-async function fetchPdfBlob(invoiceId) {
+async function fetchSingleBlob(invoiceId) {
   const res = await downloadInvoicePdf(invoiceId)
   return URL.createObjectURL(res.data)
 }
 
+async function fetchCombinedBlob(ids) {
+  const res = await downloadCombinedPdf(ids)
+  return URL.createObjectURL(res.data)
+}
+
+function openPrintIframe(url) {
+  const iframe = document.createElement('iframe')
+  iframe.style.display = 'none'
+  iframe.src = url
+  document.body.appendChild(iframe)
+  iframe.onload = () => {
+    iframe.contentWindow.print()
+    setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(url) }, 3000)
+  }
+}
+
 function DownloadBar({ invoiceIds, onDismiss }) {
   const ids = Array.isArray(invoiceIds) ? invoiceIds : [invoiceIds]
+  const isMulti = ids.length > 1
   const [loading, setLoading] = useState(null) // 'download' | 'print' | null
 
   const handleDownload = async () => {
     setLoading('download')
     try {
-      for (const id of ids) {
-        const url = await fetchPdfBlob(id)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `invoice-${id}.pdf`
-        a.click()
-        URL.revokeObjectURL(url)
-      }
+      const url = isMulti ? await fetchCombinedBlob(ids) : await fetchSingleBlob(ids[0])
+      const a = document.createElement('a')
+      a.href = url
+      a.download = isMulti ? 'combined-invoice.pdf' : `invoice-${ids[0]}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
     } finally { setLoading(null) }
   }
 
   const handlePrint = async () => {
     setLoading('print')
     try {
-      for (const id of ids) {
-        const url = await fetchPdfBlob(id)
-        const iframe = document.createElement('iframe')
-        iframe.style.display = 'none'
-        iframe.src = url
-        document.body.appendChild(iframe)
-        iframe.onload = () => {
-          iframe.contentWindow.print()
-          setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(url) }, 2000)
-        }
-      }
+      const url = isMulti ? await fetchCombinedBlob(ids) : await fetchSingleBlob(ids[0])
+      openPrintIframe(url)
     } finally { setLoading(null) }
   }
 
   return (
     <div className="fixed bottom-4 right-4 bg-green-600 text-white rounded-2xl shadow-lg px-5 py-3 flex items-center gap-3 z-[70]">
-      <span className="text-sm font-medium">{ids.length > 1 ? `${ids.length} invoices created!` : 'Invoice created!'}</span>
+      <span className="text-sm font-medium">{isMulti ? 'Combined invoice ready!' : 'Invoice created!'}</span>
       <button onClick={handlePrint} disabled={!!loading}
         className="bg-white text-green-700 text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50">
         {loading === 'print' ? 'Printing…' : 'Print'}
@@ -818,16 +871,184 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, tables = [] }) {
   )
 }
 
+// ─── Recent Bills Drawer ──────────────────────────────────────────────────────
+function RecentBillsDrawer({ onClose }) {
+  const [busy, setBusy] = useState(null) // `${sessionIdx}-${invoiceId}-print|download`
+  const [expanded, setExpanded] = useState({}) // sessionIdx => bool
+
+  const { data: sessions = [], isLoading } = useQuery({
+    queryKey: ['billing-recent-invoices'],
+    queryFn: () => getRecentInvoices().then(r => r.data.data),
+  })
+
+  const handlePrint = async (key, ids) => {
+    setBusy(key)
+    try {
+      const isMulti = ids.length > 1
+      const url = isMulti ? await fetchCombinedBlob(ids) : await fetchSingleBlob(ids[0])
+      openPrintIframe(url)
+    } finally { setBusy(null) }
+  }
+
+  const handleDownload = async (key, ids, filename) => {
+    setBusy(key)
+    try {
+      const isMulti = ids.length > 1
+      const url = isMulti ? await fetchCombinedBlob(ids) : await fetchSingleBlob(ids[0])
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally { setBusy(null) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex justify-end" onClick={onClose}>
+      <div className="bg-white w-full max-w-sm flex flex-col h-full shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-2">
+            <DocumentTextIcon className="w-5 h-5 text-gray-600" />
+            <h2 className="font-bold text-gray-900">Recent Bills</h2>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+            <XMarkIcon className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              {[1,2,3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}
+            </div>
+          ) : sessions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center px-6">
+              <DocumentTextIcon className="w-10 h-10 text-gray-300 mb-2" />
+              <p className="text-sm text-gray-400">No bills yet</p>
+            </div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {sessions.map((session, si) => {
+                const allIds = session.invoices.map(inv => inv.id)
+                const isOpen = !!expanded[si]
+                const time = new Date(session.closed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                const date = new Date(session.closed_at).toLocaleDateString([], { month: 'short', day: 'numeric' })
+
+                return (
+                  <div key={si} className="border border-gray-200 rounded-2xl overflow-hidden">
+                    {/* Session header */}
+                    <div className="px-4 py-3 bg-gray-50">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-gray-900">{session.label}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {date} · {time}
+                            {session.invoices.length > 1 && ` · ${session.invoices.length} bills`}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-bold text-sm text-gray-900">₹{session.session_total}</p>
+                        </div>
+                      </div>
+
+                      {/* Session-level actions (print/download all as combined) */}
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => handlePrint(`${si}-all-print`, allIds)}
+                          disabled={!!busy}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-semibold py-2 rounded-xl hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          <PrinterIcon className="w-3.5 h-3.5" />
+                          {busy === `${si}-all-print` ? 'Printing…' : allIds.length > 1 ? 'Print All' : 'Print'}
+                        </button>
+                        <button
+                          onClick={() => handleDownload(`${si}-all-dl`, allIds, `${session.label.replace(/\s/g,'-')}.pdf`)}
+                          disabled={!!busy}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-gray-800 text-white text-xs font-semibold py-2 rounded-xl hover:bg-gray-900 disabled:opacity-50"
+                        >
+                          <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                          {busy === `${si}-all-dl` ? 'Saving…' : allIds.length > 1 ? 'Download All' : 'Download'}
+                        </button>
+                      </div>
+
+                      {/* Expand toggle when multiple invoices */}
+                      {session.invoices.length > 1 && (
+                        <button
+                          onClick={() => setExpanded(e => ({ ...e, [si]: !e[si] }))}
+                          className="w-full text-center text-xs text-orange-500 font-medium mt-2"
+                        >
+                          {isOpen ? 'Hide individual bills ▲' : `Show ${session.invoices.length} individual bills ▼`}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Individual invoices — only when expanded or single */}
+                    {(isOpen || session.invoices.length === 1) && (
+                      <div className="divide-y divide-gray-100">
+                        {session.invoices.map(inv => (
+                          <div key={inv.id} className="px-4 py-2.5 flex items-center gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-gray-700 truncate">{inv.invoice_number}</p>
+                              <p className="text-[11px] text-gray-400 capitalize">
+                                {inv.payment_method} · ₹{inv.total}
+                                {inv.customer_name ? ` · ${inv.customer_name}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex gap-1.5 shrink-0">
+                              <button
+                                onClick={() => handlePrint(`${si}-${inv.id}-print`, [inv.id])}
+                                disabled={!!busy}
+                                className="flex items-center gap-1 bg-white border border-gray-200 text-gray-600 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                              >
+                                <PrinterIcon className="w-3 h-3" />
+                                {busy === `${si}-${inv.id}-print` ? '…' : 'Print'}
+                              </button>
+                              <button
+                                onClick={() => handleDownload(`${si}-${inv.id}-dl`, [inv.id], `${inv.invoice_number}.pdf`)}
+                                disabled={!!busy}
+                                className="flex items-center gap-1 bg-gray-700 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                              >
+                                <ArrowDownTrayIcon className="w-3 h-3" />
+                                {busy === `${si}-${inv.id}-dl` ? '…' : 'Save'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function BillingDashboard() {
   const { user, logout: clearAuth } = useAuthStore()
   const modules = user?.modules
   const hasRestaurant = !!modules?.restaurant
   const hasHotel      = !!modules?.hotel
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [selectedTable, setSelectedTable] = useState(null)
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [placingOrderFor, setPlacingOrderFor] = useState(null)
   const [lastInvoiceIds, setLastInvoiceIds] = useState(null)
+  const [showRecentBills, setShowRecentBills] = useState(false)
+
+  const openTable = (t) => {
+    qc.invalidateQueries({ queryKey: ['billing-table-orders', t.id] })
+    setSelectedTable(t)
+  }
+
+  const openBooking = (b) => {
+    qc.invalidateQueries({ queryKey: ['billing-booking-orders', b.id] })
+    setSelectedBooking(b)
+  }
 
   // Initialize to first available tab
   const availableTabs = [
@@ -868,16 +1089,23 @@ export default function BillingDashboard() {
             <p className="text-xs text-gray-400">{user?.name}</p>
           </div>
         </div>
-        <button onClick={handleLogout}
-          className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors">
-          <ArrowRightOnRectangleIcon className="w-4 h-4" />
-          Logout
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowRecentBills(true)}
+            className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
+            <DocumentTextIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">Recent Bills</span>
+          </button>
+          <button onClick={handleLogout}
+            className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors">
+            <ArrowRightOnRectangleIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </div>
       </header>
 
       <ActiveOrdersBar
-        onSelectTable={(tableObj) => setSelectedTable(tableObj)}
-        onSelectBooking={(bookingObj) => setSelectedBooking(bookingObj)}
+        onSelectTable={openTable}
+        onSelectBooking={openBooking}
         tables={tables ?? []}
       />
 
@@ -905,16 +1133,23 @@ export default function BillingDashboard() {
                     {rows.map(t => (
                       <button
                         key={t.id}
-                        onClick={() => setSelectedTable(t)}
-                        className={`rounded-xl border-2 p-3 text-center transition-all hover:shadow-md active:scale-95 ${
+                        onClick={() => openTable(t)}
+                        className={`rounded-xl border-2 p-3 text-center transition-all hover:shadow-md active:scale-95 relative ${
+                          t.bill_requested_at ? 'border-purple-400 bg-purple-50' :
                           t.status === 'occupied' ? 'border-orange-400 bg-orange-50' : 'border-green-300 bg-green-50'
                         }`}
                       >
+                        {t.bill_requested_at && (
+                          <span className="absolute -top-1.5 -right-1.5 bg-purple-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">BILL</span>
+                        )}
                         <div className="text-base font-bold text-gray-900">{t.number}</div>
-                        <div className={`text-xs font-medium mt-0.5 ${t.status === 'free' ? 'text-green-600' : 'text-orange-600'}`}>
-                          {t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
+                        <div className={`text-xs font-medium mt-0.5 ${
+                          t.bill_requested_at ? 'text-purple-600' :
+                          t.status === 'free' ? 'text-green-600' : 'text-orange-600'
+                        }`}>
+                          {t.bill_requested_at ? '🧾 Bill req.' : t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
                         </div>
-                        {t.active_order && (
+                        {t.active_order && !t.bill_requested_at && (
                           <div className={`text-xs mt-0.5 font-medium ${
                             t.active_order.status === 'ready' ? 'text-green-600' :
                             t.active_order.status === 'preparing' ? 'text-blue-500' : 'text-yellow-600'
@@ -930,7 +1165,7 @@ export default function BillingDashboard() {
         )}
 
         {tab === 'rooms' && hasHotel && (
-          <BillingRoomsTab onSelectBooking={setSelectedBooking} />
+          <BillingRoomsTab onSelectBooking={openBooking} />
         )}
 
       </div>
@@ -938,7 +1173,7 @@ export default function BillingDashboard() {
       {selectedTable && (
         <TablePanel
           table={selectedTable}
-          onClose={() => setSelectedTable(null)}
+          onClose={() => { setSelectedTable(null); qc.invalidateQueries({ queryKey: ['billing-tables'] }) }}
           onInvoiceDone={(ids) => setLastInvoiceIds(ids)}
         />
       )}
@@ -946,7 +1181,7 @@ export default function BillingDashboard() {
       {selectedBooking && hasRestaurant && (
         <BillingRoomOrdersPanel
           booking={selectedBooking}
-          onClose={() => { setSelectedBooking(null); setPlacingOrderFor(null) }}
+          onClose={() => { setSelectedBooking(null); setPlacingOrderFor(null); qc.invalidateQueries({ queryKey: ['billing-rooms-list'] }) }}
           onPlaceOrder={() => setPlacingOrderFor(selectedBooking)}
         />
       )}
@@ -967,6 +1202,10 @@ export default function BillingDashboard() {
 
       {lastInvoiceIds && (
         <DownloadBar invoiceIds={lastInvoiceIds} onDismiss={() => setLastInvoiceIds(null)} />
+      )}
+
+      {showRecentBills && (
+        <RecentBillsDrawer onClose={() => setShowRecentBills(false)} />
       )}
     </div>
   )
@@ -1062,6 +1301,14 @@ function BillingRoomOrdersPanel({ booking, onClose, onPlaceOrder }) {
     },
   })
 
+  const advanceStatus = useMutation({
+    mutationFn: ({ orderId, status }) => billingUpdateStatus(orderId, status),
+    onSuccess: () => {
+      refetch()
+      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
+    },
+  })
+
   const orders  = data?.orders ?? []
   const unbilled = orders.filter(o => !o.invoice && o.status !== 'cancelled')
   const inKitchenCount = orders.filter(o => ['pending','preparing'].includes(o.status)).length
@@ -1102,7 +1349,20 @@ function BillingRoomOrdersPanel({ booking, onClose, onPlaceOrder }) {
 
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
           {isLoading ? (
-            <div className="text-gray-400 text-sm">Loading orders…</div>
+            <div className="space-y-3">
+              {[1,2].map(i => (
+                <div key={i} className="bg-gray-50 rounded-xl p-4 animate-pulse">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="h-4 w-28 bg-gray-200 rounded" />
+                    <div className="h-5 w-16 bg-gray-200 rounded-full" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="h-3 w-full bg-gray-200 rounded" />
+                    <div className="h-3 w-3/4 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : !orders.length ? (
             <div className="text-center py-12 text-gray-400">
               <p>No room service orders yet.</p>
@@ -1142,7 +1402,25 @@ function BillingRoomOrdersPanel({ booking, onClose, onPlaceOrder }) {
                   <span>Total</span><span>₹{order.total}</span>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {order.status === 'pending' && (
+                  <button
+                    onClick={() => advanceStatus.mutate({ orderId: order.id, status: 'preparing' })}
+                    disabled={advanceStatus.isPending}
+                    className="flex-1 text-xs bg-blue-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
+                  >
+                    → Preparing
+                  </button>
+                )}
+                {order.status === 'preparing' && (
+                  <button
+                    onClick={() => advanceStatus.mutate({ orderId: order.id, status: 'ready' })}
+                    disabled={advanceStatus.isPending}
+                    className="flex-1 text-xs bg-green-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
+                  >
+                    → Mark Ready
+                  </button>
+                )}
                 {order.status === 'ready' && (
                   <button
                     onClick={() => markServed.mutate(order.id)}
@@ -1218,7 +1496,11 @@ function BillingRoomStatus({ onSelectRoom }) {
 
   const bookingByRoom = (activeBookings ?? []).reduce((acc, b) => { acc[b.room_id] = b; return acc }, {})
 
-  if (isLoading) return <div className="text-gray-400 text-sm">Loading rooms…</div>
+  if (isLoading) return (
+    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-10 gap-2">
+      {[1,2,3,4,5,6,7,8].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
+    </div>
+  )
 
   const roomList = Array.isArray(rooms) ? rooms : []
   const byFloor = roomList.reduce((acc, r) => {

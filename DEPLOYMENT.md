@@ -152,6 +152,16 @@ rsync -avz ... frontend/dist/assets/    $SERVER:$PATH/public/assets/
 
 ---
 
+### 11. Syncing `bootstrap/cache/` from local breaks artisan on server
+
+**What happened:** Rsync'd `bootstrap/` including `bootstrap/cache/services.php` and `bootstrap/cache/packages.php`. Local cache references `laravel/pail` (a dev-only package). Server doesn't have it installed, so every `php artisan` command failed with `Class "Laravel\Pail\PailServiceProvider" not found`.
+
+**Fix:** Deleted the two cache files on the server, then ran `php artisan package:discover` to regenerate them from the server's actual vendor directory.
+
+**Rule going forward:** Never sync `bootstrap/cache/` to the server. Delete stale cache on the server before running artisan commands.
+
+---
+
 ## Safe Deploy Checklist
 
 ```bash
@@ -163,8 +173,10 @@ SSH="ssh -i ~/.ssh/id_rsa -p 22"
 cd frontend && npm run build
 
 # 2. Sync backend (one dir at a time)
+# NOTE: do NOT sync bootstrap/cache/ — local cache references dev-only packages (laravel/pail etc.)
+#       that aren't installed on the server and will break artisan.
+#       Instead delete stale cache on server and let artisan regenerate it.
 rsync -avz -e "$SSH" backend/app/        $SERVER:$PATH/app/
-rsync -avz -e "$SSH" backend/bootstrap/  $SERVER:$PATH/bootstrap/
 rsync -avz -e "$SSH" backend/config/     $SERVER:$PATH/config/
 rsync -avz -e "$SSH" backend/database/   $SERVER:$PATH/database/
 rsync -avz -e "$SSH" backend/resources/  $SERVER:$PATH/resources/
@@ -174,8 +186,8 @@ rsync -avz -e "$SSH" backend/routes/     $SERVER:$PATH/routes/
 rsync -avz -e "$SSH" frontend/dist/index.html $SERVER:$PATH/public/index.html
 rsync -avz -e "$SSH" frontend/dist/assets/    $SERVER:$PATH/public/assets/
 
-# 4. Run migrations + clear caches
-ssh $SSH $SERVER "cd $PATH && php artisan migrate --force && php artisan config:clear && php artisan route:clear && php artisan cache:clear"
+# 4. Delete stale bootstrap cache, run migrations + clear caches
+ssh -i ~/.ssh/id_rsa -p 22 $SERVER "cd $PATH && rm -f bootstrap/cache/services.php bootstrap/cache/packages.php && php artisan migrate --force && php artisan config:clear && php artisan route:clear && php artisan cache:clear && php artisan package:discover --ansi"
 
 # 5. If new file uploads exist, copy to public/storage manually
 # ssh $SSH $SERVER "cp -r $PATH/storage/app/public/. $PATH/public/storage/"

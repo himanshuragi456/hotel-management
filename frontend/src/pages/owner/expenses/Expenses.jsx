@@ -24,7 +24,7 @@ export default function Expenses() {
   const [form, setForm] = useState({ category: '', description: '', amount: '', expense_date: new Date().toISOString().split('T')[0] })
   const [error, setError] = useState('')
 
-  const { data: expenses } = useQuery({
+  const { data: expenses, isLoading } = useQuery({
     queryKey: ['expenses', { from, to }],
     queryFn: () => getExpenses({ from, to }).then(r => r.data.data),
   })
@@ -111,7 +111,16 @@ export default function Expenses() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {expenses?.length === 0 ? (
+            {isLoading && [1,2,3,4].map(i => (
+              <tr key={i}>
+                <td className="px-5 py-4"><div className="w-20 h-4 bg-gray-100 rounded animate-pulse" /></td>
+                <td className="px-5 py-4"><div className="w-24 h-5 bg-gray-100 rounded-full animate-pulse" /></td>
+                <td className="px-5 py-4"><div className="w-32 h-4 bg-gray-100 rounded animate-pulse" /></td>
+                <td className="px-5 py-4 text-right"><div className="w-16 h-4 bg-gray-100 rounded animate-pulse ml-auto" /></td>
+                <td className="px-5 py-4"><div className="w-8 h-8 bg-gray-100 rounded-xl animate-pulse" /></td>
+              </tr>
+            ))}
+            {!isLoading && expenses?.length === 0 ? (
               <tr>
                 <td colSpan={5} className="text-center py-16">
                   <ReceiptPercentIcon className="w-10 h-10 text-gray-200 mx-auto mb-3" />
