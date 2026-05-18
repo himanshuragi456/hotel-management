@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, QrCodeIcon,
-  CheckCircleIcon, ClockIcon, UserGroupIcon,
+  CheckCircleIcon, ClockIcon, UserGroupIcon, ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline'
 import { getTables, createTable, updateTable, deleteTable, getTableQr } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import { formatOccupied } from '@/utils/time'
+import { validate, validateField, required, minValue, isInteger } from '@/utils/validate'
 
 const URGENCY_CONFIG = {
   high:   { border: 'border-red-400',    bg: 'bg-red-50',    dot: 'bg-red-500',    text: 'text-red-700'    },
@@ -67,31 +69,79 @@ function TableCard({ table, onEdit, onDelete, onQr }) {
   )
 }
 
+const TABLE_RULES = {
+  number:   [required('Table number')],
+  capacity: [required('Capacity'), minValue(1, 'Capacity'), isInteger('Capacity')],
+}
+
 function TableForm({ table, onSuccess }) {
   const isEdit = !!table
   const [form, setForm] = useState({ number: table?.number ?? '', capacity: table?.capacity ?? 4, section: table?.section ?? '' })
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+
+  const set = (k, v) => {
+    const next = { ...form, [k]: v }
+    setForm(next)
+    const err = validateField(TABLE_RULES, k, v, next)
+    setFieldErrors(e => ({ ...e, [k]: err }))
+  }
+
+  const blur = (field) => {
+    const err = validateField(TABLE_RULES, field, form[field], form)
+    if (err !== undefined) setFieldErrors(e => ({ ...e, [field]: err }))
+  }
+
   const mutation = useMutation({
     mutationFn: isEdit ? (d) => updateTable(table.id, d) : createTable,
     onSuccess: () => onSuccess?.(),
     onError: (err) => setError(err.response?.data?.message ?? 'Error'),
   })
-  const inp = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50'
+  const inp = (field) =>
+    `w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`
+
+  const Err = ({ field }) => fieldErrors[field]
+    ? <p className="text-xs text-red-500 mt-0.5">{fieldErrors[field]}</p>
+    : null
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const errs = validate(TABLE_RULES, form)
+    if (Object.keys(errs).length) { setFieldErrors(errs); return }
+    setError('')
+    mutation.mutate(form)
+  }
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); setError(''); mutation.mutate(form) }} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Table Number *</label>
-        <input required value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))} className={inp} placeholder="e.g. 1, A1, T-12" />
+        <input
+          value={form.number}
+          onChange={e => set('number', e.target.value)}
+          onBlur={() => blur('number')}
+          className={inp('number')}
+          placeholder="e.g. 1, A1, T-12"
+        />
+        <Err field="number" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity</label>
-          <input type="number" min="1" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} className={inp} />
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity *</label>
+          <input
+            type="number"
+            min="1"
+            value={form.capacity}
+            onChange={e => set('capacity', e.target.value)}
+            onBlur={() => blur('capacity')}
+            className={inp('capacity')}
+          />
+          <Err field="capacity" />
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Section</label>
-          <input value={form.section} onChange={e => setForm(f => ({ ...f, section: e.target.value }))} className={inp} placeholder="Ground Floor, Terrace…" />
+          <input value={form.section} onChange={e => set('section', e.target.value)} className={inp('section')} placeholder="Ground Floor, Terrace…" />
         </div>
       </div>
       <div className="flex justify-end">
@@ -108,7 +158,8 @@ export default function TableManager() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [qrUrl, setQrUrl] = useState(null)
+  const [qrData, setQrData] = useState(null) // { svgUrl, table }
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const { data: tables, isLoading } = useQuery({
     queryKey: ['tables'],
@@ -123,8 +174,8 @@ export default function TableManager() {
 
   const handleQr = async (table) => {
     const res = await getTableQr(table.id)
-    const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(res.data)
-    setQrUrl(dataUrl)
+    const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(res.data)
+    setQrData({ svgUrl, table })
   }
 
   const free     = tables?.filter(t => t.status === 'free').length ?? 0
@@ -183,7 +234,7 @@ export default function TableManager() {
                 {rows.map(table => (
                   <TableCard key={table.id} table={table}
                     onEdit={(t) => { setEditing(t); setShowForm(true) }}
-                    onDelete={(t) => confirm(`Delete table ${t.number}?`) && delTable.mutate(t.id)}
+                    onDelete={(t) => setDeleteTarget(t)}
                     onQr={handleQr} />
                 ))}
               </div>
@@ -196,18 +247,42 @@ export default function TableManager() {
         <TableForm table={editing} onSuccess={() => { setShowForm(false); setEditing(null); qc.invalidateQueries({ queryKey: ['tables'] }) }} />
       </Modal>
 
-      <Modal open={!!qrUrl} onClose={() => setQrUrl(null)} title="Table QR Code" size="sm">
-        {qrUrl && (
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={deleteTarget?.status === 'occupied' ? `Table ${deleteTarget?.number} is currently occupied` : `Delete Table ${deleteTarget?.number}?`}
+        message={deleteTarget?.status === 'occupied'
+          ? 'You cannot delete a table while it has active orders. Please close the table first.'
+          : 'This will permanently remove the table and its QR code. This cannot be undone.'}
+        confirmLabel={deleteTarget?.status === 'occupied' ? 'OK' : 'Delete'}
+        confirmClass={deleteTarget?.status === 'occupied' ? 'bg-gray-700 hover:bg-gray-800 text-white' : 'bg-red-500 hover:bg-red-600 text-white'}
+        onConfirm={() => {
+          if (deleteTarget?.status !== 'occupied') delTable.mutate(deleteTarget.id)
+          setDeleteTarget(null)
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      <Modal open={!!qrData} onClose={() => setQrData(null)} title={`Table ${qrData?.table?.number} — QR Code`} size="sm">
+        {qrData && (
           <div className="text-center">
             <div className="bg-gray-50 rounded-2xl p-6 mb-4 inline-block">
-              <img src={qrUrl} className="mx-auto w-48 h-48" />
+              <img src={qrData.svgUrl} className="mx-auto w-48 h-48" />
             </div>
             <p className="text-xs text-gray-500 mb-4">Customers scan this to view menu and place orders</p>
-            <a href={qrUrl} download="table-qr.svg"
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
-              <QrCodeIcon className="w-4 h-4" />
-              Download QR
-            </a>
+            <div className="flex gap-2 justify-center">
+              <a href={qrData.svgUrl} download={`table-${qrData.table.number}-qr.svg`}
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+                <QrCodeIcon className="w-4 h-4" />
+                Download QR
+              </a>
+              {qrData.table.menu_url && (
+                <a href={qrData.table.menu_url} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                  <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                  Open Menu
+                </a>
+              )}
+            </div>
           </div>
         )}
       </Modal>

@@ -5,26 +5,47 @@ import {
 } from '@heroicons/react/24/outline'
 import { getStaff, createStaff, updateStaff, deleteStaff, toggleStaffActive } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
+import { validate, validateField, required, isEmail, isPhone, minLen } from '@/utils/validate'
 
 const ALL_ROLES = ['waiter', 'chef', 'billing']
-
 const ROLE_META = {
-  waiter:  { label: 'Waiter',          color: 'bg-blue-100 text-blue-700',   module: 'restaurant' },
+  waiter:  { label: 'Waiter',          color: 'bg-blue-100 text-blue-700',    module: 'restaurant' },
   chef:    { label: 'Chef',            color: 'bg-orange-100 text-orange-700', module: 'restaurant' },
   billing: { label: 'Billing Counter', color: 'bg-purple-100 text-purple-700', module: null },
 }
-
-// billing is always available; waiter/chef only for restaurant module
 const getRolesForModules = (modules) =>
   ALL_ROLES.filter(r => ROLE_META[r].module === null || modules?.[ROLE_META[r].module])
 
+function buildRules(isEdit, hasNewPassword) {
+  return {
+    name:     [required('Name')],
+    email:    [required('Email'), isEmail()],
+    phone:    [isPhone()],
+    ...(!isEdit || hasNewPassword ? { password: [required('Password'), minLen(6, 'Password')] } : {}),
+  }
+}
+
 function StaffForm({ initial, onClose, onSave, availableRoles }) {
   const defaultRole = availableRoles[0] ?? 'billing'
+  const isEdit = !!initial
   const [form, setForm] = useState(initial ?? { name: '', email: '', phone: '', role: defaultRole, password: '' })
   const [errors, setErrors] = useState({})
-  const isEdit = !!initial
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const rules = buildRules(isEdit, !!form.password)
+
+  const set = (k, v) => {
+    const next = { ...form, [k]: v }
+    setForm(next)
+    const r = buildRules(isEdit, !!next.password)
+    const err = validateField(r, k, v, next)
+    setErrors(e => ({ ...e, [k]: err }))
+  }
+
+  const blur = (field) => {
+    const r = buildRules(isEdit, !!form.password)
+    const err = validateField(r, field, form[field], form)
+    if (err !== undefined) setErrors(e => ({ ...e, [field]: err }))
+  }
 
   const mutation = useMutation({
     mutationFn: isEdit
@@ -33,21 +54,36 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
     onSuccess: () => { onSave(); onClose() },
     onError: (err) => {
       const data = err.response?.data
-      if (data?.errors) setErrors(data.errors)
-      else setErrors({ general: data?.message ?? 'Something went wrong' })
+      if (data?.errors) {
+        // Normalize server errors (may be arrays)
+        const normalized = {}
+        for (const [k, v] of Object.entries(data.errors)) {
+          normalized[k] = Array.isArray(v) ? v[0] : v
+        }
+        setErrors(normalized)
+      } else {
+        setErrors({ general: data?.message ?? 'Something went wrong' })
+      }
     },
   })
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    const r = buildRules(isEdit, !!form.password)
+    const errs = validate(r, form)
+    if (Object.keys(errs).length) { setErrors(errs); return }
     setErrors({})
-    const payload = { name: form.name, email: form.email, phone: form.phone || undefined, role: form.role }
+    const payload = { name: form.name.trim(), email: form.email.trim(), phone: form.phone || undefined, role: form.role }
     if (!isEdit || form.password) payload.password = form.password
     mutation.mutate(payload)
   }
 
-  const inp = (hasErr) =>
-    `w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${hasErr ? 'border-red-400' : 'border-gray-300'}`
+  const inp = (field) =>
+    `w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-colors ${errors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-300'}`
+
+  const Err = ({ field }) => errors[field]
+    ? <p className="text-xs text-red-500 mt-0.5">{errors[field]}</p>
+    : null
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -62,27 +98,45 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)}
-              placeholder="Full name" className={inp(errors.name)} required />
-            {errors.name && <p className="text-xs text-red-500 mt-0.5">{errors.name[0]}</p>}
+            <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+            <input
+              value={form.name}
+              onChange={e => set('name', e.target.value)}
+              onBlur={() => blur('name')}
+              placeholder="Full name"
+              className={inp('name')}
+            />
+            <Err field="name" />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-            <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-              placeholder="email@example.com" className={inp(errors.email)} required />
-            {errors.email && <p className="text-xs text-red-500 mt-0.5">{errors.email[0]}</p>}
+            <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={e => set('email', e.target.value)}
+              onBlur={() => blur('email')}
+              placeholder="email@example.com"
+              className={inp('email')}
+            />
+            <Err field="email" />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Phone (optional)</label>
-            <input value={form.phone} onChange={e => set('phone', e.target.value)}
-              placeholder="+91 98765 43210" className={inp(false)} />
+            <label className="block text-xs font-medium text-gray-600 mb-1">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={e => set('phone', e.target.value)}
+              onBlur={() => blur('phone')}
+              placeholder="+91 98765 43210"
+              className={inp('phone')}
+            />
+            <Err field="phone" />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Role *</label>
             <div className={`grid gap-2 grid-cols-${availableRoles.length}`}>
               {availableRoles.map(r => (
                 <button type="button" key={r} onClick={() => set('role', r)}
@@ -96,16 +150,24 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
               Password {isEdit && <span className="text-gray-400 font-normal">(leave blank to keep current)</span>}
+              {!isEdit && <span className="text-red-500"> *</span>}
             </label>
-            <input type="password" value={form.password} onChange={e => set('password', e.target.value)}
+            <input
+              type="password"
+              value={form.password}
+              onChange={e => set('password', e.target.value)}
+              onBlur={() => blur('password')}
               placeholder={isEdit ? '••••••' : 'Min 6 characters'}
-              className={inp(errors.password)}
-              required={!isEdit} />
-            {errors.password && <p className="text-xs text-red-500 mt-0.5">{errors.password[0]}</p>}
+              className={inp('password')}
+            />
+            <Err field="password" />
           </div>
 
-          <button type="submit" disabled={mutation.isPending}
-            className="w-full bg-orange-500 text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 mt-1">
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className="w-full bg-orange-500 text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 mt-1"
+          >
             {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Staff Member'}
           </button>
         </form>
@@ -118,7 +180,7 @@ export default function StaffManager() {
   const qc = useQueryClient()
   const { user } = useAuthStore()
   const availableRoles = getRolesForModules(user?.modules)
-  const [formTarget, setFormTarget] = useState(null) // null = closed, 'new' = create, object = edit
+  const [formTarget, setFormTarget] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
 
   const { data: staff, isLoading } = useQuery({
@@ -209,13 +271,11 @@ export default function StaffManager() {
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium ${member.is_active ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
                         {member.is_active ? 'Deactivate' : 'Activate'}
                       </button>
-                      <button
-                        onClick={() => setFormTarget(member)}
+                      <button onClick={() => setFormTarget(member)}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
                         Edit
                       </button>
-                      <button
-                        onClick={() => setConfirmDelete(member)}
+                      <button onClick={() => setConfirmDelete(member)}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100">
                         Remove
                       </button>

@@ -4,7 +4,6 @@ import {
   ChartBarIcon,
   BuildingOffice2Icon,
   RectangleGroupIcon,
-  CreditCardIcon,
   ClipboardDocumentListIcon,
   SwatchIcon,
   Bars3Icon,
@@ -19,7 +18,6 @@ const NAV = [
   { label: 'Overview',      path: '/superadmin',               Icon: ChartBarIcon },
   { label: 'Tenants',       path: '/superadmin/tenants',       Icon: BuildingOffice2Icon },
   { label: 'Plans',         path: '/superadmin/plans',         Icon: RectangleGroupIcon },
-  { label: 'Subscriptions', path: '/superadmin/subscriptions', Icon: CreditCardIcon },
   { label: 'Audit Logs',    path: '/superadmin/audit-logs',    Icon: ClipboardDocumentListIcon },
   { label: 'Branding',      path: '/superadmin/branding',      Icon: SwatchIcon },
 ]

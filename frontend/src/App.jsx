@@ -21,7 +21,6 @@ import Overview from '@/pages/superadmin/Overview'
 import TenantList from '@/pages/superadmin/tenants/TenantList'
 import TenantDetail from '@/pages/superadmin/tenants/TenantDetail'
 import PlanList from '@/pages/superadmin/plans/PlanList'
-import SubscriptionList from '@/pages/superadmin/subscriptions/SubscriptionList'
 import AuditLogs from '@/pages/superadmin/audit/AuditLogs'
 import BrandingSettings from '@/pages/superadmin/BrandingSettings'
 
@@ -50,7 +49,7 @@ import WaiterDashboard from '@/pages/waiter/Dashboard'
 // Chef
 import ChefDashboard from '@/pages/chef/Dashboard'
 
-// Billing
+// Billing (used by both billing role and owner)
 import BillingDashboard from '@/pages/billing/Dashboard'
 
 // Customer (public — no auth)
@@ -82,7 +81,6 @@ export default function App() {
             <Route path="tenants" element={<TenantList />} />
             <Route path="tenants/:id" element={<TenantDetail />} />
             <Route path="plans" element={<PlanList />} />
-            <Route path="subscriptions" element={<SubscriptionList />} />
             <Route path="audit-logs" element={<AuditLogs />} />
             <Route path="branding" element={<BrandingSettings />} />
           </Route>
@@ -109,6 +107,8 @@ export default function App() {
             <Route path="audit-log" element={<OwnerAuditLog />} />
             {/* Staff */}
             <Route path="staff" element={<StaffManager />} />
+            {/* Billing counter — owner has full billing powers */}
+            <Route path="billing" element={<BillingDashboard embedded />} />
           </Route>
 
           {/* Waiter */}

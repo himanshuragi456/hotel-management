@@ -16,15 +16,19 @@ class TableController extends Controller
 
     public function index(): JsonResponse
     {
+        $tenant  = auth()->user()->tenant;
+        $baseUrl = config('app.frontend_url', config('app.url'));
+
         $tables = RestaurantTable::where('tenant_id', auth()->user()->tenant_id)
             ->with('activeOrder.items')
             ->orderBy('number')
             ->get()
-            ->map(function ($table) {
+            ->map(function ($table) use ($tenant, $baseUrl) {
                 $data = $table->toArray();
                 $data['occupied_minutes'] = $table->occupied_since
                     ? (int) abs(now()->diffInMinutes($table->occupied_since))
                     : null;
+                $data['menu_url'] = "{$baseUrl}/menu/{$tenant->slug}/{$table->qr_token}";
                 return $data;
             });
         return $this->success($tables);

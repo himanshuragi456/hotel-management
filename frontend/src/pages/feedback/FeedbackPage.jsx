@@ -7,6 +7,7 @@ import {
 import { HeartIcon as HeartSolid } from '@heroicons/react/24/solid'
 import { getFeedbackPage, submitFeedback, getAiSuggestions } from '@/services/restaurantService'
 import PoweredByBanner from '@/components/shared/PoweredByBanner'
+import TenantSuspendedScreen from '@/components/shared/TenantSuspendedScreen'
 
 // Bluish palette — low ratings use cool-warm contrast, high = blue-indigo
 const RATING_META = {
@@ -325,7 +326,13 @@ export default function FeedbackPage() {
   }
 
   if (isLoading) return <LoadingScreen />
-  if (error) return <ErrorScreen />
+  if (error) {
+    const errData = error?.response?.data
+    if (errData?.message === 'tenant_suspended') {
+      return <TenantSuspendedScreen tenantName={errData.tenant_name} branding={errData.branding} />
+    }
+    return <ErrorScreen />
+  }
 
   const bgStyle = { background: 'linear-gradient(145deg, #eff6ff 0%, #f8faff 40%, #eef2ff 100%)' }
   const meta = rating > 0 ? RATING_META[rating] : null

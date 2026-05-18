@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTenant, updateTenantModules, assignPlan, exportTenantData, updateTenantAiSettings } from '@/services/superadminService'
-import { getPlans } from '@/services/superadminService'
+import { getTenant, updateTenantModules, exportTenantData, updateTenantAiSettings } from '@/services/superadminService'
 import Badge from '@/components/shared/Badge'
 import Modal from '@/components/shared/Modal'
 import TenantForm from './TenantForm'
@@ -118,20 +117,11 @@ export default function TenantDetail() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [showEdit, setShowEdit] = useState(false)
-  const [showAssign, setShowAssign] = useState(false)
-  const [assignForm, setAssignForm] = useState({
-    subscription_plan_id: '', billing_cycle: 'monthly', payment_gateway: 'manual',
-    expiry_mode: 'preset', duration_months: 1, expires_at: '',
-  })
+  const [feedbackDomain, setFeedbackDomain] = useState('')
 
   const { data: res, isLoading } = useQuery({
     queryKey: ['tenant', id],
     queryFn: () => getTenant(id).then(r => r.data.data),
-  })
-
-  const { data: plans } = useQuery({
-    queryKey: ['plans'],
-    queryFn: () => getPlans().then(r => r.data.data),
   })
 
   const modulesMutation = useMutation({
@@ -142,11 +132,6 @@ export default function TenantDetail() {
   const aiMutation = useMutation({
     mutationFn: (data) => updateTenantAiSettings(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tenant', id] }),
-  })
-
-  const assignMutation = useMutation({
-    mutationFn: (data) => assignPlan(id, data),
-    onSuccess: () => { setShowAssign(false); qc.invalidateQueries({ queryKey: ['tenant', id] }) },
   })
 
   const handleExport = async () => {
@@ -165,9 +150,33 @@ export default function TenantDetail() {
 
   const { tenant, stats } = res
   const modules = tenant.modules ?? { restaurant: false, hotel: false, feedback: false }
+  const resolvedDomain = feedbackDomain || (tenant.business_domain ?? '')
+
+  const DOMAIN_OPTIONS = [
+    { value: 'restaurant', label: 'Restaurant' },
+    { value: 'hotel',      label: 'Hotel' },
+    { value: 'cafe',       label: 'Café' },
+    { value: 'bar',        label: 'Bar' },
+    { value: 'bakery',     label: 'Bakery' },
+    { value: 'clinic',     label: 'Clinic' },
+    { value: 'dentist',    label: 'Dentist' },
+    { value: 'salon',      label: 'Salon' },
+    { value: 'gym',        label: 'Gym' },
+    { value: 'retail',     label: 'Retail Shop' },
+    { value: 'other',      label: 'Other' },
+  ]
 
   const toggleModule = (mod) => {
-    modulesMutation.mutate({ ...modules, [mod]: !modules[mod] })
+    const newModules = { ...modules, [mod]: !modules[mod] }
+    const payload = { ...newModules }
+    if (mod === 'feedback' && newModules.feedback && resolvedDomain) {
+      payload.business_domain = resolvedDomain
+    }
+    modulesMutation.mutate(payload)
+  }
+
+  const saveDomain = () => {
+    modulesMutation.mutate({ ...modules, business_domain: resolvedDomain })
   }
 
   const MODULE_ITEMS = [
@@ -233,24 +242,51 @@ export default function TenantDetail() {
           <h3 className="font-semibold text-gray-900 mb-4">Module Access</h3>
           <div className="space-y-3">
             {MODULE_ITEMS.map(({ key, Icon, label, color, bg }) => (
-              <div key={key} className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-7 h-7 rounded-lg ${bg} flex items-center justify-center`}>
-                    <Icon className={`w-3.5 h-3.5 ${color}`} />
+              <div key={key}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-7 h-7 rounded-lg ${bg} flex items-center justify-center`}>
+                      <Icon className={`w-3.5 h-3.5 ${color}`} />
+                    </div>
+                    <span className="text-sm text-gray-700 font-medium">{label}</span>
                   </div>
-                  <span className="text-sm text-gray-700 font-medium">{label}</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={!!modules[key]}
+                      disabled={modulesMutation.isPending}
+                      onChange={() => toggleModule(key)}
+                    />
+                    <div className="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-blue-600 peer-disabled:opacity-50 transition-colors" />
+                    <div className="absolute left-1 top-1 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+                  </label>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={!!modules[key]}
-                    disabled={modulesMutation.isPending}
-                    onChange={() => toggleModule(key)}
-                  />
-                  <div className="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-blue-600 peer-disabled:opacity-50 transition-colors" />
-                  <div className="absolute left-1 top-1 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
-                </label>
+                {key === 'feedback' && modules.feedback && (
+                  <div className="mt-2 ml-9.5 pl-0.5">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Domain</label>
+                    <div className="flex gap-2">
+                      <select
+                        value={resolvedDomain}
+                        onChange={e => setFeedbackDomain(e.target.value)}
+                        className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50"
+                      >
+                        <option value="">Select domain…</option>
+                        {DOMAIN_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                      </select>
+                      <button
+                        onClick={saveDomain}
+                        disabled={!resolvedDomain || modulesMutation.isPending}
+                        className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors"
+                      >
+                        {modulesMutation.isPending ? '…' : 'Save'}
+                      </button>
+                    </div>
+                    {tenant.business_domain && (
+                      <p className="text-xs text-gray-400 mt-1">Current: <span className="font-medium text-gray-600">{tenant.business_domain}</span></p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -260,9 +296,9 @@ export default function TenantDetail() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">Subscription</h3>
-            <button onClick={() => setShowAssign(true)}
+            <button onClick={() => setShowEdit(true)}
               className="text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">
-              Assign Plan
+              {tenant.subscription ? 'Manage' : 'Assign Plan'}
             </button>
           </div>
           {tenant.subscription ? (
@@ -275,8 +311,8 @@ export default function TenantDetail() {
             </dl>
           ) : (
             <div className="text-center py-6">
-              <p className="text-sm text-gray-400">No active subscription</p>
-              <button onClick={() => setShowAssign(true)} className="mt-2 text-xs text-blue-600 hover:underline font-medium">Assign one →</button>
+              <p className="text-sm text-gray-400">No active subscription — tenant is on free trial</p>
+              <button onClick={() => setShowEdit(true)} className="mt-2 text-xs text-blue-600 hover:underline font-medium">Assign a plan →</button>
             </div>
           )}
         </div>
@@ -315,92 +351,6 @@ export default function TenantDetail() {
 
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Tenant" size="lg">
         <TenantForm tenant={tenant} onSuccess={() => { setShowEdit(false); qc.invalidateQueries({ queryKey: ['tenant', id] }) }} />
-      </Modal>
-
-      <Modal open={showAssign} onClose={() => setShowAssign(false)} title="Assign Subscription Plan">
-        <form onSubmit={(e) => {
-          e.preventDefault()
-          const payload = {
-            subscription_plan_id: assignForm.subscription_plan_id,
-            billing_cycle: assignForm.expiry_mode === 'date' ? 'custom' : assignForm.billing_cycle,
-            payment_gateway: assignForm.payment_gateway,
-          }
-          if (assignForm.expiry_mode === 'date' && assignForm.expires_at) {
-            payload.expires_at = assignForm.expires_at
-          } else {
-            payload.duration_months = assignForm.duration_months
-          }
-          assignMutation.mutate(payload)
-        }} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Plan *</label>
-            <select required value={assignForm.subscription_plan_id} onChange={e => setAssignForm(f => ({ ...f, subscription_plan_id: e.target.value }))}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Select a plan</option>
-              {plans?.filter(p => p.is_active).map(p => (
-                <option key={p.id} value={p.id}>{p.name} — ₹{p.price_monthly}/mo</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Expiry section */}
-          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-700">Access Duration</p>
-            <div className="flex gap-2">
-              {[['preset', 'Duration'], ['date', 'Specific Date']].map(([mode, label]) => (
-                <button key={mode} type="button"
-                  onClick={() => setAssignForm(f => ({ ...f, expiry_mode: mode }))}
-                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${assignForm.expiry_mode === mode ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:border-blue-200'}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {assignForm.expiry_mode === 'preset' ? (
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">Months</label>
-                <div className="flex flex-wrap gap-2">
-                  {[1, 2, 3, 6, 12, 24].map(m => (
-                    <button key={m} type="button"
-                      onClick={() => setAssignForm(f => ({ ...f, duration_months: m, billing_cycle: m === 12 || m === 24 ? 'yearly' : 'monthly' }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${assignForm.duration_months === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>
-                      {m === 1 ? '1 month' : m === 12 ? '12 mo (1 yr)' : m === 24 ? '24 mo (2 yr)' : `${m} months`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Expires On</label>
-                <input type="date" required={assignForm.expiry_mode === 'date'}
-                  min={new Date().toISOString().split('T')[0]}
-                  value={assignForm.expires_at}
-                  onChange={e => setAssignForm(f => ({ ...f, expires_at: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Payment Gateway</label>
-            <select value={assignForm.payment_gateway} onChange={e => setAssignForm(f => ({ ...f, payment_gateway: e.target.value }))}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="manual">Manual / Cash</option>
-              <option value="stripe">Stripe</option>
-              <option value="razorpay">Razorpay</option>
-            </select>
-          </div>
-
-          {assignMutation.isError && (
-            <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{assignMutation.error?.response?.data?.message || 'Failed to assign plan.'}</p>
-          )}
-          <div className="flex justify-end">
-            <button type="submit" disabled={assignMutation.isPending}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow disabled:opacity-50">
-              {assignMutation.isPending ? 'Assigning…' : 'Assign Plan'}
-            </button>
-          </div>
-        </form>
       </Modal>
     </div>
   )

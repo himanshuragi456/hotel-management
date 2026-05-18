@@ -5,9 +5,11 @@ import {
   getRooms, searchGuests, createGuest, getBookingCheckoutSummary, extendBookingStay,
 } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import {
   PlusIcon, CalendarDaysIcon, ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'
+import { validate, required, isEmail, isPhone, dateAfter, dateNotPast, minValue, isInteger } from '@/utils/validate'
 
 const STATUS_BADGE = {
   upcoming:    'bg-blue-100 text-blue-700',
@@ -65,14 +67,35 @@ function NewBookingForm({ onSuccess, svc }) {
 
   const handleSubmit = async () => {
     setError('')
+
+    if (isNewGuest) {
+      const guestErrs = validate({
+        name:  [required('Guest name')],
+        phone: [required('Phone'), isPhone()],
+        email: [isEmail()],
+      }, newGuest)
+      if (Object.keys(guestErrs).length) {
+        setError(Object.values(guestErrs)[0])
+        return
+      }
+    }
+
+    if (!guest && !isNewGuest) { setError('Please select or add a guest'); return }
+    if (!form.room_id) { setError('Please select a room'); return }
+
+    const bookingErrs = validate({
+      check_in_date:  [required('Check-in date'), dateNotPast('Check-in date')],
+      check_out_date: [required('Check-out date'), dateAfter('check_in_date', 'check-in', 'Check-out date')],
+      adults:         [required('Adults'), minValue(1, 'Adults'), isInteger('Adults')],
+    }, form)
+    if (Object.keys(bookingErrs).length) { setError(Object.values(bookingErrs)[0]); return }
+
     let guestId = guest?.id
     if (isNewGuest) {
-      if (!newGuest.name || !newGuest.phone) { setError('Guest name and phone required'); return }
       const res = await makeGuest.mutateAsync({ ...newGuest })
       guestId = res.data.data?.id
     }
-    if (!guestId) { setError('Please select or add a guest'); return }
-    if (!form.room_id) { setError('Please select a room'); return }
+    if (!guestId) { setError('Failed to create guest'); return }
 
     book.mutate({ ...form, guest_id: guestId, adults: parseInt(form.adults), children: parseInt(form.children) })
   }
@@ -96,7 +119,7 @@ function NewBookingForm({ onSuccess, svc }) {
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <input required value={newGuest.name} onChange={e => setNewGuest(g => ({ ...g, name: e.target.value }))} placeholder="Full name *" className={inp} />
-              <input required value={newGuest.phone} onChange={e => setNewGuest(g => ({ ...g, phone: e.target.value }))} placeholder="Phone *" className={inp} />
+              <input type="tel" required value={newGuest.phone} onChange={e => setNewGuest(g => ({ ...g, phone: e.target.value }))} placeholder="Phone *" className={inp} />
             </div>
             <input type="email" value={newGuest.email} onChange={e => setNewGuest(g => ({ ...g, email: e.target.value }))} placeholder="Email (optional)" className={inp} />
             <button onClick={() => setIsNewGuest(false)} className="text-xs text-gray-400 hover:text-gray-600">← Search existing guest</button>
@@ -425,6 +448,8 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
   const [showNew, setShowNew] = useState(false)
   const [checkingOut, setCheckingOut] = useState(null)
   const [viewBooking, setViewBooking] = useState(null)
+  const [checkInTarget, setCheckInTarget] = useState(null)
+  const [cancelTarget, setCancelTarget] = useState(null)
 
   const { data: bookingPage, isLoading } = useQuery({
     queryKey: [qk, 'bookings', status],
@@ -436,12 +461,16 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
 
   const checkIn = useMutation({
     mutationFn: (b) => svc.checkInBooking(b.id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [qk, 'bookings'] }); qc.invalidateQueries({ queryKey: [qk, 'rooms'] }) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [qk, 'bookings'] })
+      qc.invalidateQueries({ queryKey: [qk, 'rooms'] })
+      setCheckInTarget(null)
+    },
   })
 
   const cancel = useMutation({
     mutationFn: (b) => svc.cancelBooking(b.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: [qk, 'bookings'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: [qk, 'bookings'] }); setCancelTarget(null) },
   })
 
   return (
@@ -494,9 +523,9 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
                 </tr>
               ) : bookings.map(b => (
                 <BookingRow key={b.id} booking={b}
-                  onCheckIn={(bk) => confirm(`Check in ${bk.guest?.name} to Room ${bk.room?.number}?`) && checkIn.mutate(bk)}
+                  onCheckIn={(bk) => setCheckInTarget(bk)}
                   onCheckOut={(bk) => setCheckingOut(bk)}
-                  onCancel={(bk) => confirm(`Cancel booking ${bk.booking_number}?`) && cancel.mutate(bk)}
+                  onCancel={(bk) => setCancelTarget(bk)}
                   onView={setViewBooking}
                 />
               ))}
@@ -516,6 +545,26 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
       <Modal open={!!viewBooking} onClose={() => setViewBooking(null)} title="Booking Details" size="md">
         {viewBooking && <BookingDetail svc={svc} booking={viewBooking} />}
       </Modal>
+
+      <ConfirmDialog
+        open={!!checkInTarget}
+        title="Confirm Check-In"
+        message={`Check in ${checkInTarget?.guest?.name} to Room ${checkInTarget?.room?.number}?`}
+        confirmLabel={checkIn.isPending ? 'Checking in…' : 'Check In'}
+        confirmClass="bg-green-600 hover:bg-green-700 text-white"
+        onConfirm={() => checkIn.mutate(checkInTarget)}
+        onCancel={() => setCheckInTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        title="Cancel Booking?"
+        message={`Cancel booking ${cancelTarget?.booking_number}? The room will be freed up.`}
+        confirmLabel={cancel.isPending ? 'Cancelling…' : 'Cancel Booking'}
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+        onConfirm={() => cancel.mutate(cancelTarget)}
+        onCancel={() => setCancelTarget(null)}
+      />
     </div>
   )
 }

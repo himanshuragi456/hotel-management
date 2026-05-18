@@ -6,6 +6,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { getPlans, deletePlan } from '@/services/superadminService'
 import Modal from '@/components/shared/Modal'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import PlanForm from './PlanForm'
 
 function ModuleChip({ active, label }) {
@@ -22,6 +23,8 @@ function ModuleChip({ active, label }) {
 export default function PlanList() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
   const qc = useQueryClient()
 
   const { data: plans, isLoading } = useQuery({
@@ -31,7 +34,8 @@ export default function PlanList() {
 
   const deleteMutation = useMutation({
     mutationFn: deletePlan,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['plans'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['plans'] }); setDeleteTarget(null) },
+    onError: (err) => setDeleteError(err.response?.data?.message ?? 'Failed to delete plan'),
   })
 
   const handleEdit = (plan) => { setEditing(plan); setShowForm(true) }
@@ -111,7 +115,7 @@ export default function PlanList() {
                   className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">
                   <PencilSquareIcon className="w-3.5 h-3.5" />Edit
                 </button>
-                <button onClick={() => confirm(`Delete "${plan.name}"?`) && deleteMutation.mutate(plan.id)}
+                <button onClick={() => { setDeleteError(''); setDeleteTarget(plan) }}
                   className="inline-flex items-center gap-1 text-xs text-red-500 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">
                   <TrashIcon className="w-3.5 h-3.5" />Delete
                 </button>
@@ -130,6 +134,15 @@ export default function PlanList() {
       <Modal open={showForm} onClose={handleClose} title={editing ? 'Edit Plan' : 'New Plan'} size="lg">
         <PlanForm plan={editing} onSuccess={() => { handleClose(); qc.invalidateQueries({ queryKey: ['plans'] }) }} />
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Delete "${deleteTarget?.name}"?`}
+        message={deleteError || 'This plan will be permanently removed. Plans with active subscriptions cannot be deleted.'}
+        confirmLabel={deleteMutation.isPending ? 'Deleting…' : 'Delete Plan'}
+        onConfirm={() => !deleteMutation.isPending && deleteMutation.mutate(deleteTarget.id)}
+        onCancel={() => { setDeleteTarget(null); setDeleteError('') }}
+      />
     </div>
   )
 }

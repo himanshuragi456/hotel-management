@@ -7,6 +7,8 @@ import {
 import { getRooms, createRoom, updateRoom, deleteRoom } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
 import { formatOccupied } from '@/utils/time'
+import { validate, validateField, required, isPositive, isNonNeg, minValue, isInteger } from '@/utils/validate'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 
 const ROOM_TYPES = ['single', 'double', 'triple', 'suite', 'deluxe']
 
@@ -72,28 +74,60 @@ function RoomCard({ room, onEdit, onDelete }) {
   )
 }
 
+const ROOM_RULES = {
+  number:          [required('Room number')],
+  type:            [required('Room type')],
+  floor:           [isNonNeg('Floor'), isInteger('Floor')],
+  capacity:        [required('Capacity'), minValue(1, 'Capacity'), isInteger('Capacity')],
+  price_per_night: [required('Price per night'), isPositive('Price per night')],
+}
+
 function RoomForm({ room, onSuccess }) {
   const isEdit = !!room
   const [form, setForm] = useState({
-    number: room?.number ?? '',
-    type: room?.type ?? 'single',
-    floor: room?.floor ?? 1,
-    capacity: room?.capacity ?? 1,
+    number:          room?.number          ?? '',
+    type:            room?.type            ?? 'single',
+    floor:           room?.floor           ?? 1,
+    capacity:        room?.capacity        ?? 1,
     price_per_night: room?.price_per_night ?? '',
-    amenities: room?.amenities?.join(', ') ?? '',
-    description: room?.description ?? '',
-    status: room?.status ?? 'available',
+    amenities:       room?.amenities?.join(', ') ?? '',
+    description:     room?.description    ?? '',
+    status:          room?.status         ?? 'available',
   })
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+
+  const set = (k, v) => {
+    const next = { ...form, [k]: v }
+    setForm(next)
+    const err = validateField(ROOM_RULES, k, v, next)
+    setFieldErrors(e => ({ ...e, [k]: err }))
+  }
+
+  const blur = (field) => {
+    const err = validateField(ROOM_RULES, field, form[field], form)
+    if (err !== undefined) setFieldErrors(e => ({ ...e, [field]: err }))
+  }
+
   const mutation = useMutation({
     mutationFn: isEdit ? (d) => updateRoom(room.id, d) : createRoom,
     onSuccess: () => onSuccess?.(),
     onError: (err) => setError(err.response?.data?.message ?? 'Error'),
   })
-  const inp = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50'
+
+  const inp = (field) =>
+    `w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`
+
+  const Err = ({ field }) => fieldErrors[field]
+    ? <p className="text-xs text-red-500 mt-0.5">{fieldErrors[field]}</p>
+    : null
 
   const handleSubmit = (e) => {
-    e.preventDefault(); setError('')
+    e.preventDefault()
+    const errs = validate(ROOM_RULES, form)
+    if (Object.keys(errs).length) { setFieldErrors(errs); return }
+    setError('')
+    setFieldErrors({})
     mutation.mutate({
       ...form,
       amenities: form.amenities ? form.amenities.split(',').map(a => a.trim()).filter(Boolean) : [],
@@ -106,30 +140,64 @@ function RoomForm({ room, onSuccess }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Room Number *</label>
-          <input required value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))} className={inp} placeholder="101, A-202…" />
+          <input
+            value={form.number}
+            onChange={e => set('number', e.target.value)}
+            onBlur={() => blur('number')}
+            className={inp('number')}
+            placeholder="101, A-202…"
+          />
+          <Err field="number" />
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Floor</label>
-          <input type="number" min="0" value={form.floor} onChange={e => setForm(f => ({ ...f, floor: e.target.value }))} className={inp} />
+          <input
+            type="number"
+            min="0"
+            value={form.floor}
+            onChange={e => set('floor', e.target.value)}
+            onBlur={() => blur('floor')}
+            className={inp('floor')}
+          />
+          <Err field="floor" />
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type *</label>
-          <select required value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={inp}>
+          <select value={form.type} onChange={e => set('type', e.target.value)} className={inp('type')}>
             {ROOM_TYPES.map(t => <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
           </select>
+          <Err field="type" />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity</label>
-          <input type="number" min="1" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} className={inp} />
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity *</label>
+          <input
+            type="number"
+            min="1"
+            value={form.capacity}
+            onChange={e => set('capacity', e.target.value)}
+            onBlur={() => blur('capacity')}
+            className={inp('capacity')}
+          />
+          <Err field="capacity" />
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Price / Night (₹) *</label>
-          <input required type="number" step="0.01" min="0" value={form.price_per_night} onChange={e => setForm(f => ({ ...f, price_per_night: e.target.value }))} className={inp} />
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={form.price_per_night}
+            onChange={e => set('price_per_night', e.target.value)}
+            onBlur={() => blur('price_per_night')}
+            className={inp('price_per_night')}
+            placeholder="0.00"
+          />
+          <Err field="price_per_night" />
         </div>
         {isEdit && (
           <div className="col-span-2">
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Status</label>
-            <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={inp}>
+            <select value={form.status} onChange={e => set('status', e.target.value)} className={inp('status')}>
               <option value="available">Available</option>
               <option value="cleaning">Cleaning</option>
               <option value="maintenance">Maintenance</option>
@@ -137,12 +205,12 @@ function RoomForm({ room, onSuccess }) {
           </div>
         )}
         <div className="col-span-2">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Amenities (comma-separated)</label>
-          <input value={form.amenities} onChange={e => setForm(f => ({ ...f, amenities: e.target.value }))} className={inp} placeholder="AC, TV, WiFi, Bathtub…" />
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Amenities <span className="text-gray-400 font-normal normal-case">(comma-separated)</span></label>
+          <input value={form.amenities} onChange={e => set('amenities', e.target.value)} className={inp('amenities')} placeholder="AC, TV, WiFi, Bathtub…" />
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
-          <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inp} placeholder="Optional room description" />
+          <input value={form.description} onChange={e => set('description', e.target.value)} className={inp('description')} placeholder="Optional room description" />
         </div>
       </div>
       <div className="flex justify-end pt-1">
@@ -160,6 +228,7 @@ export default function RoomManager() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [filterStatus, setFilterStatus] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const { data: rooms, isLoading } = useQuery({
     queryKey: ['rooms'],
@@ -169,7 +238,7 @@ export default function RoomManager() {
 
   const del = useMutation({
     mutationFn: deleteRoom,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rooms'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rooms'] }); setDeleteTarget(null) },
   })
 
   const counts = rooms?.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc }, {}) ?? {}
@@ -237,7 +306,7 @@ export default function RoomManager() {
           {filtered.map(room => (
             <RoomCard key={room.id} room={room}
               onEdit={(r) => { setEditing(r); setShowForm(true) }}
-              onDelete={(r) => confirm(`Delete room ${r.number}?`) && del.mutate(r.id)} />
+              onDelete={(r) => setDeleteTarget(r)} />
           ))}
         </div>
       )}
@@ -245,6 +314,28 @@ export default function RoomManager() {
       <Modal open={showForm} onClose={() => { setShowForm(false); setEditing(null) }} title={editing ? 'Edit Room' : 'Add Room'} size="sm">
         <RoomForm room={editing} onSuccess={() => { setShowForm(false); setEditing(null); qc.invalidateQueries({ queryKey: ['rooms'] }) }} />
       </Modal>
+
+      {deleteTarget?.status === 'occupied' ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-sm p-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-2">Room is Occupied</h2>
+            <p className="text-sm text-gray-500 mb-4">Room {deleteTarget?.number} is currently occupied. Check out the guest before deleting.</p>
+            <button onClick={() => setDeleteTarget(null)} className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">
+              OK
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ConfirmDialog
+          open={!!deleteTarget}
+          title={`Delete Room ${deleteTarget?.number}?`}
+          message="This will permanently delete the room. This cannot be undone."
+          confirmLabel={del.isPending ? 'Deleting…' : 'Delete'}
+          confirmClass="bg-red-500 hover:bg-red-600 text-white"
+          onConfirm={() => del.mutate(deleteTarget?.id)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   )
 }

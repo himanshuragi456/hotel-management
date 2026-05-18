@@ -4,6 +4,7 @@ import {
   PlusIcon, TrashIcon, BanknotesIcon, FunnelIcon, ReceiptPercentIcon,
 } from '@heroicons/react/24/outline'
 import { getExpenses, createExpense, deleteExpense } from '@/services/restaurantService'
+import { validate, validateField, required, isPositive, dateNotPast } from '@/utils/validate'
 
 const CATEGORIES = ['Groceries', 'Utilities', 'Staff', 'Maintenance', 'Marketing', 'Equipment', 'Other']
 
@@ -23,6 +24,25 @@ export default function Expenses() {
   const [to, setTo]   = useState('')
   const [form, setForm] = useState({ category: '', description: '', amount: '', expense_date: new Date().toISOString().split('T')[0] })
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+
+  const EXPENSE_RULES = {
+    category:     [required('Category')],
+    amount:       [required('Amount'), isPositive('Amount')],
+    expense_date: [required('Date')],
+  }
+
+  const setField = (k, v) => {
+    const next = { ...form, [k]: v }
+    setForm(next)
+    const err = validateField(EXPENSE_RULES, k, v, next)
+    setFieldErrors(e => ({ ...e, [k]: err }))
+  }
+
+  const blur = (field) => {
+    const err = validateField(EXPENSE_RULES, field, form[field], form)
+    if (err !== undefined) setFieldErrors(e => ({ ...e, [field]: err }))
+  }
 
   const { data: expenses, isLoading } = useQuery({
     queryKey: ['expenses', { from, to }],
@@ -31,14 +51,15 @@ export default function Expenses() {
 
   const create = useMutation({
     mutationFn: createExpense,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setForm(f => ({ ...f, amount: '', description: '' })) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setForm(f => ({ ...f, amount: '', description: '' })); setFieldErrors({}) },
     onError: (err) => setError(err.response?.data?.message ?? 'Error'),
   })
 
   const del = useMutation({ mutationFn: deleteExpense, onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses'] }) })
 
   const total = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
-  const inp = 'border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 w-full'
+  const inp = (field) =>
+    `border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 w-full ${fieldErrors[field] ? 'border-red-400' : 'border-gray-200'}`
 
   return (
     <div className="max-w-3xl">
@@ -56,14 +77,48 @@ export default function Expenses() {
           <h3 className="font-semibold text-gray-900 text-sm">Add Expense</h3>
         </div>
         {error && <div className="text-red-600 text-sm mb-3 bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
-        <form onSubmit={(e) => { e.preventDefault(); setError(''); create.mutate(form) }} className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <select required value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className={inp}>
-            <option value="">Category</option>
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Description (optional)" className={inp} />
-          <input required type="number" step="0.01" min="0" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="Amount ₹" className={inp} />
-          <input required type="date" value={form.expense_date} onChange={e => setForm(f => ({ ...f, expense_date: e.target.value }))} className={inp} />
+        <form onSubmit={(e) => {
+          e.preventDefault()
+          const errs = validate(EXPENSE_RULES, form)
+          if (Object.keys(errs).length) { setFieldErrors(errs); return }
+          setError(''); create.mutate(form)
+        }} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
+            <select
+              value={form.category}
+              onChange={e => setField('category', e.target.value)}
+              onBlur={() => blur('category')}
+              className={inp('category')}
+            >
+              <option value="">Category *</option>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {fieldErrors.category && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.category}</p>}
+          </div>
+          <input value={form.description} onChange={e => setField('description', e.target.value)} placeholder="Description (optional)" className={inp('description')} />
+          <div>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={form.amount}
+              onChange={e => setField('amount', e.target.value)}
+              onBlur={() => blur('amount')}
+              placeholder="Amount ₹ *"
+              className={inp('amount')}
+            />
+            {fieldErrors.amount && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.amount}</p>}
+          </div>
+          <div>
+            <input
+              type="date"
+              value={form.expense_date}
+              onChange={e => setField('expense_date', e.target.value)}
+              onBlur={() => blur('expense_date')}
+              className={inp('expense_date')}
+            />
+            {fieldErrors.expense_date && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.expense_date}</p>}
+          </div>
           <button type="submit" disabled={create.isPending}
             className="col-span-full md:col-span-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
             <PlusIcon className="w-4 h-4" />

@@ -8,9 +8,53 @@ import {
   ExclamationTriangleIcon,
   ExclamationCircleIcon,
   ArrowRightOnRectangleIcon,
+  ChevronDownIcon,
+  QrCodeIcon,
+  DevicePhoneMobileIcon,
+  CreditCardIcon,
+  BuildingOfficeIcon,
+  ShoppingBagIcon,
 } from '@heroicons/react/24/outline'
 import useAuthStore from '@/store/authStore'
 import { SUBSCRIPTION_EXPIRED_EVENT } from '@/services/api'
+
+const FEATURES = [
+  {
+    Icon: QrCodeIcon,
+    color: 'text-amber-500',
+    bg: 'bg-amber-50',
+    title: 'Google Review Magic QR',
+    desc: 'Auto-redirects happy customers to your Google review page — watch your rating climb on autopilot.',
+  },
+  {
+    Icon: DevicePhoneMobileIcon,
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-50',
+    title: 'WhatsApp Digital Billing',
+    desc: 'Send itemised bills directly to guests on WhatsApp — no printing, no delays, no disputes.',
+  },
+  {
+    Icon: CreditCardIcon,
+    color: 'text-blue-500',
+    bg: 'bg-blue-50',
+    title: 'UPI Scanner on Every Bill',
+    desc: 'Printed invoices include a live UPI QR so customers pay instantly — zero cash-handling errors.',
+  },
+  {
+    Icon: BuildingOfficeIcon,
+    color: 'text-indigo-500',
+    bg: 'bg-indigo-50',
+    title: 'Hotel Management System',
+    desc: 'Bookings, check-in/out, room service charges, and occupancy reports — all in one dashboard.',
+  },
+  {
+    Icon: ShoppingBagIcon,
+    color: 'text-orange-500',
+    bg: 'bg-orange-50',
+    title: 'Restaurant & Café Order Management',
+    desc: 'Digital table menus via QR, live kitchen display, and billing counter — no paper, no shouting.',
+  },
+]
 
 export const AUTH_EXPIRED_EVENT = 'app:auth-expired'
 export const API_ERROR_EVENT = 'app:api-error'
@@ -19,6 +63,7 @@ export default function GlobalErrorModal() {
   const [sessionExpired, setSessionExpired] = useState(false)
   const [apiError, setApiError] = useState(null)
   const [subExpired, setSubExpired] = useState(null)
+  const [featuresOpen, setFeaturesOpen] = useState(false)
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
 
@@ -70,7 +115,7 @@ export default function GlobalErrorModal() {
 
           <div className="p-8">
             {/* Logo / Icon */}
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-5">
               {brand_logo_url ? (
                 <img src={brand_logo_url} alt={brand_name} className="h-12 object-contain" />
               ) : (
@@ -80,15 +125,46 @@ export default function GlobalErrorModal() {
               )}
             </div>
 
-            {/* Headline */}
-            <div className="text-center mb-6">
-              <h1 className="text-xl font-semibold text-gray-900 mb-2">Subscription Expired</h1>
+            {/* Headline + tagline */}
+            <div className="text-center mb-5">
+              <h1 className="text-xl font-semibold text-gray-900 mb-1.5">Subscription Expired</h1>
               <p className="text-sm text-gray-500 leading-relaxed">{sales_tagline}</p>
+            </div>
+
+            {/* Features accordion */}
+            <div className="mb-5 rounded-xl border border-gray-200 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setFeaturesOpen(o => !o)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-50 to-amber-50 hover:from-orange-100 hover:to-amber-100 transition-colors text-left"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">What you're missing out on</p>
+                  <p className="text-xs text-gray-500 mt-0.5">5 features your competitors are already using</p>
+                </div>
+                <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ml-3 ${featuresOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {featuresOpen && (
+                <div className="divide-y divide-gray-100">
+                  {FEATURES.map(({ Icon, color, bg, title, desc }) => (
+                    <div key={title} className="flex items-start gap-3 px-4 py-3 bg-white">
+                      <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center shrink-0 mt-0.5`}>
+                        <Icon className={`w-4 h-4 ${color}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{title}</p>
+                        <p className="text-xs text-gray-500 leading-relaxed mt-0.5">{desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Contact card */}
             {hasContact && (
-              <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 mb-6 space-y-1">
+              <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 mb-5 space-y-1">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                   Contact Sales · {brand_name}
                 </p>

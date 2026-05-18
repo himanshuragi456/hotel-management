@@ -1,20 +1,41 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { EnvelopeIcon, LockClosedIcon, BuildingOffice2Icon, SparklesIcon } from '@heroicons/react/24/outline'
+import { EnvelopeIcon, LockClosedIcon, BuildingOffice2Icon, SparklesIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import useAuthStore from '@/store/authStore'
 import { login } from '@/services/authService'
 import { ROLE_HOME } from '@/components/layouts/RoleGuard'
+import { validate, validateField, required, isEmail, minLen } from '@/utils/validate'
+import { SUBSCRIPTION_EXPIRED_EVENT } from '@/services/api'
+
+const LOGIN_RULES = {
+  email:    [required('Email'), isEmail()],
+  password: [required('Password'), minLen(6, 'Password')],
+}
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
 
+  const blurEmail = () => {
+    const err = validateField(LOGIN_RULES, 'email', email, { email, password })
+    setFieldErrors(f => ({ ...f, email: err }))
+  }
+  const blurPassword = () => {
+    const err = validateField(LOGIN_RULES, 'password', password, { email, password })
+    setFieldErrors(f => ({ ...f, password: err }))
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const errs = validate(LOGIN_RULES, { email: email.trim(), password })
+    if (Object.keys(errs).length) { setFieldErrors(errs); return }
+    setFieldErrors({})
     setError('')
     setLoading(true)
     try {
@@ -23,7 +44,14 @@ export default function Login() {
       setAuth(access_token, user)
       navigate(ROLE_HOME[user.role] ?? '/', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Login failed')
+      const msg = err.response?.data?.message
+      if (msg === 'subscription_expired' && err.response?.status === 402) {
+        window.dispatchEvent(new CustomEvent(SUBSCRIPTION_EXPIRED_EVENT, {
+          detail: { branding: err.response.data.branding }
+        }))
+      } else {
+        setError(msg ?? 'Login failed')
+      }
     } finally {
       setLoading(false)
     }
@@ -99,11 +127,15 @@ export default function Login() {
               <div className="relative">
                 <EnvelopeIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
-                  type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                  type="email"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setFieldErrors(f => ({ ...f, email: undefined })) }}
+                  onBlur={blurEmail}
                   placeholder="you@example.com"
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
+                  className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all ${fieldErrors.email ? 'border-red-400' : 'border-gray-200'}`}
                 />
               </div>
+              {fieldErrors.email && <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>}
             </div>
 
             <div>
@@ -111,11 +143,23 @@ export default function Login() {
               <div className="relative">
                 <LockClosedIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
-                  type="password" value={password} onChange={e => setPassword(e.target.value)} required
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => { setPassword(e.target.value); setFieldErrors(f => ({ ...f, password: undefined })) }}
+                  onBlur={blurPassword}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
+                  className={`w-full pl-9 pr-10 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all ${fieldErrors.password ? 'border-red-400' : 'border-gray-200'}`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                </button>
               </div>
+              {fieldErrors.password && <p className="text-xs text-red-500 mt-1">{fieldErrors.password}</p>}
             </div>
 
             <button type="submit" disabled={loading}

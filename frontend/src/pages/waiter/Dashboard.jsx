@@ -25,6 +25,7 @@ import {
   ReceiptPercentIcon,
   CurrencyRupeeIcon,
   ListBulletIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 
 // ─── Skeleton Shimmer ────────────────────────────────────────────────────────
@@ -154,13 +155,18 @@ function TableOrderPanel({ table, onClose }) {
     }
   }, [tenantId, table.id, qc])
 
+  const [menuSearch, setMenuSearch] = useState('')
+
   const { data: menu, isLoading: menuLoading } = useQuery({
     queryKey: ['waiter-menu'],
     queryFn: () => getWaiterMenu().then(r => r.data.data),
   })
   const cats = menu ?? []
   const activeCatId = activeCat ?? cats[0]?.id
-  const visibleItems = cats.find(c => c.id === activeCatId)?.items?.filter(i => i.is_available) ?? []
+  const allItems = cats.flatMap(c => c.items?.filter(i => i.is_available) ?? [])
+  const visibleItems = menuSearch.trim()
+    ? allItems.filter(i => i.name.toLowerCase().includes(menuSearch.toLowerCase()))
+    : (cats.find(c => c.id === activeCatId)?.items?.filter(i => i.is_available) ?? [])
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['waiter-table-orders', table.id] })
@@ -366,7 +372,20 @@ function TableOrderPanel({ table, onClose }) {
           {/* Menu */}
           {showMenu && (
             <div className="border-t border-gray-100">
-              {/* Category pill tabs */}
+              {/* Search bar */}
+              <div className="px-4 pt-3 pb-1">
+                <div className="relative">
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    value={menuSearch}
+                    onChange={e => setMenuSearch(e.target.value)}
+                    placeholder="Search menu items…"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+              {/* Category pill tabs — hidden when searching */}
+              {!menuSearch.trim() && (
               <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-gray-100 bg-gray-50/60 no-scrollbar">
                 {menuLoading
                   ? [1,2,3].map(i => <div key={i} className="h-7 w-20 bg-gray-100 rounded-full animate-pulse shrink-0" />)
@@ -381,6 +400,7 @@ function TableOrderPanel({ table, onClose }) {
                   </button>
                 ))}
               </div>
+              )}
 
               {/* Menu items grid */}
               <div className="divide-y divide-gray-50">

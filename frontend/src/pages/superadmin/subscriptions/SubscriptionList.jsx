@@ -5,6 +5,7 @@ import { getSubscriptions, extendSubscription, cancelSubscription } from '@/serv
 import Badge from '@/components/shared/Badge'
 import Modal from '@/components/shared/Modal'
 import Pagination from '@/components/shared/Pagination'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 
 const STATUSES = ['active', 'trial', 'cancelled', 'past_due', 'expired']
 
@@ -13,6 +14,7 @@ export default function SubscriptionList() {
   const [page, setPage] = useState(1)
   const [extending, setExtending] = useState(null)
   const [extendMonths, setExtendMonths] = useState(1)
+  const [cancelTarget, setCancelTarget] = useState(null)
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -27,7 +29,7 @@ export default function SubscriptionList() {
 
   const cancelMutation = useMutation({
     mutationFn: cancelSubscription,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['subscriptions'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['subscriptions'] }); setCancelTarget(null) },
   })
 
   return (
@@ -97,7 +99,7 @@ export default function SubscriptionList() {
                         <ArrowPathIcon className="w-3.5 h-3.5" />Extend
                       </button>
                       {sub.status !== 'cancelled' && (
-                        <button onClick={() => confirm('Cancel this subscription?') && cancelMutation.mutate(sub.id)}
+                        <button onClick={() => setCancelTarget(sub)}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
                           <XCircleIcon className="w-3.5 h-3.5" />Cancel
                         </button>
@@ -147,6 +149,16 @@ export default function SubscriptionList() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        title="Cancel Subscription?"
+        message={`This will cancel the subscription for "${cancelTarget?.tenant?.name}". They will lose access when their current period ends.`}
+        confirmLabel={cancelMutation.isPending ? 'Cancelling…' : 'Cancel Subscription'}
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+        onConfirm={() => cancelMutation.mutate(cancelTarget?.id)}
+        onCancel={() => setCancelTarget(null)}
+      />
     </div>
   )
 }

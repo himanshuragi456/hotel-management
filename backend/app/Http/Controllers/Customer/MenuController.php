@@ -9,6 +9,7 @@ use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RestaurantTable;
+use App\Models\SystemSetting;
 use App\Models\Tenant;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -20,9 +21,30 @@ class MenuController extends Controller
 {
     use ApiResponse;
 
+    private function suspendedResponse(Tenant $tenant): \Illuminate\Http\JsonResponse
+    {
+        $settings = SystemSetting::allAsMap();
+        return response()->json([
+            'success'     => false,
+            'message'     => 'tenant_suspended',
+            'tenant_name' => $tenant->name,
+            'branding'    => [
+                'brand_name'       => $settings['brand_name']       ?? null,
+                'brand_logo_url'   => isset($settings['brand_logo']) ? asset('storage/' . $settings['brand_logo']) : null,
+                'contact_phone'    => $settings['contact_phone']    ?? null,
+                'contact_whatsapp' => $settings['contact_whatsapp'] ?? null,
+                'contact_email'    => $settings['contact_email']    ?? null,
+                'sales_tagline'    => $settings['sales_tagline']    ?? null,
+            ],
+        ], 410);
+    }
+
     public function menu(string $tenantSlug, string $qrToken): JsonResponse
     {
-        $tenant = Tenant::where('slug', $tenantSlug)->where('status', 'active')->firstOrFail();
+        $tenant = Tenant::where('slug', $tenantSlug)->first();
+        if (! $tenant) abort(404);
+        if ($tenant->status === 'suspended') return $this->suspendedResponse($tenant);
+
         $table  = RestaurantTable::where('qr_token', $qrToken)->where('tenant_id', $tenant->id)->firstOrFail();
 
         $categories = MenuCategory::where('tenant_id', $tenant->id)
@@ -32,15 +54,21 @@ class MenuController extends Controller
             ->get();
 
         // Recover active order numbers for this table session so the customer
-        // can see their orders after a page refresh
-        $activeOrderNumbers = Order::where('tenant_id', $tenant->id)
-            ->where('restaurant_table_id', $table->id)
-            ->whereNotIn('status', ['cancelled'])
-            ->when($table->occupied_since, fn($q) => $q->where('created_at', '>=', $table->occupied_since))
-            ->pluck('order_number')
-            ->implode(',');
+        // can see their orders after a page refresh.
+        // Only return orders if the table is currently occupied and we know when
+        // that session started — prevents past sessions leaking onto a free table.
+        $activeOrderNumbers = null;
+        if ($table->status === 'occupied' && $table->occupied_since) {
+            $activeOrderNumbers = Order::where('tenant_id', $tenant->id)
+                ->where('restaurant_table_id', $table->id)
+                ->whereNotIn('status', ['cancelled'])
+                ->where('created_at', '>=', $table->occupied_since)
+                ->pluck('order_number')
+                ->implode(',') ?: null;
+        }
 
         return $this->success([
+            'tenant_id'            => $tenant->id,
             'tenant'               => $tenant->only(['name', 'logo', 'currency', 'gst_rate', 'qr_ordering_enabled', 'customer_bill_request_enabled']),
             'table'                => array_merge(
                 $table->only(['id', 'number', 'section', 'bill_requested_at']),
@@ -53,7 +81,10 @@ class MenuController extends Controller
 
     public function placeOrder(Request $request, string $tenantSlug, string $qrToken): JsonResponse
     {
-        $tenant = Tenant::where('slug', $tenantSlug)->where('status', 'active')->firstOrFail();
+        $tenant = Tenant::where('slug', $tenantSlug)->first();
+        if (! $tenant) abort(404);
+        if ($tenant->status === 'suspended') return $this->suspendedResponse($tenant);
+
         $table  = RestaurantTable::where('qr_token', $qrToken)->where('tenant_id', $tenant->id)->firstOrFail();
 
         if (!$tenant->qr_ordering_enabled) {

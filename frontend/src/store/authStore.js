@@ -9,6 +9,8 @@ const useAuthStore = create(
 
       setAuth: (token, user) => set({ token, user }),
 
+      setSubscriptionAlert: (alert) => set(s => ({ user: s.user ? { ...s.user, subscription_alert: alert } : s.user })),
+
       logout: () => set({ token: null, user: null }),
 
       isAuthenticated: () => !!get().token,
@@ -16,6 +18,8 @@ const useAuthStore = create(
       getRole: () => get().user?.role ?? null,
 
       getTenantId: () => get().user?.tenant_id ?? null,
+
+      getSubscriptionAlert: () => get().user?.subscription_alert ?? null,
     }),
     {
       name: 'hotel-auth',

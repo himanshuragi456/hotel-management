@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   PhoneIcon,
@@ -11,6 +11,7 @@ import {
   ArrowUpTrayIcon,
 } from '@heroicons/react/24/outline'
 import { getBranding, updateBranding } from '@/services/superadminService'
+import { validate, required, isEmail, isPhone } from '@/utils/validate'
 
 function Field({ label, icon: Icon, children, hint }) {
   return (
@@ -25,12 +26,12 @@ function Field({ label, icon: Icon, children, hint }) {
   )
 }
 
-function Input({ value, onChange, ...props }) {
+function Input({ value, onChange, className, ...props }) {
   return (
     <input
       value={value ?? ''}
       onChange={onChange}
-      className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+      className={`w-full px-3 py-2.5 text-sm bg-white border rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow ${className ?? 'border-gray-200'}`}
       {...props}
     />
   )
@@ -43,14 +44,21 @@ export default function BrandingSettings() {
   const [logoPreview, setLogoPreview] = useState(null)
   const [logoFile, setLogoFile] = useState(null)
   const [saved, setSaved] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const { isLoading, data: brandingData } = useQuery({
     queryKey: ['branding'],
     queryFn: () => getBranding().then(r => r.data.data),
   })
 
-  // Populate form once on first load (don't overwrite user edits)
-  if (brandingData && !form) setForm(brandingData)
+  // Populate form on load and after successful save (re-sync fresh logo URL)
+  useEffect(() => {
+    if (brandingData) {
+      setForm(brandingData)
+      setLogoPreview(null)
+      setLogoFile(null)
+    }
+  }, [brandingData])
 
   const mutation = useMutation({
     mutationFn: (fd) => updateBranding(fd),
@@ -64,12 +72,27 @@ export default function BrandingSettings() {
   const handleFile = (e) => {
     const file = e.target.files[0]
     if (!file) return
+    if (file.size > 2 * 1024 * 1024) { setFieldErrors(f => ({ ...f, brand_logo: 'Logo must be under 2 MB' })); return }
+    if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) {
+      setFieldErrors(f => ({ ...f, brand_logo: 'Only PNG, JPG, or WebP images are allowed' })); return
+    }
+    setFieldErrors(f => ({ ...f, brand_logo: undefined }))
     setLogoFile(file)
     setLogoPreview(URL.createObjectURL(file))
   }
 
+  const setField = (k, v) => { setForm(f => ({ ...f, [k]: v })); setFieldErrors(e => ({ ...e, [k]: undefined })) }
+
   const handleSubmit = (e) => {
     e.preventDefault()
+    const errs = validate({
+      brand_name:    [required('Brand name')],
+      contact_email: [isEmail('Contact email')],
+      contact_phone: [isPhone('Phone number')],
+      contact_whatsapp: [isPhone('WhatsApp number')],
+    }, form)
+    if (Object.keys(errs).length) { setFieldErrors(errs); return }
+    setFieldErrors({})
     const fd = new FormData()
     Object.entries(form).forEach(([k, v]) => {
       if (v !== null && v !== undefined && k !== 'brand_logo' && k !== 'brand_logo_url') {
@@ -131,6 +154,7 @@ export default function BrandingSettings() {
               <p className="text-xs text-gray-400 mt-2 leading-relaxed">
                 PNG or JPG, max 2 MB.<br />Displayed at ~48 px height.
               </p>
+              {fieldErrors.brand_logo && <p className="text-xs text-red-500 mt-1">{fieldErrors.brand_logo}</p>}
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
             </div>
           </div>
@@ -140,12 +164,14 @@ export default function BrandingSettings() {
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h3 className="text-sm font-semibold text-gray-800">Brand Identity</h3>
 
-          <Field label="Company / Brand Name" icon={BuildingStorefrontIcon}>
+          <Field label="Company / Brand Name *" icon={BuildingStorefrontIcon}>
             <Input
               value={form.brand_name}
-              onChange={e => setForm(f => ({ ...f, brand_name: e.target.value }))}
+              onChange={e => setField('brand_name', e.target.value)}
               placeholder="e.g. Magic Management"
+              className={fieldErrors.brand_name ? 'border-red-400' : undefined}
             />
+            {fieldErrors.brand_name && <p className="text-xs text-red-500 mt-1">{fieldErrors.brand_name}</p>}
           </Field>
 
           <Field
@@ -154,7 +180,7 @@ export default function BrandingSettings() {
             hint="Shown as the sub-message on the expired plan screen.">
             <Input
               value={form.sales_tagline}
-              onChange={e => setForm(f => ({ ...f, sales_tagline: e.target.value }))}
+              onChange={e => setField('sales_tagline', e.target.value)}
               placeholder="e.g. Get in touch with our sales team to reactivate your account."
             />
           </Field>
@@ -168,10 +194,11 @@ export default function BrandingSettings() {
             <Field label="Phone Number" icon={PhoneIcon}>
               <Input
                 value={form.contact_phone}
-                onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))}
+                onChange={e => setField('contact_phone', e.target.value)}
                 placeholder="+91 98765 43210"
                 type="tel"
               />
+              {fieldErrors.contact_phone && <p className="text-xs text-red-500 mt-1">{fieldErrors.contact_phone}</p>}
             </Field>
 
             <Field
@@ -180,20 +207,22 @@ export default function BrandingSettings() {
               hint="Include country code, no spaces.">
               <Input
                 value={form.contact_whatsapp}
-                onChange={e => setForm(f => ({ ...f, contact_whatsapp: e.target.value }))}
+                onChange={e => setField('contact_whatsapp', e.target.value)}
                 placeholder="+919876543210"
                 type="tel"
               />
+              {fieldErrors.contact_whatsapp && <p className="text-xs text-red-500 mt-1">{fieldErrors.contact_whatsapp}</p>}
             </Field>
           </div>
 
           <Field label="Email Address" icon={EnvelopeIcon}>
             <Input
               value={form.contact_email}
-              onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))}
+              onChange={e => setField('contact_email', e.target.value)}
               placeholder="sales@yourcompany.com"
               type="email"
             />
+            {fieldErrors.contact_email && <p className="text-xs text-red-500 mt-1">{fieldErrors.contact_email}</p>}
           </Field>
         </section>
 

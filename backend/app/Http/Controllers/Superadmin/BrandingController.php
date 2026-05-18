@@ -22,6 +22,9 @@ class BrandingController extends Controller
         foreach ($this->keys as $key) {
             $branding[$key] = $settings[$key] ?? null;
         }
+        if ($branding['brand_logo']) {
+            $branding['brand_logo_url'] = asset('storage/' . $branding['brand_logo']);
+        }
         return $this->success($branding);
     }
 
@@ -55,6 +58,9 @@ class BrandingController extends Controller
         $branding = [];
         foreach ($this->keys as $key) {
             $branding[$key] = SystemSetting::get($key);
+        }
+        if ($branding['brand_logo']) {
+            $branding['brand_logo_url'] = asset('storage/' . $branding['brand_logo']);
         }
 
         return $this->success($branding, 'Branding updated');

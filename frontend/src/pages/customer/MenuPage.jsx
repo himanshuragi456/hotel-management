@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   MinusIcon, PlusIcon, XMarkIcon, ShoppingBagIcon, CheckCircleIcon,
   ClockIcon, BoltIcon, FireIcon, SparklesIcon, ChevronRightIcon,
-  ArrowPathIcon,
 } from '@heroicons/react/24/outline'
+import Pusher from 'pusher-js'
 import { getCustomerMenu, customerPlaceOrder, getOrderStatus, customerRequestBill } from '@/services/restaurantService'
 import PoweredByBanner from '@/components/shared/PoweredByBanner'
+import TenantSuspendedScreen from '@/components/shared/TenantSuspendedScreen'
 
 const VEG_DOT    = <span className="w-3.5 h-3.5 rounded-sm border-2 border-green-600 flex items-center justify-center flex-shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-green-600" /></span>
 const NONVEG_DOT = <span className="w-3.5 h-3.5 rounded-sm border-2 border-red-600 flex items-center justify-center flex-shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-red-600" /></span>
@@ -259,18 +260,34 @@ function BatchCard({ batch, batchNum, totalBatches }) {
   )
 }
 
-function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnabled, billRequested, billRequesting, onAllServedChange }) {
+function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnabled, billRequested, billRequesting, onAllServedChange, tenantId, tableId }) {
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['order-tracker', sessionOrders],
     queryFn: () => getOrderStatus(sessionOrders).then(r => r.data.data),
     enabled: !!sessionOrders,
-    // Keep polling even when all served — we need to know when the table closes
-    refetchInterval: (query) => {
-      const batches = query.state.data?.batches
-      if (!batches) return 6000
-      return batches.every(b => b.status === 'served') ? 10000 : 6000
-    },
   })
+
+  // Pusher: subscribe to this table's channel and refetch on any order update
+  useEffect(() => {
+    if (!tenantId || !tableId) return
+    const pusherConfig = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
+    if (import.meta.env.VITE_PUSHER_HOST) {
+      pusherConfig.wsHost = import.meta.env.VITE_PUSHER_HOST
+      pusherConfig.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      pusherConfig.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      pusherConfig.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
+      pusherConfig.disableStats = true
+      pusherConfig.enabledTransports = ['ws']
+    }
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, pusherConfig)
+    const channel = pusher.subscribe(`tenant.${tenantId}.table.${tableId}`)
+    channel.bind('order.updated', () => refetch())
+    return () => {
+      channel.unbind_all()
+      pusher.unsubscribe(`tenant.${tenantId}.table.${tableId}`)
+      pusher.disconnect()
+    }
+  }, [tenantId, tableId, refetch])
 
   const batches = data?.batches ?? []
   const allDone = batches.length > 0 && batches.every(b => b.status === 'served')
@@ -310,13 +327,11 @@ function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnab
           </div>
         </div>
       ) : !isLoading && batches.length > 0 ? (
-        <div className="mx-4 mt-4 flex items-center justify-between mb-2">
-          <p className="text-xs text-gray-400">
-            {isFetching ? 'Updating…' : 'Live · updates every 6s'}
+        <div className="mx-4 mt-4 mb-2">
+          <p className="text-xs text-gray-400 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+            {isFetching ? 'Updating…' : 'Live updates'}
           </p>
-          <button onClick={() => refetch()} className="text-orange-500 p-1">
-            <ArrowPathIcon className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       ) : null}
 
@@ -387,13 +402,34 @@ export default function CustomerMenuPage() {
   const [tableCleared, setTableCleared] = useState(false)
   const [allServed, setAllServed] = useState(false)
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch: refetchMenu } = useQuery({
     queryKey: ['customer-menu', slug, token],
     queryFn: () => getCustomerMenu(slug, token).then(r => r.data.data),
-    // Poll table status whenever we have an active session so we can detect when
-    // billing closes the table and redirect the customer back to the menu
-    refetchInterval: sessionOrders ? 8000 : false,
   })
+
+  // Listen on the table channel to also detect table-cleared (billing closed)
+  useEffect(() => {
+    const tenantId = data?.tenant_id
+    const tableId  = data?.table?.id
+    if (!tenantId || !tableId || !sessionOrders) return
+    const pusherConfig = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
+    if (import.meta.env.VITE_PUSHER_HOST) {
+      pusherConfig.wsHost = import.meta.env.VITE_PUSHER_HOST
+      pusherConfig.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      pusherConfig.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      pusherConfig.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
+      pusherConfig.disableStats = true
+      pusherConfig.enabledTransports = ['ws']
+    }
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, pusherConfig)
+    const channel = pusher.subscribe(`tenant.${tenantId}.table.${tableId}`)
+    channel.bind('order.updated', () => refetchMenu())
+    return () => {
+      channel.unbind_all()
+      pusher.unsubscribe(`tenant.${tenantId}.table.${tableId}`)
+      pusher.disconnect()
+    }
+  }, [data?.tenant_id, data?.table?.id, sessionOrders, refetchMenu])
 
   useEffect(() => {
     if (!data) return
@@ -454,15 +490,21 @@ export default function CustomerMenuPage() {
     </div>
   )
 
-  if (error) return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-6 text-center">
-      <div>
-        <div className="text-4xl mb-4">😕</div>
-        <p className="font-semibold text-gray-800">Menu unavailable</p>
-        <p className="text-sm text-gray-400 mt-1">This QR code may be invalid or expired.</p>
+  if (error) {
+    const errData = error?.response?.data
+    if (errData?.message === 'tenant_suspended') {
+      return <TenantSuspendedScreen tenantName={errData.tenant_name} branding={errData.branding} />
+    }
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center p-6 text-center">
+        <div>
+          <div className="text-4xl mb-4">😕</div>
+          <p className="font-semibold text-gray-800">Menu unavailable</p>
+          <p className="text-sm text-gray-400 mt-1">This QR code may be invalid or expired.</p>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const { tenant, table, categories } = data ?? {}
   const activeCatId = activeCat ?? categories?.[0]?.id
@@ -539,7 +581,7 @@ export default function CustomerMenuPage() {
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto">
         {view === 'menu' ? (
-          <div className={orderingEnabled ? 'pb-32' : 'pb-8'}>
+          <div className={!orderingEnabled ? 'pb-8' : sessionOrders && allServed && cartCount > 0 ? 'pb-48' : sessionOrders && (allServed || cartCount > 0) ? 'pb-36' : sessionOrders || cartCount > 0 ? 'pb-28' : 'pb-20'}>
             {!orderingEnabled && (
               <div className="mx-4 mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-center">
                 <p className="text-sm font-medium text-amber-800">Menu is view-only</p>
@@ -549,6 +591,7 @@ export default function CustomerMenuPage() {
 
             <div className="px-4 py-4 space-y-3">
               {activeCatData?.items?.map(item => {
+
                 const inCart = cart.find(x => x.menu_item_id === item.id)
                 const imgUrl = item.image_url ?? null
 
@@ -594,6 +637,9 @@ export default function CustomerMenuPage() {
                 )
               })}
             </div>
+            <div className="px-4">
+              <PoweredByBanner />
+            </div>
           </div>
         ) : (
           <OrdersView
@@ -604,6 +650,8 @@ export default function CustomerMenuPage() {
             billRequested={billRequested}
             billRequesting={requestBill.isPending}
             onAllServedChange={setAllServed}
+            tenantId={data?.tenant_id}
+            tableId={data?.table?.id}
           />
         )}
       </div>
@@ -633,9 +681,6 @@ export default function CustomerMenuPage() {
         />
       )}
 
-      <div className="px-4 pb-4">
-        <PoweredByBanner />
-      </div>
     </div>
   )
 }

@@ -6,9 +6,14 @@ import {
 } from '@heroicons/react/24/outline'
 import { getAuditLogs, purgeAuditLogs } from '@/services/superadminService'
 import Pagination from '@/components/shared/Pagination'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
+
+const today = new Date().toISOString().split('T')[0]
 
 export default function AuditLogs() {
   const [filters, setFilters] = useState({ action: '', from: '', to: '', page: 1 })
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false)
+  const [purgeSuccess, setPurgeSuccess] = useState('')
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -19,7 +24,9 @@ export default function AuditLogs() {
   const purgeMutation = useMutation({
     mutationFn: () => purgeAuditLogs({ older_than_days: 90 }),
     onSuccess: (res) => {
-      alert(res.data.message)
+      setShowPurgeConfirm(false)
+      setPurgeSuccess(res.data.message ?? 'Old logs purged successfully')
+      setTimeout(() => setPurgeSuccess(''), 4000)
       qc.invalidateQueries({ queryKey: ['audit-logs'] })
     },
   })
@@ -35,7 +42,7 @@ export default function AuditLogs() {
           <p className="text-sm text-gray-400 mt-0.5">Platform-wide activity trail</p>
         </div>
         <button
-          onClick={() => confirm('Purge logs older than 90 days?') && purgeMutation.mutate()}
+          onClick={() => setShowPurgeConfirm(true)}
           disabled={purgeMutation.isPending}
           className="inline-flex items-center gap-1.5 text-sm text-red-600 border border-red-200 px-3 py-1.5 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
         >
@@ -44,20 +51,40 @@ export default function AuditLogs() {
         </button>
       </div>
 
+      {purgeSuccess && (
+        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-xl">
+          {purgeSuccess}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
         <div className="flex items-center gap-2 mb-3">
           <FunnelIcon className="w-4 h-4 text-gray-400" />
           <span className="text-sm font-semibold text-gray-600">Filters</span>
         </div>
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex gap-3 flex-wrap items-center">
           <input value={filters.action} onChange={e => set('action', e.target.value)}
             placeholder="Filter by action…"
             className={inp} />
-          <input type="date" value={filters.from} onChange={e => set('from', e.target.value)}
-            className={inp} />
-          <input type="date" value={filters.to} onChange={e => set('to', e.target.value)}
-            className={inp} />
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500 whitespace-nowrap">From</label>
+            <input type="date" value={filters.from}
+              max={filters.to || today}
+              onChange={e => set('from', e.target.value)}
+              className={inp} />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500 whitespace-nowrap">To</label>
+            <input type="date" value={filters.to}
+              min={filters.from || undefined}
+              max={today}
+              onChange={e => set('to', e.target.value)}
+              className={inp} />
+          </div>
+          {(filters.from || filters.to || filters.action) && (
+            <button onClick={() => setFilters({ action: '', from: '', to: '', page: 1 })} className="text-sm text-gray-400 hover:text-gray-600">Clear</button>
+          )}
         </div>
       </div>
 
@@ -127,6 +154,16 @@ export default function AuditLogs() {
       </div>
 
       <Pagination meta={data} onPageChange={p => setFilters(f => ({ ...f, page: p }))} />
+
+      <ConfirmDialog
+        open={showPurgeConfirm}
+        title="Purge Old Audit Logs?"
+        message="This will permanently delete all audit logs older than 90 days. This action cannot be undone."
+        confirmLabel={purgeMutation.isPending ? 'Purging…' : 'Purge'}
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+        onConfirm={() => purgeMutation.mutate()}
+        onCancel={() => setShowPurgeConfirm(false)}
+      />
     </div>
   )
 }

@@ -21,10 +21,12 @@ import {
   Bars3Icon,
   BellIcon,
   XMarkIcon,
+  CreditCardIcon,
 } from '@heroicons/react/24/outline'
 import useAuthStore from '@/store/authStore'
 import { logout } from '@/services/authService'
 import NotificationBell from '@/components/shared/NotificationBell'
+import SubscriptionAlert from '@/components/shared/SubscriptionAlert'
 
 const isFeedbackOnly = (modules) =>
   modules && modules.feedback && !modules.restaurant && !modules.hotel
@@ -45,11 +47,12 @@ const buildNav = (modules) => {
   if (has('restaurant')) {
     items.push(
       { label: 'Restaurant', divider: true },
-      { label: 'Live Orders', path: '/owner/orders',    Icon: ClipboardDocumentListIcon },
-      { label: 'Menu',        path: '/owner/menu',      Icon: Bars3BottomLeftIcon },
-      { label: 'Tables',      path: '/owner/tables',    Icon: TableCellsIcon },
-      { label: 'Reports',     path: '/owner/reports',   Icon: DocumentChartBarIcon },
-      { label: 'Analytics',   path: '/owner/analytics', Icon: PresentationChartLineIcon },
+      { label: 'Live Orders',     path: '/owner/orders',   Icon: ClipboardDocumentListIcon },
+      { label: 'Billing Counter', path: '/owner/billing',  Icon: CreditCardIcon },
+      { label: 'Menu',            path: '/owner/menu',     Icon: Bars3BottomLeftIcon },
+      { label: 'Tables',          path: '/owner/tables',   Icon: TableCellsIcon },
+      { label: 'Reports',         path: '/owner/reports',  Icon: DocumentChartBarIcon },
+      { label: 'Analytics',       path: '/owner/analytics', Icon: PresentationChartLineIcon },
     )
   }
 
@@ -201,6 +204,7 @@ export default function OwnerLayout() {
           <span className="text-sm text-gray-400 flex-1 truncate">Owner Panel</span>
           <NotificationBell />
         </header>
+        <SubscriptionAlert />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <Outlet />
         </main>

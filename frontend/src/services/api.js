@@ -33,6 +33,10 @@ api.interceptors.response.use(
     const original = error.config
 
     if (error.response?.status === 401 && !original._retry && !original.url?.includes('/auth/refresh')) {
+      // On the login route itself a 401 just means wrong credentials — don't show session-expired modal
+      if (original.url?.includes('/auth/login')) {
+        return Promise.reject(error)
+      }
       // No token stored — nothing to refresh, show modal immediately
       if (!useAuthStore.getState().token) {
         useAuthStore.getState().logout()

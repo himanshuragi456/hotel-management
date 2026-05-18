@@ -6,6 +6,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { getCategories, createCategory, updateCategory, deleteCategory, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, bulkToggleItems, getOwnerSettings, updateOwnerSettings } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import { validate, validateField, required, isPositive } from '@/utils/validate'
 
 function VegDot({ type }) {
   const cfg = {
@@ -23,8 +25,9 @@ function VegDot({ type }) {
 function CategoryPanel() {
   const qc = useQueryClient()
   const [name, setName] = useState('')
+  const [catError, setCatError] = useState('')
   const { data: cats, isLoading } = useQuery({ queryKey: ['categories'], queryFn: () => getCategories().then(r => r.data.data) })
-  const create = useMutation({ mutationFn: createCategory, onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setName('') } })
+  const create = useMutation({ mutationFn: createCategory, onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setName(''); setCatError('') } })
   const del = useMutation({ mutationFn: deleteCategory, onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }) })
 
   return (
@@ -35,9 +38,22 @@ function CategoryPanel() {
         </div>
         Categories
       </h3>
-      <form onSubmit={(e) => { e.preventDefault(); create.mutate({ name }) }} className="flex gap-2 mb-4">
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="New category…" required
-          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50" />
+      <form onSubmit={(e) => {
+        e.preventDefault()
+        if (!name.trim()) { setCatError('Category name is required'); return }
+        setCatError('')
+        create.mutate({ name: name.trim() })
+      }} className="flex gap-2 mb-4">
+        <div className="flex-1">
+          <input
+            value={name}
+            onChange={e => { setName(e.target.value); setCatError('') }}
+            onBlur={() => { if (!name.trim()) setCatError('Category name is required') }}
+            placeholder="New category…"
+            className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 ${catError ? 'border-red-400' : 'border-gray-200'}`}
+          />
+          {catError && <p className="text-xs text-red-500 mt-0.5">{catError}</p>}
+        </div>
         <button type="submit" disabled={create.isPending} className="w-9 h-9 bg-orange-500 hover:bg-orange-600 text-white rounded-xl flex items-center justify-center transition-colors disabled:opacity-50">
           {create.isPending ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <PlusIcon className="w-4 h-4" />}
         </button>
@@ -73,8 +89,27 @@ function ItemForm({ item, categories, onSuccess }) {
     is_ready_made:    item?.is_ready_made ?? false,
   })
   const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(item?.image ? `/storage/${item.image}` : null)
+  const [imagePreview, setImagePreview] = useState(item?.image_url ?? null)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+
+  const ITEM_RULES = {
+    menu_category_id: [required('Category')],
+    name:             [required('Item name')],
+    price:            [required('Price'), isPositive('Price')],
+  }
+
+  const setField = (k, v) => {
+    const next = { ...form, [k]: v }
+    setForm(next)
+    const err = validateField(ITEM_RULES, k, v, next)
+    setFieldErrors(e => ({ ...e, [k]: err }))
+  }
+
+  const blur = (field) => {
+    const err = validateField(ITEM_RULES, field, form[field], form)
+    if (err !== undefined) setFieldErrors(e => ({ ...e, [field]: err }))
+  }
 
   const mutation = useMutation({
     mutationFn: (fd) => isEdit ? updateMenuItem(item.id, fd) : createMenuItem(fd),
@@ -83,14 +118,19 @@ function ItemForm({ item, categories, onSuccess }) {
   })
 
   const handleSubmit = (e) => {
-    e.preventDefault(); setError('')
+    e.preventDefault()
+    const errs = validate(ITEM_RULES, form)
+    if (Object.keys(errs).length) { setFieldErrors(errs); return }
+    setError('')
+    setFieldErrors({})
     const fd = new FormData()
     Object.entries(form).forEach(([k, v]) => fd.append(k, v === true ? 1 : v === false ? 0 : v))
     if (imageFile) fd.append('image', imageFile)
     mutation.mutate(fd)
   }
 
-  const inp = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50'
+  const inp = (field) =>
+    `w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -98,22 +138,45 @@ function ItemForm({ item, categories, onSuccess }) {
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category *</label>
-          <select required value={form.menu_category_id} onChange={e => setForm(f => ({ ...f, menu_category_id: e.target.value }))} className={inp}>
+          <select
+            value={form.menu_category_id}
+            onChange={e => setField('menu_category_id', e.target.value)}
+            onBlur={() => blur('menu_category_id')}
+            className={inp('menu_category_id')}
+          >
             <option value="">Select category</option>
             {categories?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {fieldErrors.menu_category_id && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.menu_category_id}</p>}
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Item Name *</label>
-          <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inp} placeholder="e.g. Paneer Butter Masala" />
+          <input
+            value={form.name}
+            onChange={e => setField('name', e.target.value)}
+            onBlur={() => blur('name')}
+            className={inp('name')}
+            placeholder="e.g. Paneer Butter Masala"
+          />
+          {fieldErrors.name && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.name}</p>}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Price (₹) *</label>
-          <input required type="number" step="0.5" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} className={inp} placeholder="0.00" />
+          <input
+            type="number"
+            step="0.5"
+            min="0.5"
+            value={form.price}
+            onChange={e => setField('price', e.target.value)}
+            onBlur={() => blur('price')}
+            className={inp('price')}
+            placeholder="0.00"
+          />
+          {fieldErrors.price && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.price}</p>}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type</label>
-          <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={inp}>
+          <select value={form.type} onChange={e => setField('type', e.target.value)} className={inp('type')}>
             <option value="veg">Veg</option>
             <option value="non-veg">Non-Veg</option>
             <option value="vegan">Vegan</option>
@@ -121,13 +184,13 @@ function ItemForm({ item, categories, onSuccess }) {
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
-          <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inp} placeholder="Short description (optional)" />
+          <input value={form.description} onChange={e => setField('description', e.target.value)} className={inp('description')} placeholder="Short description (optional)" />
         </div>
         <div className="col-span-2">
           <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors">
             <div className="relative">
               <input type="checkbox" className="sr-only" checked={form.is_ready_made}
-                onChange={e => setForm(f => ({ ...f, is_ready_made: e.target.checked }))} />
+                onChange={e => setField('is_ready_made', e.target.checked)} />
               <div className={`w-10 h-5 rounded-full transition-colors ${form.is_ready_made ? 'bg-orange-500' : 'bg-gray-300'}`} />
               <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.is_ready_made ? 'translate-x-5' : ''}`} />
             </div>
@@ -177,6 +240,7 @@ export default function MenuManager() {
   const [selected, setSelected] = useState([])
   const [activeCat, setActiveCat] = useState('all')
   const [search, setSearch] = useState('')
+  const [deleteItemTarget, setDeleteItemTarget] = useState(null)
 
   const { data: settings } = useQuery({ queryKey: ['owner-settings'], queryFn: () => getOwnerSettings().then(r => r.data.data) })
   const updateSettings = useMutation({
@@ -187,7 +251,7 @@ export default function MenuManager() {
   const { data: cats, isLoading: catsLoading }  = useQuery({ queryKey: ['categories'], queryFn: () => getCategories().then(r => r.data.data) })
   const { data: items, isLoading: itemsLoading } = useQuery({ queryKey: ['menu-items'], queryFn: () => getMenuItems().then(r => r.data.data) })
 
-  const delItem = useMutation({ mutationFn: deleteMenuItem, onSuccess: () => qc.invalidateQueries({ queryKey: ['menu-items'] }) })
+  const delItem = useMutation({ mutationFn: deleteMenuItem, onSuccess: () => { qc.invalidateQueries({ queryKey: ['menu-items'] }); setDeleteItemTarget(null) } })
   const bulkToggle = useMutation({
     mutationFn: ({ ids, val }) => bulkToggleItems(ids, val),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['menu-items'] }); setSelected([]) },
@@ -356,10 +420,10 @@ export default function MenuManager() {
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
-                        {item.image
-                          ? <img src={item.image.startsWith('http') ? item.image : `/storage/${item.image}`} className="w-9 h-9 rounded-lg object-cover shadow-sm" onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }} />
+                        {item.image_url
+                          ? <img src={item.image_url} className="w-9 h-9 rounded-lg object-cover shadow-sm" onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }} />
                           : null}
-                        <div className="w-9 h-9 bg-gray-100 rounded-lg items-center justify-center" style={{display: item.image ? 'none' : 'flex'}}>
+                        <div className="w-9 h-9 bg-gray-100 rounded-lg items-center justify-center" style={{display: item.image_url ? 'none' : 'flex'}}>
                           <VegDot type={item.type} />
                         </div>
                         <div>
@@ -388,7 +452,7 @@ export default function MenuManager() {
                           className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">
                           <PencilSquareIcon className="w-3.5 h-3.5" />Edit
                         </button>
-                        <button onClick={() => confirm(`Delete "${item.name}"?`) && delItem.mutate(item.id)}
+                        <button onClick={() => setDeleteItemTarget(item)}
                           className="inline-flex items-center gap-1 text-xs text-red-500 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">
                           <TrashIcon className="w-3.5 h-3.5" />Del
                         </button>
@@ -406,6 +470,16 @@ export default function MenuManager() {
       <Modal open={showForm} onClose={() => { setShowForm(false); setEditing(null) }} title={editing ? 'Edit Item' : 'Add Menu Item'}>
         <ItemForm item={editing} categories={cats} onSuccess={() => { setShowForm(false); setEditing(null); qc.invalidateQueries({ queryKey: ['menu-items'] }) }} />
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteItemTarget}
+        title={`Delete "${deleteItemTarget?.name}"?`}
+        message="This will permanently remove this menu item."
+        confirmLabel={delItem.isPending ? 'Deleting…' : 'Delete'}
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+        onConfirm={() => delItem.mutate(deleteItemTarget?.id)}
+        onCancel={() => setDeleteItemTarget(null)}
+      />
     </div>
   )
 }

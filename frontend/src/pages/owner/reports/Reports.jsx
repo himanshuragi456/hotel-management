@@ -67,9 +67,9 @@ export default function Reports() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
         <div className="flex gap-3 items-center flex-wrap">
           <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">From</label>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={inp} />
+          <input type="date" value={from} max={to || today} onChange={e => setFrom(e.target.value)} className={inp} />
           <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">To</label>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} className={inp} />
+          <input type="date" value={to} min={from || undefined} max={today} onChange={e => setTo(e.target.value)} className={inp} />
         </div>
       </div>
 

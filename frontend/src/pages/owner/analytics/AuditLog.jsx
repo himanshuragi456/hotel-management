@@ -12,6 +12,8 @@ const ACTION_BADGE = (action = '') => {
   return 'bg-gray-100 text-gray-600'
 }
 
+const today = new Date().toISOString().split('T')[0]
+
 export default function AuditLog() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -39,8 +41,14 @@ export default function AuditLog() {
           <span className="text-sm font-semibold text-gray-600">Filters</span>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={inp} />
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} className={inp} />
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500 whitespace-nowrap">From</label>
+            <input type="date" value={from} max={to || today} onChange={e => setFrom(e.target.value)} className={inp} />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500 whitespace-nowrap">To</label>
+            <input type="date" value={to} min={from || undefined} max={today} onChange={e => setTo(e.target.value)} className={inp} />
+          </div>
           <input value={action} onChange={e => setAction(e.target.value)} placeholder="Filter by action…" className={`${inp} w-48`} />
           {(from || to || action) && (
             <button onClick={() => { setFrom(''); setTo(''); setAction('') }} className="text-sm text-gray-400 hover:text-gray-600">Clear</button>

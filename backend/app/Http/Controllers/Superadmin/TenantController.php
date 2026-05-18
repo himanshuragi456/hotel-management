@@ -161,13 +161,18 @@ class TenantController extends Controller
             'state'    => 'nullable|string|max:100',
             'gstin'    => 'nullable|string|max:20',
             'gst_rate' => 'nullable|numeric|min:0|max:100',
-            'status'   => 'sometimes|in:active,suspended,trial',
+            'status'   => 'sometimes|in:trial,suspended',
             'google_place_id'   => 'nullable|string',
             'google_review_url' => 'nullable|url',
         ]);
 
         if ($validator->fails()) {
             return $this->validationError($validator->errors());
+        }
+
+        // Prevent manually setting active — that is only done via assignPlan
+        if ($request->status === 'active') {
+            return $this->error('Cannot manually set status to active. Assign a subscription plan instead.', 422);
         }
 
         $old = $tenant->toArray();
@@ -191,9 +196,10 @@ class TenantController extends Controller
     public function updateModules(Request $request, Tenant $tenant): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'restaurant' => 'required|boolean',
-            'hotel'      => 'required|boolean',
-            'feedback'   => 'required|boolean',
+            'restaurant'      => 'required|boolean',
+            'hotel'           => 'required|boolean',
+            'feedback'        => 'required|boolean',
+            'business_domain' => 'nullable|string|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -205,9 +211,17 @@ class TenantController extends Controller
             $request->only(['restaurant', 'hotel', 'feedback'])
         );
 
-        AuditLog::record('tenant.modules_updated', $tenant, [], $modules->toArray());
+        if ($request->boolean('feedback') && $request->filled('business_domain')) {
+            $tenant->update(['business_domain' => $request->business_domain]);
+        }
 
-        return $this->success($modules, 'Modules updated successfully');
+        AuditLog::record('tenant.modules_updated', $tenant, [], array_merge($modules->toArray(), [
+            'business_domain' => $request->business_domain,
+        ]));
+
+        return $this->success(array_merge($modules->toArray(), [
+            'business_domain' => $tenant->fresh()->business_domain,
+        ]), 'Modules updated successfully');
     }
 
     public function stats(Tenant $tenant): JsonResponse

@@ -17,7 +17,15 @@ class OrderStatusUpdated implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new Channel("tenant.{$this->order->tenant_id}.kitchen")];
+        $channels = [new Channel("tenant.{$this->order->tenant_id}.kitchen")];
+
+        // Also push to the table's public channel so the customer QR page
+        // can update in real-time without polling.
+        if ($this->order->restaurant_table_id) {
+            $channels[] = new Channel("tenant.{$this->order->tenant_id}.table.{$this->order->restaurant_table_id}");
+        }
+
+        return $channels;
     }
 
     public function broadcastAs(): string

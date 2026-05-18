@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import { getLiveOrders } from '@/services/restaurantService'
+import { billingUpdateStatus, billingMarkServed } from '@/services/restaurantService'
 
 const STATUS_CONFIG = {
   pending:   { border: 'border-yellow-400', dot: 'bg-yellow-500', badge: 'bg-yellow-100 text-yellow-800', label: 'Pending'   },
@@ -29,6 +30,84 @@ function StatusTimeline({ order }) {
           {i < steps.length - 1 && <div className={`h-px flex-1 mx-1 ${i < cur ? 'bg-orange-400' : 'bg-gray-200'}`} />}
         </div>
       ))}
+    </div>
+  )
+}
+
+function OrderCard({ order, cfg }) {
+  const qc = useQueryClient()
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['live-orders'] })
+
+  const advance = useMutation({
+    mutationFn: (status) => billingUpdateStatus(order.id, status),
+    onSuccess: invalidate,
+  })
+
+  const served = useMutation({
+    mutationFn: () => billingMarkServed(order.id),
+    onSuccess: invalidate,
+  })
+
+  const busy = advance.isPending || served.isPending
+
+  return (
+    <div className={`bg-white rounded-2xl border-l-4 ${cfg.border} p-4 shadow-sm hover:shadow-md transition-shadow`}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="font-bold text-gray-900 text-sm">
+          {order.type === 'room-service' ? `Room ${order.room_id ?? '?'}` : `Table ${order.table?.number ?? '?'}`}
+        </span>
+        <span className={`text-xs font-semibold ${(order.elapsed_minutes ?? 0) > 30 ? 'text-red-500' : 'text-gray-400'}`}>
+          {order.elapsed_label ?? `${order.elapsed_minutes}m`}
+        </span>
+      </div>
+      <StatusTimeline order={order} />
+      <div className="text-xs text-gray-500 mb-2.5 space-y-0.5">
+        {order.items?.slice(0, 4).map((item, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <span className="w-5 h-5 rounded-md bg-gray-100 text-gray-700 text-[10px] font-bold flex items-center justify-center shrink-0">{item.quantity}</span>
+            <span className="truncate">{item.item_name}{item.notes ? ` · ${item.notes}` : ''}</span>
+          </div>
+        ))}
+        {(order.items?.length ?? 0) > 4 && (
+          <p className="text-gray-400 text-[10px]">+{order.items.length - 4} more</p>
+        )}
+      </div>
+      <div className="flex items-center justify-between pt-2 border-t border-gray-50 mb-2.5">
+        <span className="text-xs text-gray-400">{order.waiter?.name ?? 'No waiter'}</span>
+        <span className="text-sm font-bold text-gray-900">₹{order.total}</span>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex gap-2">
+        {order.status === 'pending' && (
+          <button
+            onClick={() => advance.mutate('preparing')}
+            disabled={busy}
+            className="flex-1 text-xs bg-blue-500 hover:bg-blue-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+          >
+            {advance.isPending ? '…' : '→ Preparing'}
+          </button>
+        )}
+        {order.status === 'preparing' && (
+          <button
+            onClick={() => advance.mutate('ready')}
+            disabled={busy}
+            className="flex-1 text-xs bg-green-500 hover:bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+          >
+            {advance.isPending ? '…' : '→ Mark Ready'}
+          </button>
+        )}
+        {order.status === 'ready' && (
+          <button
+            onClick={() => served.mutate()}
+            disabled={busy}
+            className="flex-1 text-xs bg-green-600 hover:bg-green-700 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+          >
+            {served.isPending ? '…' : 'Mark Served'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -84,32 +163,7 @@ export default function LiveOrders() {
                 </div>
                 <div className="space-y-3">
                   {list.map(order => (
-                    <div key={order.id} className={`bg-white rounded-2xl border-l-4 ${cfg.border} p-4 shadow-sm hover:shadow-md transition-shadow`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-gray-900 text-sm">
-                          {order.type === 'room-service' ? `Room ${order.room_id ?? '?'}` : `Table ${order.table?.number ?? '?'}`}
-                        </span>
-                        <span className={`text-xs font-semibold ${(order.elapsed_minutes ?? 0) > 30 ? 'text-red-500' : 'text-gray-400'}`}>
-                          {order.elapsed_label ?? `${order.elapsed_minutes}m`}
-                        </span>
-                      </div>
-                      <StatusTimeline order={order} />
-                      <div className="text-xs text-gray-500 mb-2.5 space-y-0.5">
-                        {order.items?.slice(0, 4).map((item, i) => (
-                          <div key={i} className="flex items-center gap-1.5">
-                            <span className="w-5 h-5 rounded-md bg-gray-100 text-gray-700 text-[10px] font-bold flex items-center justify-center shrink-0">{item.quantity}</span>
-                            <span className="truncate">{item.item_name}{item.notes ? ` · ${item.notes}` : ''}</span>
-                          </div>
-                        ))}
-                        {(order.items?.length ?? 0) > 4 && (
-                          <p className="text-gray-400 text-[10px]">+{order.items.length - 4} more</p>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-50">
-                        <span className="text-xs text-gray-400">{order.waiter?.name ?? 'No waiter'}</span>
-                        <span className="text-sm font-bold text-gray-900">₹{order.total}</span>
-                      </div>
-                    </div>
+                    <OrderCard key={order.id} order={order} cfg={cfg} />
                   ))}
                   {list.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-gray-100 rounded-2xl">

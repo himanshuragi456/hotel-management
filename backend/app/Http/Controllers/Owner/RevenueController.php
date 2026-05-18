@@ -116,10 +116,25 @@ class RevenueController extends Controller
         $orders = Order::where('tenant_id', auth()->user()->tenant_id)
             ->whereBetween('created_at', [$request->from, $request->to . ' 23:59:59'])
             ->with(['items', 'table', 'invoice'])
+            ->withCount('items')
             ->latest()
             ->get();
 
-        return $this->success($orders);
+        $billedOrders = $orders->filter(fn($o) => $o->invoice);
+        $revenue  = $billedOrders->sum(fn($o) => $o->invoice->total ?? 0);
+        $tax      = $billedOrders->sum(fn($o) => $o->invoice->tax ?? 0);
+        $count    = $orders->count();
+        $avgOrder = $count > 0 ? round($revenue / $count, 2) : 0;
+
+        return $this->success([
+            'summary' => [
+                'order_count' => $count,
+                'revenue'     => round($revenue, 2),
+                'tax'         => round($tax, 2),
+                'avg_order'   => $avgOrder,
+            ],
+            'orders' => $orders->values(),
+        ]);
     }
 
     public function exportPdf(Request $request): mixed

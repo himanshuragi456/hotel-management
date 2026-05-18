@@ -5,12 +5,31 @@ namespace App\Http\Controllers\Public;
 use App\Http\Controllers\Controller;
 use App\Models\FeedbackQrCode;
 use App\Models\FeedbackSubmission;
+use App\Models\SystemSetting;
 use App\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class FeedbackSubmissionController extends Controller
 {
+    private function suspendedResponse(Tenant $tenant): \Illuminate\Http\JsonResponse
+    {
+        $settings = SystemSetting::allAsMap();
+        return response()->json([
+            'status'      => false,
+            'message'     => 'tenant_suspended',
+            'tenant_name' => $tenant->name,
+            'branding'    => [
+                'brand_name'       => $settings['brand_name']       ?? null,
+                'brand_logo_url'   => isset($settings['brand_logo']) ? asset('storage/' . $settings['brand_logo']) : null,
+                'contact_phone'    => $settings['contact_phone']    ?? null,
+                'contact_whatsapp' => $settings['contact_whatsapp'] ?? null,
+                'contact_email'    => $settings['contact_email']    ?? null,
+                'sales_tagline'    => $settings['sales_tagline']    ?? null,
+            ],
+        ], 410);
+    }
+
     public function show(string $token): JsonResponse
     {
         $qr = FeedbackQrCode::where('qr_token', $token)->where('is_active', true)->first();
@@ -20,6 +39,10 @@ class FeedbackSubmissionController extends Controller
         }
 
         $tenant = Tenant::find($qr->tenant_id);
+
+        if ($tenant->status === 'suspended') {
+            return $this->suspendedResponse($tenant);
+        }
 
         return response()->json([
             'status' => true,
@@ -38,6 +61,11 @@ class FeedbackSubmissionController extends Controller
 
         if (!$qr) {
             return response()->json(['status' => false, 'message' => 'Invalid QR code'], 404);
+        }
+
+        $tenant = Tenant::find($qr->tenant_id);
+        if ($tenant->status === 'suspended') {
+            return $this->suspendedResponse($tenant);
         }
 
         $data = $request->validate([
@@ -59,8 +87,6 @@ class FeedbackSubmissionController extends Controller
             'submitter_phone'     => $data['submitter_phone'] ?? null,
             'ip_address'          => $request->ip(),
         ]);
-
-        $tenant = Tenant::find($qr->tenant_id);
 
         return response()->json([
             'status' => true,

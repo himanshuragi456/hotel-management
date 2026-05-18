@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import SubscriptionAlert from '@/components/shared/SubscriptionAlert'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Pusher from 'pusher-js'
 import {
@@ -28,7 +29,7 @@ import { useNavigate } from 'react-router-dom'
 import HotelBookings, { CheckOutModal, BookingDetail } from '@/pages/owner/hotel/Bookings'
 import { formatOccupied } from '@/utils/time'
 
-const PAYMENT_METHODS = ['cash', 'card', 'upi', 'split']
+const PAYMENT_METHODS = ['cash', 'upi']
 
 // ─── Status Timeline ──────────────────────────────────────────────────────────
 function StatusTimeline({ order }) {
@@ -63,6 +64,7 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
     discount_value: '',
     payment_method: 'cash',
     paid_amount: '',
+    upi_ref: '',
     customer_name: '',
     customer_phone: '',
   })
@@ -130,7 +132,7 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Customer name (opt.)" className={inp} />
-              <input value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} placeholder="Phone (opt.)" className={inp} />
+              <input type="tel" value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} placeholder="Phone (opt.)" className={inp} />
             </div>
             <div className="flex gap-2">
               <select value={form.discount_type} onChange={e => setForm(f => ({ ...f, discount_type: e.target.value }))} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
@@ -143,11 +145,11 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {PAYMENT_METHODS.map(m => (
                   <button type="button" key={m} onClick={() => setForm(f => ({ ...f, payment_method: m }))}
-                    className={`py-2 rounded-lg text-xs font-medium capitalize ${form.payment_method === m ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                    {m}
+                    className={`py-2.5 rounded-lg text-sm font-semibold capitalize ${form.payment_method === m ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {m === 'cash' ? '💵 Cash' : '📱 UPI'}
                   </button>
                 ))}
               </div>
@@ -159,16 +161,33 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
                 <span>Total</span><span>₹{total.toFixed(2)}</span>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Amount Received</label>
-              <input type="number" step="0.01" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))}
-                placeholder={`₹${total.toFixed(0)}`} className={inp} />
-              {form.paid_amount && (
-                <div className={`text-xs mt-1 ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {balance >= 0 ? `Change: ₹${balance.toFixed(2)}` : `Balance due: ₹${Math.abs(balance).toFixed(2)}`}
+            {form.payment_method === 'upi' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+                <p className="text-xs font-semibold text-blue-700 mb-2">Show QR to customer for payment</p>
+                <div className="flex items-center justify-center gap-2 text-xs text-blue-600">
+                  <span className="font-mono bg-white border border-blue-200 px-3 py-1.5 rounded-lg">₹{total.toFixed(0)}</span>
+                  <span>payable via UPI</span>
                 </div>
-              )}
-            </div>
+                <input
+                  value={form.upi_ref}
+                  onChange={e => setForm(f => ({ ...f, upi_ref: e.target.value }))}
+                  placeholder="UPI transaction ref (optional)"
+                  className="mt-2 w-full border border-blue-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                />
+              </div>
+            )}
+            {form.payment_method === 'cash' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Cash Collected</label>
+                <input type="number" step="0.01" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))}
+                  placeholder={`₹${total.toFixed(0)}`} className={inp} />
+                {form.paid_amount && (
+                  <div className={`text-xs mt-1 font-semibold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {balance >= 0 ? `Give change: ₹${balance.toFixed(2)}` : `Remaining: ₹${Math.abs(balance).toFixed(2)}`}
+                  </div>
+                )}
+              </div>
+            )}
             <button type="submit" disabled={create.isPending}
               className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
               {create.isPending ? 'Creating Invoice…' : isLastBatch ? 'Create Invoice & Close Table' : 'Create Invoice'}
@@ -615,7 +634,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
 
 // ─── Bill All Modal ───────────────────────────────────────────────────────────
 function BillAllModal({ table, total, onClose, onDone }) {
-  const [form, setForm] = useState({ payment_method: 'cash', paid_amount: '', customer_name: '', customer_phone: '' })
+  const [form, setForm] = useState({ payment_method: 'cash', paid_amount: '', upi_ref: '', customer_name: '', customer_phone: '' })
   const [error, setError] = useState('')
 
   const paid    = parseFloat(form.paid_amount) || total
@@ -652,29 +671,46 @@ function BillAllModal({ table, total, onClose, onDone }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Customer name (opt.)" className={inp} />
-            <input value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} placeholder="Phone (opt.)" className={inp} />
+            <input type="tel" value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} placeholder="Phone (opt.)" className={inp} />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
-            <div className="grid grid-cols-4 gap-2">
-              {['cash','card','upi','split'].map(m => (
+            <div className="grid grid-cols-2 gap-2">
+              {['cash','upi'].map(m => (
                 <button type="button" key={m} onClick={() => setForm(f => ({ ...f, payment_method: m }))}
-                  className={`py-2 rounded-lg text-xs font-medium capitalize ${form.payment_method === m ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                  {m}
+                  className={`py-2.5 rounded-lg text-sm font-semibold capitalize ${form.payment_method === m ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {m === 'cash' ? '💵 Cash' : '📱 UPI'}
                 </button>
               ))}
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Amount Received</label>
-            <input type="number" step="0.01" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))}
-              placeholder={`₹${total.toFixed(0)}`} className={inp} />
-            {form.paid_amount && (
-              <div className={`text-xs mt-1 ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {balance >= 0 ? `Change: ₹${balance.toFixed(2)}` : `Balance due: ₹${Math.abs(balance).toFixed(2)}`}
+          {form.payment_method === 'upi' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+              <p className="text-xs font-semibold text-blue-700 mb-2">Show QR to customer for payment</p>
+              <div className="flex items-center justify-center gap-2 text-xs text-blue-600">
+                <span className="font-mono bg-white border border-blue-200 px-3 py-1.5 rounded-lg">₹{total.toFixed(0)}</span>
+                <span>payable via UPI</span>
               </div>
-            )}
-          </div>
+              <input
+                value={form.upi_ref}
+                onChange={e => setForm(f => ({ ...f, upi_ref: e.target.value }))}
+                placeholder="UPI transaction ref (optional)"
+                className="mt-2 w-full border border-blue-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+              />
+            </div>
+          )}
+          {form.payment_method === 'cash' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Cash Collected</label>
+              <input type="number" step="0.01" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))}
+                placeholder={`₹${total.toFixed(0)}`} className={inp} />
+              {form.paid_amount && (
+                <div className={`text-xs mt-1 font-semibold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {balance >= 0 ? `Give change: ₹${balance.toFixed(2)}` : `Remaining: ₹${Math.abs(balance).toFixed(2)}`}
+                </div>
+              )}
+            </div>
+          )}
           <button onClick={() => submit.mutate()} disabled={submit.isPending}
             className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
             {submit.isPending ? 'Processing…' : 'Confirm & Close Table'}
@@ -697,14 +733,14 @@ async function fetchCombinedBlob(ids) {
 }
 
 function openPrintIframe(url) {
-  const iframe = document.createElement('iframe')
-  iframe.style.display = 'none'
-  iframe.src = url
-  document.body.appendChild(iframe)
-  iframe.onload = () => {
-    iframe.contentWindow.print()
-    setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(url) }, 3000)
-  }
+  const win = window.open(url, '_blank', 'width=800,height=600')
+  if (!win) return
+  win.addEventListener('load', () => {
+    try {
+      win.focus()
+      win.print()
+    } catch (_) {}
+  })
 }
 
 function DownloadBar({ invoiceIds, onDismiss }) {
@@ -1027,7 +1063,7 @@ function RecentBillsDrawer({ onClose }) {
   )
 }
 
-export default function BillingDashboard() {
+export default function BillingDashboard({ embedded = false }) {
   const { user, logout: clearAuth } = useAuthStore()
   const modules = user?.modules
   const hasRestaurant = !!modules?.restaurant
@@ -1078,30 +1114,47 @@ export default function BillingDashboard() {
   }, {}) ?? {}
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-sm">
-            <BanknotesIcon className="w-5 h-5 text-white" />
+    <div className={embedded ? '' : 'min-h-screen bg-gray-50'}>
+      {!embedded && <SubscriptionAlert />}
+      {!embedded && (
+        <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-sm">
+              <BanknotesIcon className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-gray-900">Billing Counter</h1>
+              <p className="text-xs text-gray-400">{user?.name}</p>
+            </div>
           </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowRecentBills(true)}
+              className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
+              <DocumentTextIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Recent Bills</span>
+            </button>
+            <button onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors">
+              <ArrowRightOnRectangleIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
+        </header>
+      )}
+
+      {embedded && (
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-base font-bold text-gray-900">Billing Counter</h1>
-            <p className="text-xs text-gray-400">{user?.name}</p>
+            <h2 className="text-xl font-semibold text-gray-900">Billing Counter</h2>
+            <p className="text-sm text-gray-400 mt-0.5">Manage tables, orders, and invoices</p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
           <button onClick={() => setShowRecentBills(true)}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
+            className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
             <DocumentTextIcon className="w-4 h-4" />
-            <span className="hidden sm:inline">Recent Bills</span>
-          </button>
-          <button onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors">
-            <ArrowRightOnRectangleIcon className="w-4 h-4" />
-            <span className="hidden sm:inline">Logout</span>
+            Recent Bills
           </button>
         </div>
-      </header>
+      )}
 
       <ActiveOrdersBar
         onSelectTable={openTable}
@@ -1110,7 +1163,7 @@ export default function BillingDashboard() {
       />
 
       {availableTabs.length > 1 && (
-        <div className="flex gap-2 px-6 pt-4 overflow-x-auto">
+        <div className={`flex gap-2 overflow-x-auto ${embedded ? 'pt-2 pb-2' : 'px-6 pt-4'}`}>
           {availableTabs.map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium ${tab === key ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -1120,7 +1173,7 @@ export default function BillingDashboard() {
         </div>
       )}
 
-      <div className="p-6">
+      <div className={embedded ? 'pt-2' : 'p-6'}>
         {tab === 'tables' && hasRestaurant && (
           isLoading ? (
             <div className="text-gray-400 text-sm">Loading tables…</div>

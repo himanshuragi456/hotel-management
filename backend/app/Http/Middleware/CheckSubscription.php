@@ -27,6 +27,24 @@ class CheckSubscription
             return $this->forbidden('No tenant associated')->prepare($request);
         }
 
+        // Immediately block suspended tenants
+        if ($tenant->status === 'suspended') {
+            $keys = ['brand_name', 'contact_phone', 'contact_whatsapp', 'contact_email', 'sales_tagline', 'brand_logo'];
+            $settings = SystemSetting::allAsMap();
+            $branding = [];
+            foreach ($keys as $key) {
+                $branding[$key] = $settings[$key] ?? null;
+            }
+            if ($branding['brand_logo']) {
+                $branding['brand_logo_url'] = asset('storage/' . $branding['brand_logo']);
+            }
+            return response()->json([
+                'success' => false,
+                'message' => 'subscription_expired',
+                'branding' => $branding,
+            ], 402);
+        }
+
         // Check active subscription
         $subscription = Subscription::where('tenant_id', $tenant->id)
             ->orderByDesc('created_at')

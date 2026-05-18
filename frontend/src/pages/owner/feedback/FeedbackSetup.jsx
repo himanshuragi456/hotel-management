@@ -2,29 +2,13 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircleIcon, ExclamationTriangleIcon, ArrowTopRightOnSquareIcon,
-  QrCodeIcon, PlusIcon, TrashIcon, ArrowDownTrayIcon,
-  BuildingStorefrontIcon,
+  QrCodeIcon, PlusIcon, TrashIcon, ArrowDownTrayIcon, LinkIcon,
 } from '@heroicons/react/24/outline'
 import {
   getFeedbackQrCodes, createFeedbackQrCode, updateFeedbackQrCode,
   deleteFeedbackQrCode, downloadFeedbackQr, getReviewConfig, updateReviewConfig,
 } from '@/services/restaurantService'
-
 const PLACEMENTS = ['reception', 'entrance', 'counter', 'table', 'room', 'other']
-const BUSINESS_DOMAINS = [
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'hotel', label: 'Hotel' },
-  { value: 'cafe', label: 'Café' },
-  { value: 'bar', label: 'Bar' },
-  { value: 'bakery', label: 'Bakery' },
-  { value: 'dentist', label: 'Dentist' },
-  { value: 'clinic', label: 'Clinic / Hospital' },
-  { value: 'salon', label: 'Salon / Spa' },
-  { value: 'barber', label: 'Barber Shop' },
-  { value: 'gym', label: 'Gym / Fitness' },
-  { value: 'retail', label: 'Retail Shop' },
-  { value: 'other', label: 'Other (type below)' },
-]
 
 function extractPlaceId(input) {
   input = input.trim()
@@ -38,17 +22,15 @@ function extractPlaceId(input) {
 
 function ReviewConfig({ onSaved }) {
   const qc = useQueryClient()
+
   const { data: config, isLoading } = useQuery({
     queryKey: ['review-config'],
     queryFn: () => getReviewConfig().then(r => r.data.data),
   })
 
-  const [domain, setDomain] = useState('')
-  const [customDomain, setCustomDomain] = useState('')
   const [mapsInput, setMapsInput] = useState('')
   const [saved, setSaved] = useState(false)
 
-  const effectiveDomain = domain === 'other' ? customDomain.trim() : domain
   const inp = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50'
 
   const placeId = extractPlaceId(mapsInput)
@@ -65,13 +47,12 @@ function ReviewConfig({ onSaved }) {
   })
 
   const handleSave = () => save.mutate({
-    business_domain:   effectiveDomain,
     google_place_id:   placeId,
     google_review_url: reviewUrl,
   })
 
-  const isConfigured = !!(config?.google_review_url && config?.business_domain)
-  const canSave = !!(placeId && effectiveDomain)
+  const isConfigured = !!(config?.google_review_url)
+  const canSave = !!placeId
 
   if (isLoading) return <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 animate-pulse h-48" />
 
@@ -90,23 +71,6 @@ function ReviewConfig({ onSaved }) {
       </div>
 
       <div className="space-y-4">
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Business Type *</label>
-          <select value={domain} onChange={e => setDomain(e.target.value)} className={inp}>
-            <option value="">Select your business type…</option>
-            {BUSINESS_DOMAINS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-          </select>
-          {domain === 'other' && (
-            <input
-              value={customDomain}
-              onChange={e => setCustomDomain(e.target.value)}
-              placeholder="e.g. zoo, aquarium, escape room…"
-              className={`${inp} mt-2`}
-              autoFocus
-            />
-          )}
-        </div>
-
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
             Google Maps URL or Place ID *
@@ -193,6 +157,8 @@ function ReviewConfig({ onSaved }) {
 }
 
 function QrCard({ qr, onDelete, onDownload, onToggle }) {
+  const feedbackUrl = `${window.location.origin}/feedback/${qr.qr_token}`
+
   return (
     <div className={`bg-white rounded-2xl border-2 p-4 transition-all hover:shadow-md ${qr.is_active ? 'border-gray-100 shadow-sm' : 'border-dashed border-gray-200 opacity-60'}`}>
       <div className="flex items-start justify-between mb-3">
@@ -220,6 +186,15 @@ function QrCard({ qr, onDelete, onDownload, onToggle }) {
         >
           <ArrowDownTrayIcon className="w-3.5 h-3.5" />Download
         </button>
+        <a
+          href={feedbackUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-8 h-8 rounded-xl bg-blue-50 hover:bg-blue-100 flex items-center justify-center transition-colors"
+          title="Open feedback page"
+        >
+          <LinkIcon className="w-3.5 h-3.5 text-blue-500" />
+        </a>
         <button
           onClick={() => onDelete(qr)}
           className="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors"
@@ -247,7 +222,7 @@ export default function FeedbackSetup() {
     queryFn: () => getFeedbackQrCodes().then(r => r.data.data),
   })
 
-  const isConfigured = !!(config?.google_review_url && config?.business_domain)
+  const isConfigured = !!(config?.google_review_url)
 
   const create = useMutation({
     mutationFn: createFeedbackQrCode,
@@ -343,7 +318,7 @@ export default function FeedbackSetup() {
               <QrCard
                 key={qr.id}
                 qr={qr}
-                onDelete={(q) => confirm(`Delete "${q.label}" QR?`) && del.mutate(q)}
+                onDelete={(q) => del.mutate(q)}
                 onDownload={handleDownload}
                 onToggle={(q) => toggle.mutate(q)}
               />
