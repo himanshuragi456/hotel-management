@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getKitchenOrders, updateOrderStatus } from '@/services/restaurantService'
+import { getKitchenOrders, updateOrderStatus, getOwnerSettings } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
 import Pusher from 'pusher-js'
+import { printKot } from '@/utils/kotPrint'
 import {
   ClockIcon,
   FireIcon,
@@ -14,6 +15,7 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
   SparklesIcon,
+  PrinterIcon,
 } from '@heroicons/react/24/outline'
 
 const STATUS_FLOW = { pending: 'preparing', preparing: 'ready' }
@@ -46,9 +48,8 @@ function StatusPill({ status }) {
   )
 }
 
-function OrderCard({ order, onStatusChange }) {
+function OrderCard({ order, onStatusChange, showKotButton, onKotPrint }) {
   const next = STATUS_FLOW[order.status]
-  const isReady = order.status === 'ready'
 
   return (
     <div
@@ -107,22 +108,32 @@ function OrderCard({ order, onStatusChange }) {
         </div>
       )}
 
-      {/* CTA button */}
-      {next && (
-        <button
-          onClick={() => onStatusChange(order.id, next)}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 active:opacity-75 ${
-            next === 'preparing'
-              ? 'bg-gradient-to-r from-indigo-600 to-indigo-500'
-              : 'bg-gradient-to-r from-emerald-600 to-emerald-500'
-          }`}
-        >
-          {next === 'ready' && (
-            <CheckCircleIcon className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
-          )}
-          {STATUS_LABEL[order.status]}
-        </button>
-      )}
+      {/* Buttons row */}
+      <div className={`flex gap-2 ${next ? '' : 'justify-end'}`}>
+        {showKotButton && (
+          <button
+            onClick={() => onKotPrint(order)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 bg-slate-700/60 hover:bg-slate-700 transition-colors"
+          >
+            <PrinterIcon className="w-3.5 h-3.5" />KOT
+          </button>
+        )}
+        {next && (
+          <button
+            onClick={() => onStatusChange(order.id, next)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 active:opacity-75 ${
+              next === 'preparing'
+                ? 'bg-gradient-to-r from-indigo-600 to-indigo-500'
+                : 'bg-gradient-to-r from-emerald-600 to-emerald-500'
+            }`}
+          >
+            {next === 'ready' && (
+              <CheckCircleIcon className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+            )}
+            {STATUS_LABEL[order.status]}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -136,7 +147,7 @@ function EmptyColumn({ message }) {
   )
 }
 
-function Column({ title, colorClass, pillClass, count, orders, onStatusChange, emptyMessage }) {
+function Column({ title, colorClass, pillClass, count, orders, onStatusChange, emptyMessage, showKotButton, onKotPrint }) {
   return (
     <div className="flex flex-col gap-3">
       {/* Column header */}
@@ -149,7 +160,7 @@ function Column({ title, colorClass, pillClass, count, orders, onStatusChange, e
 
       {/* Cards */}
       {orders.map(o => (
-        <OrderCard key={o.id} order={o} onStatusChange={onStatusChange} />
+        <OrderCard key={o.id} order={o} onStatusChange={onStatusChange} showKotButton={showKotButton} onKotPrint={onKotPrint} />
       ))}
       {!orders.length && <EmptyColumn message={emptyMessage} />}
     </div>
@@ -163,12 +174,36 @@ export default function ChefDashboard() {
   const audioRef = useRef(null)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const tenantId = getTenantId?.()
+  const knownOrderIds = useRef(new Set())
+
+  const { data: settings } = useQuery({
+    queryKey: ['owner-settings'],
+    queryFn: () => getOwnerSettings().then(r => r.data.data),
+    staleTime: 60000,
+  })
+
+  const kotEnabled   = settings?.kot_enabled   ?? false
+  const kotAutoPrint = settings?.kot_auto_print ?? false
+  const kotPrinter   = settings?.kot_printer    ?? 'kitchen'
+  const showKotButton = kotEnabled && kotPrinter === 'kitchen'
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ['kitchen-orders'],
     queryFn: () => getKitchenOrders().then(r => r.data.data),
     refetchInterval: 15000,
   })
+
+  // Auto-print KOT for new pending orders when setting is on
+  useEffect(() => {
+    if (!orders || !kotEnabled || !kotAutoPrint || kotPrinter !== 'kitchen') return
+    const newOrders = orders.filter(o => o.status === 'pending' && !knownOrderIds.current.has(o.id))
+    newOrders.forEach(o => {
+      knownOrderIds.current.add(o.id)
+      printKot(o)
+    })
+    // Also register already-known orders so we don't reprint on next poll
+    orders.forEach(o => knownOrderIds.current.add(o.id))
+  }, [orders, kotEnabled, kotAutoPrint, kotPrinter])
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }) => updateOrderStatus(id, status),
@@ -291,6 +326,8 @@ export default function ChefDashboard() {
             orders={pending}
             onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
             emptyMessage="No pending orders"
+            showKotButton={showKotButton}
+            onKotPrint={printKot}
           />
 
           <Column
@@ -301,6 +338,8 @@ export default function ChefDashboard() {
             orders={preparing}
             onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
             emptyMessage="Nothing being prepared"
+            showKotButton={showKotButton}
+            onKotPrint={printKot}
           />
 
           <Column
@@ -311,6 +350,8 @@ export default function ChefDashboard() {
             orders={ready}
             onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
             emptyMessage="Nothing ready yet"
+            showKotButton={showKotButton}
+            onKotPrint={printKot}
           />
         </div>
       )}

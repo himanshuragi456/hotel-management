@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Chef;
 
 use App\Events\OrderStatusUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Order;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -63,11 +64,13 @@ class KitchenController extends Controller
             return $this->error("Invalid status transition to '{$next}'");
         }
 
+        $prev = $order->status;
         $order->update([
             'status'       => $next,
             'preparing_at' => $next === 'preparing' ? now() : $order->preparing_at,
         ]);
         broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers();
+        AuditLog::record('order.status_changed', $order, ['status' => $prev], ['status' => $next, 'order_number' => $order->order_number]);
 
         return $this->success(['status' => $order->fresh()->status], 'Status updated');
     }

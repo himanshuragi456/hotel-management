@@ -56,6 +56,7 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::middleware(['role:superadmin'])->post('auth/login-as', [AuthController::class, 'loginAs']);
+    Route::middleware(['role:superadmin'])->post('auth/login-as-staff', [AuthController::class, 'loginAsStaff']);
 
     /*
     |----------------------------------------------------------------------
@@ -63,6 +64,7 @@ Route::middleware(['auth:api'])->group(function () {
     |----------------------------------------------------------------------
     */
     Route::middleware(['role:superadmin'])->prefix('superadmin')->group(function () {
+        Route::post('users/{user}/change-password', [\App\Http\Controllers\Superadmin\TenantController::class, 'changeUserPassword']);
         // Tenant management
         Route::get('tenants', [TenantController::class, 'index']);
         Route::post('tenants', [TenantController::class, 'store']);
@@ -127,9 +129,6 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::get('tables/{restaurantTable}/qr', [TableController::class, 'qrCode']);
                 Route::get('orders/report', [RevenueController::class, 'ordersReport']);
                 Route::get('orders/export/pdf', [RevenueController::class, 'exportPdf']);
-                // Settings (qr_ordering_enabled — restaurant only)
-                Route::get('settings', [SettingsController::class, 'show']);
-                Route::put('settings', [SettingsController::class, 'update']);
             });
             // Expenses — available to all modules (hotel has salary, maintenance, etc.)
             Route::get('expenses', [RevenueController::class, 'expenses']);
@@ -182,6 +181,10 @@ Route::middleware(['auth:api'])->group(function () {
             Route::put('staff/{id}', [StaffController::class, 'update']);
             Route::delete('staff/{id}', [StaffController::class, 'destroy']);
             Route::post('staff/{id}/toggle-active', [StaffController::class, 'toggleActive']);
+            Route::post('change-password', [SettingsController::class, 'changePassword']);
+            // Settings available for all modules (KOT config applies to restaurant, but endpoint is shared)
+            Route::get('settings', [SettingsController::class, 'show']);
+            Route::put('settings', [SettingsController::class, 'update']);
         });
 
         // Waiter routes — restaurant module only

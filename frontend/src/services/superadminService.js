@@ -9,8 +9,10 @@ export const deleteTenant = (id) => api.delete(`/superadmin/tenants/${id}`)
 export const updateTenantModules = (id, data) => api.put(`/superadmin/tenants/${id}/modules`, data)
 export const updateTenantAiSettings = (id, data) => api.put(`/superadmin/tenants/${id}/ai-settings`, data)
 export const getTenantStats = (id) => api.get(`/superadmin/tenants/${id}/stats`)
-export const loginAsTenant  = (tenant_id) => api.post('/auth/login-as', { tenant_id })
-export const exportTenantData = (id) => api.get(`/superadmin/db/tenants/${id}/export`)
+export const loginAsTenant      = (tenant_id) => api.post('/auth/login-as', { tenant_id })
+export const loginAsStaff       = (user_id)   => api.post('/auth/login-as-staff', { user_id })
+export const exportTenantData   = (id)        => api.get(`/superadmin/db/tenants/${id}/export`)
+export const changeUserPassword = (userId, data) => api.post(`/superadmin/users/${userId}/change-password`, data)
 
 // Plans
 export const getPlans = () => api.get('/superadmin/plans')

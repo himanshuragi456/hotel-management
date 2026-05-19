@@ -51,11 +51,25 @@ export default function Expenses() {
 
   const create = useMutation({
     mutationFn: createExpense,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setForm(f => ({ ...f, amount: '', description: '' })); setFieldErrors({}) },
+    onSuccess: (res) => {
+      const newExpense = res.data?.data
+      if (newExpense) {
+        qc.setQueryData(['expenses', { from, to }], (old) => old ? [newExpense, ...old] : old)
+      }
+      qc.invalidateQueries({ queryKey: ['expenses'] })
+      setForm(f => ({ ...f, amount: '', description: '' }))
+      setFieldErrors({})
+    },
     onError: (err) => setError(err.response?.data?.message ?? 'Error'),
   })
 
-  const del = useMutation({ mutationFn: deleteExpense, onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses'] }) })
+  const del = useMutation({
+    mutationFn: deleteExpense,
+    onSuccess: (_, id) => {
+      qc.setQueryData(['expenses', { from, to }], (old) => old ? old.filter(e => e.id !== id) : old)
+      qc.invalidateQueries({ queryKey: ['expenses'] })
+    },
+  })
 
   const total = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
   const inp = (field) =>
@@ -82,7 +96,7 @@ export default function Expenses() {
           const errs = validate(EXPENSE_RULES, form)
           if (Object.keys(errs).length) { setFieldErrors(errs); return }
           setError(''); create.mutate(form)
-        }} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        }} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <select
               value={form.category}
@@ -133,14 +147,19 @@ export default function Expenses() {
           <FunnelIcon className="w-4 h-4 text-gray-400" />
           <span className="text-sm font-semibold text-gray-600">Date Range</span>
         </div>
-        <div className="flex gap-3 items-center flex-wrap">
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50" />
-          <span className="text-gray-400 text-sm">to</span>
-          <input type="date" value={to}   onChange={e => setTo(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50" />
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 whitespace-nowrap">From</label>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+              className="flex-1 sm:flex-none border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50" />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 whitespace-nowrap">To</label>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)}
+              className="flex-1 sm:flex-none border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50" />
+          </div>
           {(from || to) && (
-            <button onClick={() => { setFrom(''); setTo('') }} className="text-sm text-gray-400 hover:text-gray-600 ml-1">Clear</button>
+            <button onClick={() => { setFrom(''); setTo('') }} className="text-sm text-gray-400 hover:text-gray-600">Clear</button>
           )}
         </div>
       </div>

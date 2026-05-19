@@ -46,7 +46,7 @@ class TenantController extends Controller
         $validator = Validator::make($request->all(), [
             'name'     => 'required|string|max:255',
             'email'    => 'required|email|unique:tenants,email',
-            'phone'    => 'nullable|string|max:20',
+            'phone'    => 'required|string|max:20',
             'address'  => 'nullable|string',
             'city'     => 'nullable|string|max:100',
             'state'    => 'nullable|string|max:100',
@@ -84,12 +84,12 @@ class TenantController extends Controller
                 'feedback'   => $request->input('modules.feedback', false),
             ]);
 
-            // Create owner user with a random password
-            $plainPassword = Str::random(10);
+            // Create owner user with a strong auto-generated password
+            $plainPassword = $this->generateStrongPassword();
             $owner = \App\Models\User::create([
                 'name'      => $request->name . ' Owner',
                 'email'     => $request->email,
-                'password'  => bcrypt($plainPassword),
+                'password'  => $plainPassword, // User model hashes via cast
                 'role'      => 'owner',
                 'tenant_id' => $tenant->id,
                 'is_active' => true,
@@ -233,5 +233,44 @@ class TenantController extends Controller
         ];
 
         return $this->success($stats);
+    }
+
+    private function generateStrongPassword(): string
+    {
+        $upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        $lower   = 'abcdefghjkmnpqrstuvwxyz';
+        $digits  = '23456789';
+        $special = '@$!%*#?&';
+
+        $password  = $upper[random_int(0, strlen($upper) - 1)];
+        $password .= $upper[random_int(0, strlen($upper) - 1)];
+        $password .= $digits[random_int(0, strlen($digits) - 1)];
+        $password .= $digits[random_int(0, strlen($digits) - 1)];
+        $password .= $special[random_int(0, strlen($special) - 1)];
+
+        $all = $upper . $lower . $digits;
+        for ($i = 0; $i < 5; $i++) {
+            $password .= $all[random_int(0, strlen($all) - 1)];
+        }
+
+        return str_shuffle($password);
+    }
+
+    public function changeUserPassword(Request $request, User $user): JsonResponse
+    {
+        $request->validate([
+            'password' => ['required', 'string', 'min:8', 'confirmed',
+                'regex:/[A-Z]/',
+                'regex:/[0-9]/',
+                'regex:/[@$!%*#?&]/',
+            ],
+        ], [
+            'password.regex' => 'Password must contain at least one uppercase letter, one number, and one special character.',
+        ]);
+
+        $user->update(['password' => $request->password]);
+        AuditLog::record('user.password_changed_by_superadmin', $user, [], ['name' => $user->name, 'role' => $user->role]);
+
+        return $this->success(null, 'Password changed successfully');
     }
 }

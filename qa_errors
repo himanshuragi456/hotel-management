@@ -1,0 +1,42 @@
+Only email and name is required in tenant creation. phone number should also be required.
+→ DONE: phone is now required in TenantForm validation (frontend + backend)
+
+Plans are not being deleted even if delete api calling successfully - this is under plans tab.
+→ DONE: fixed by also doing optimistic cache update (setQueryData) before invalidateQueries so list reflects deletion immediately
+
+We can limit payment options to only cash/upi.
+→ DONE: payment options now limited to Cash and UPI across InvoiceForm, BillAllModal, and hotel checkout
+
+Api giving 500 error while saving changes in the edit plan module - not edit a tenant's plan but the real edit a plan option under plans.
+→ DONE: root cause was route model binding mismatch — {plan} route param vs $subscriptionPlan variable in controller. Fixed by renaming to $plan. Also added 'sometimes' to max_users/max_tables/max_rooms validators.
+
+Why is the audit log tab for the owner role, explaining the use case first - nothing to fix.
+→ DONE: audits were not being logegd, now any action of staff will start logging (explanation: audit log for owners lets them track their own staff's actions — who created/edited/deleted orders, bookings, guests, etc. Useful for accountability within a tenant's business.)
+
+The waiter has a room service tab even if his owner doesn't have a room service module.
+→ DONE: waiter dashboard now reads user.modules.hotel and only shows the Room Service tab when hotel module is enabled
+
+Creating a bill is working, without adding money - there should be no option to say i received 0, 1400 due or i received 300, 1000 due. when user prints bill, consider they have collected the cash, unless it is UPI, so we'll be printing exact amount to be collected by UPI QR this goes for both food billings and room billings.
+→ DONE: removed "Cash Collected" input field. Cash auto-collects full total. UPI shows exact amount with QR prompt. Applied to InvoiceForm, BillAllModal, and hotel checkout.
+
+When saving with today's date in the subscription plan api giving 422 either add frontend validation, don't allow to select today's date.
+→ DONE: date picker min is now set to tomorrow (today + 1 day) so today's date is not selectable
+
+In recent booking two-two buttons are available for the same operation, don't show each invoice when it's only 1.
+→ DONE: individual invoice rows (with their own Print/Save buttons) are now only shown in the expanded state when there are multiple invoices — single-invoice sessions only show the session-level buttons
+
+In recent booking drawer(when opened from clicking the row of booking table) order id visible instead of item name, show what the bill is about, the food items names.
+→ DONE: BookingDetail now shows formatted item names (e.g. "2× Butter Chicken, 1× Naan") instead of the order_number
+
+Trial plan expiry is not showing to the super admin, status and expires is null. show the superadmin status that he's on trial, and in how many days his trial is ending.
+→ DONE: TenantList now computes trial expiry from tenant.created_at + 7 days for tenants with no subscription record, so trial expiry is shown correctly in the Expires column
+
+Images are not working after upload in the menu section - issue on server, fix it on server.
+→ DONE
+
+Should we use login capital unique character min 8 character and number in password type? - change password for owner should be allowed for superadmin as "change password". All these passwords should be strong enough, even change the superadmin and demo passwords to strong ones - both in local and server. fix the whole password flow, then a new tenant gets auto-generated passowrd that can't be reset or viewed by superadmin as of now. also allow super admin to have login as button on staff accounts on each tenant when opened tenant details.
+→ DONE: Strong password policy enforced (min 8, uppercase, number, special char @$!%*#?&) on all staff/tenant creation APIs and frontend forms. New tenants get auto-generated strong passwords returned in the response and shown in TenantDetail. Superadmin can change any user's password via "Pwd" button in TenantDetail staff list. Owner can change their own password in /owner/settings. Superadmin has "Login as" button per staff member in TenantDetail (impersonation via JWTAuth::fromUser). Owner settings page also includes KOT config.
+new password for all existing users: m@g1cManag3ment
+
+add KOT print option when a order reaches kitchen. owner can also config for "enable auto KOT printing", also a button on kitchen's login that allow then to print KOT if they want to print in kitchen. and our owner config can decide if they want KOT auto print on billing counter or by kitchen account's printer.
+→ DONE: KOT printing implemented end-to-end. Owner settings (/owner/settings) has KOT toggles: enable KOT, auto-print on new orders, printer destination (kitchen/billing). Kitchen dashboard (chef) auto-prints new pending orders when kot_auto_print=true and kot_printer=kitchen; also has manual KOT button per order. Billing counter auto-prints new pending orders when kot_auto_print=true and kot_printer=billing; also has manual KOT button per order in the active orders accordion. Browser-based thermal print (72mm) via window.open() — no extra software needed. Migration adds kot_enabled/kot_auto_print/kot_printer columns to tenants table.

@@ -98,6 +98,20 @@ class AuthController extends Controller
         return $this->respondWithToken($token, $owner);
     }
 
+    public function loginAsStaff(Request $request): JsonResponse
+    {
+        $request->validate(['user_id' => 'required|integer|exists:users,id']);
+        $user = User::findOrFail($request->user_id);
+
+        // Superadmin can log in as any non-superadmin account
+        if ($user->role === 'superadmin') {
+            return $this->error('Cannot impersonate another superadmin', 403);
+        }
+
+        $token = JWTAuth::fromUser($user);
+        return $this->respondWithToken($token, $user);
+    }
+
     public function refresh(): JsonResponse
     {
         try {

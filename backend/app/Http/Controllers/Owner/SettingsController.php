@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class SettingsController extends Controller
 {
@@ -18,6 +19,9 @@ class SettingsController extends Controller
         return $this->success([
             'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
             'customer_bill_request_enabled' => $tenant->customer_bill_request_enabled,
+            'kot_enabled'                   => $tenant->kot_enabled,
+            'kot_auto_print'                => $tenant->kot_auto_print,
+            'kot_printer'                   => $tenant->kot_printer ?? 'kitchen',
         ]);
     }
 
@@ -27,11 +31,45 @@ class SettingsController extends Controller
         $request->validate([
             'qr_ordering_enabled'           => 'sometimes|boolean',
             'customer_bill_request_enabled' => 'sometimes|boolean',
+            'kot_enabled'                   => 'sometimes|boolean',
+            'kot_auto_print'                => 'sometimes|boolean',
+            'kot_printer'                   => 'sometimes|in:kitchen,billing',
         ]);
-        $tenant->update($request->only(['qr_ordering_enabled', 'customer_bill_request_enabled']));
+        $tenant->update($request->only([
+            'qr_ordering_enabled',
+            'customer_bill_request_enabled',
+            'kot_enabled',
+            'kot_auto_print',
+            'kot_printer',
+        ]));
         return $this->success([
             'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
             'customer_bill_request_enabled' => $tenant->customer_bill_request_enabled,
+            'kot_enabled'                   => $tenant->kot_enabled,
+            'kot_auto_print'                => $tenant->kot_auto_print,
+            'kot_printer'                   => $tenant->kot_printer ?? 'kitchen',
         ], 'Settings updated');
+    }
+
+    public function changePassword(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        $request->validate([
+            'current_password' => 'required|string',
+            'password'         => ['required', 'string', 'min:8', 'confirmed',
+                'regex:/[A-Z]/',      // at least one uppercase
+                'regex:/[0-9]/',      // at least one number
+                'regex:/[@$!%*#?&]/', // at least one special char
+            ],
+        ], [
+            'password.regex' => 'Password must contain at least one uppercase letter, one number, and one special character (@$!%*#?&).',
+        ]);
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return $this->error('Current password is incorrect', 422);
+        }
+
+        $user->update(['password' => $request->password]);
+        return $this->success(null, 'Password changed successfully');
     }
 }

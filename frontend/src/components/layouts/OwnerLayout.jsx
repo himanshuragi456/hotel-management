@@ -22,6 +22,7 @@ import {
   BellIcon,
   XMarkIcon,
   CreditCardIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 import useAuthStore from '@/store/authStore'
 import { logout } from '@/services/authService'
@@ -79,6 +80,7 @@ const buildNav = (modules) => {
     { label: 'Expenses',  path: '/owner/expenses',  Icon: BanknotesIcon },
     { label: 'Staff',     path: '/owner/staff',     Icon: UserGroupIcon },
     { label: 'Audit Log', path: '/owner/audit-log', Icon: ClipboardDocumentIcon },
+    { label: 'Settings',  path: '/owner/settings',  Icon: Cog6ToothIcon },
   )
 
   return items

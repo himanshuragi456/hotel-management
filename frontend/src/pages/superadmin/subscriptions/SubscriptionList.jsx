@@ -24,18 +24,34 @@ export default function SubscriptionList() {
 
   const extendMutation = useMutation({
     mutationFn: ({ id, months }) => extendSubscription(id, { months }),
-    onSuccess: () => { setExtending(null); qc.invalidateQueries({ queryKey: ['subscriptions'] }) },
+    onSuccess: (res, { id, months }) => {
+      qc.setQueryData(['subscriptions', { status, page }], (old) => {
+        if (!old?.data) return old
+        const updated = old.data.data.map(s => s.id === id ? { ...s, ...res.data?.data } : s)
+        return { ...old, data: { ...old.data, data: updated } }
+      })
+      qc.invalidateQueries({ queryKey: ['subscriptions'] })
+      setExtending(null)
+    },
   })
 
   const cancelMutation = useMutation({
     mutationFn: cancelSubscription,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['subscriptions'] }); setCancelTarget(null) },
+    onSuccess: (_, id) => {
+      qc.setQueryData(['subscriptions', { status, page }], (old) => {
+        if (!old?.data) return old
+        const updated = old.data.data.map(s => s.id === id ? { ...s, status: 'cancelled' } : s)
+        return { ...old, data: { ...old.data, data: updated } }
+      })
+      qc.invalidateQueries({ queryKey: ['subscriptions'] })
+      setCancelTarget(null)
+    },
   })
 
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-7">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-7">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Subscriptions</h2>
           <p className="text-sm text-gray-400 mt-0.5">Manage tenant plans and billing cycles</p>
@@ -52,7 +68,8 @@ export default function SubscriptionList() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[680px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/60">
               {['Tenant', 'Plan', 'Status', 'Billing', 'Amount', 'Expires', ''].map(h => (
@@ -111,6 +128,7 @@ export default function SubscriptionList() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Pagination meta={data} onPageChange={setPage} />

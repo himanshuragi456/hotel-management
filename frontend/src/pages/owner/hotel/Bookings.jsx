@@ -208,7 +208,6 @@ function NewBookingForm({ onSuccess, svc }) {
 export function CheckOutModal({ booking, onSuccess, onClose, svc }) {
   const qc = useQueryClient()
   const [paymentMethod, setPaymentMethod] = useState('cash')
-  const [extraPaid, setExtraPaid] = useState('')
   const [error, setError] = useState('')
   const [showExtend, setShowExtend] = useState(false)
   const [newCheckOut, setNewCheckOut] = useState('')
@@ -220,7 +219,7 @@ export function CheckOutModal({ booking, onSuccess, onClose, svc }) {
   })
 
   const checkout = useMutation({
-    mutationFn: () => svc.checkOutBooking(booking.id, { payment_method: paymentMethod, extra_paid: parseFloat(extraPaid) || 0 }),
+    mutationFn: () => svc.checkOutBooking(booking.id, { payment_method: paymentMethod, extra_paid: Math.max(0, totalAmount - advancePaid) }),
     onSuccess: () => { qc.invalidateQueries({ predicate: q => q.queryKey.includes('bookings') }); qc.invalidateQueries({ predicate: q => q.queryKey.includes('rooms') }); onSuccess?.() },
     onError: (err) => setError(err.response?.data?.message ?? 'Error'),
   })
@@ -242,8 +241,6 @@ export function CheckOutModal({ booking, onSuccess, onClose, svc }) {
   const serviceCharges = parseFloat(b.service_charges ?? 0)
   const totalAmount    = parseFloat(b.total_amount    ?? 0)
   const advancePaid    = parseFloat(b.advance_paid    ?? 0)
-  const extra          = parseFloat(extraPaid) || 0
-  const balanceDue     = Math.max(0, totalAmount - advancePaid - extra)
   const byDate         = summary?.unbilled_orders_by_date ?? []
   const foodTotal      = parseFloat(summary?.unbilled_food_total ?? 0)
   const overdue        = isOverdue(b)
@@ -353,21 +350,28 @@ export function CheckOutModal({ booking, onSuccess, onClose, svc }) {
       )}
 
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Amount received now</label>
-        <input type="number" step="0.01" min="0" value={extraPaid} onChange={e => setExtraPaid(e.target.value)} placeholder="₹0" className={inp} />
-      </div>
-      <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
-        <div className="grid grid-cols-3 gap-2">
-          {['cash', 'upi', 'card'].map(m => (
+        <div className="grid grid-cols-2 gap-2">
+          {['cash', 'upi'].map(m => (
             <button key={m} type="button" onClick={() => setPaymentMethod(m)}
               className={`py-2 rounded-lg text-xs font-medium capitalize ${paymentMethod === m ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
-              {m}
+              {m === 'cash' ? '💵 Cash' : '📱 UPI'}
             </button>
           ))}
         </div>
       </div>
-      {balanceDue > 0.01 && <div className="text-yellow-600 text-xs bg-yellow-50 px-3 py-2 rounded-lg">Outstanding after this payment: ₹{balanceDue.toFixed(2)}</div>}
+      {Math.max(0, totalAmount - advancePaid) > 0.01 && (
+        paymentMethod === 'cash' ? (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+            <p className="text-xs font-semibold text-green-700">Collect <span className="text-base">₹{Math.max(0, totalAmount - advancePaid).toFixed(0)}</span> in cash from guest</p>
+          </div>
+        ) : (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+            <p className="text-xs font-semibold text-blue-700 mb-1">Show QR to guest for payment</p>
+            <span className="font-mono bg-white border border-blue-200 px-3 py-1.5 rounded-lg text-sm text-blue-800">₹{Math.max(0, totalAmount - advancePaid).toFixed(0)}</span>
+          </div>
+        )
+      )}
       <button onClick={() => checkout.mutate()} disabled={checkout.isPending || summaryLoading}
         className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
         {checkout.isPending ? 'Processing…' : 'Confirm Check-out'}
@@ -475,13 +479,13 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Bookings</h2>
           <p className="text-sm text-gray-400 mt-0.5">{bookings.length} booking{bookings.length !== 1 ? 's' : ''} {status ? `· ${status.replace('_', ' ')}` : ''}</p>
         </div>
         <button onClick={() => setShowNew(true)}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow self-start sm:self-auto">
           <PlusIcon className="w-4 h-4" />New Booking
         </button>
       </div>
@@ -598,10 +602,11 @@ export function BookingDetail({ booking, svc }) {
         <div>
           <div className="font-medium text-gray-800 text-sm mb-2">Room Service Orders</div>
           {b.orders.map(o => (
-            <div key={o.id} className="flex justify-between text-xs text-gray-600 py-1 border-b border-gray-50">
-              <span>{o.order_number}</span>
-              <span>{o.items?.length} items</span>
-              <span>₹{o.total}</span>
+            <div key={o.id} className="py-1.5 border-b border-gray-50">
+              <div className="flex justify-between text-xs text-gray-700 font-medium mb-0.5">
+                <span>{o.items?.map(i => `${i.quantity}× ${i.item_name}`).join(', ') || o.order_number}</span>
+                <span>₹{o.total}</span>
+              </div>
             </div>
           ))}
         </div>

@@ -36,7 +36,7 @@ export default function AuditLogs() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-7">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-7">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Audit Logs</h2>
           <p className="text-sm text-gray-400 mt-0.5">Platform-wide activity trail</p>
@@ -63,10 +63,10 @@ export default function AuditLogs() {
           <FunnelIcon className="w-4 h-4 text-gray-400" />
           <span className="text-sm font-semibold text-gray-600">Filters</span>
         </div>
-        <div className="flex gap-3 flex-wrap items-center">
+        <div className="flex flex-col sm:flex-row gap-3 sm:flex-wrap sm:items-center">
           <input value={filters.action} onChange={e => set('action', e.target.value)}
             placeholder="Filter by action…"
-            className={inp} />
+            className={`${inp} w-full sm:w-auto`} />
           <div className="flex items-center gap-2">
             <label className="text-xs font-medium text-gray-500 whitespace-nowrap">From</label>
             <input type="date" value={filters.from}
@@ -89,7 +89,8 @@ export default function AuditLogs() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/60">
               {['Time', 'Action', 'User', 'Tenant', 'IP'].map(h => (
@@ -151,6 +152,7 @@ export default function AuditLogs() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Pagination meta={data} onPageChange={p => setFilters(f => ({ ...f, page: p }))} />

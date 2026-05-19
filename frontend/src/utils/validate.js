@@ -90,3 +90,14 @@ export const atLeastOne = (label = 'At least one option') =>
 // Require id_proof_number when id_proof_type is set
 export const requiredIfOtherSet = (otherField, label = 'This field') =>
   (v, all) => (all[otherField] && !v ? `${label} is required when ID type is selected` : undefined)
+
+// Strong password: min 8, uppercase, number, special char
+export const isStrongPassword = (label = 'Password') =>
+  (v) => {
+    if (!v) return undefined
+    if (v.length < 8)              return `${label} must be at least 8 characters`
+    if (!/[A-Z]/.test(v))          return `${label} must contain at least one uppercase letter`
+    if (!/[0-9]/.test(v))          return `${label} must contain at least one number`
+    if (!/[@$!%*#?&]/.test(v))     return `${label} must contain at least one special character (@$!%*#?&)`
+    return undefined
+  }

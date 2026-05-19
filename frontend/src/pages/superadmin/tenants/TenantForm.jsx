@@ -7,7 +7,7 @@ import { CalendarDaysIcon, InformationCircleIcon } from '@heroicons/react/24/out
 const DETAIL_RULES = {
   name:     [required('Business name')],
   email:    [required('Email'), isEmail()],
-  phone:    [isPhone()],
+  phone:    [required('Phone'), isPhone()],
   gstin:    [isGstin()],
   gst_rate: [required('GST rate'), isNonNeg('GST rate'), maxValue(100, 'GST rate')],
   modules:  [atLeastOne('At least one module')],
@@ -97,7 +97,7 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit }) {
           <Err field="email" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Phone</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Phone *</label>
           <input value={form.phone} onChange={e => set('phone', e.target.value)} onBlur={() => blur('phone')} className={inp('phone')} placeholder="+91 98765 43210" />
           <Err field="phone" />
         </div>
@@ -248,7 +248,7 @@ function SubscriptionTab({ tenant, plans, onSuccess }) {
             <div>
               <label className="block text-xs text-gray-500 mb-1">Expires On</label>
               <input type="date" required={assignForm.expiry_mode === 'date'}
-                min={new Date().toISOString().split('T')[0]}
+                min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
                 value={assignForm.expires_at}
                 onChange={e => setAssignForm(f => ({ ...f, expires_at: e.target.value }))}
                 className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />

@@ -41,11 +41,15 @@ export default function HotelReports() {
 
       {/* Date range */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-        <div className="flex gap-3 items-center flex-wrap">
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">From</label>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={inp} />
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">To</label>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} className={inp} />
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">From</label>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">To</label>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+          </div>
         </div>
       </div>
 
@@ -80,7 +84,8 @@ export default function HotelReports() {
               <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Revenue by Room Type</h3>
               </div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[320px]">
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
@@ -98,6 +103,7 @@ export default function HotelReports() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>
@@ -110,7 +116,8 @@ export default function HotelReports() {
             <ExclamationCircleIcon className="w-4 h-4 text-amber-600" />
             <h3 className="text-sm font-semibold text-amber-800">Outstanding — Currently Checked In ({outstanding.length})</h3>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[400px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Guest</th>
@@ -130,6 +137,7 @@ export default function HotelReports() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

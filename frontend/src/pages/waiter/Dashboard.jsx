@@ -156,6 +156,12 @@ function TableOrderPanel({ table, onClose }) {
   }, [tenantId, table.id, qc])
 
   const [menuSearch, setMenuSearch] = useState('')
+  const [debouncedMenuSearch, setDebouncedMenuSearch] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedMenuSearch(menuSearch), 250)
+    return () => clearTimeout(t)
+  }, [menuSearch])
 
   const { data: menu, isLoading: menuLoading } = useQuery({
     queryKey: ['waiter-menu'],
@@ -164,8 +170,8 @@ function TableOrderPanel({ table, onClose }) {
   const cats = menu ?? []
   const activeCatId = activeCat ?? cats[0]?.id
   const allItems = cats.flatMap(c => c.items?.filter(i => i.is_available) ?? [])
-  const visibleItems = menuSearch.trim()
-    ? allItems.filter(i => i.name.toLowerCase().includes(menuSearch.toLowerCase()))
+  const visibleItems = debouncedMenuSearch.trim()
+    ? allItems.filter(i => i.name.toLowerCase().includes(debouncedMenuSearch.toLowerCase()))
     : (cats.find(c => c.id === activeCatId)?.items?.filter(i => i.is_available) ?? [])
 
   const invalidate = () => {
@@ -385,7 +391,7 @@ function TableOrderPanel({ table, onClose }) {
                 </div>
               </div>
               {/* Category pill tabs — hidden when searching */}
-              {!menuSearch.trim() && (
+              {!debouncedMenuSearch.trim() && (
               <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-gray-100 bg-gray-50/60 no-scrollbar">
                 {menuLoading
                   ? [1,2,3].map(i => <div key={i} className="h-7 w-20 bg-gray-100 rounded-full animate-pulse shrink-0" />)
@@ -813,6 +819,7 @@ function ActiveRooms({ onSelect }) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function WaiterDashboard() {
   const { user, logout: clearAuth } = useAuthStore()
+  const hasHotel = !!user?.modules?.hotel
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [selectedTable, setSelectedTable] = useState(null)
@@ -861,7 +868,7 @@ export default function WaiterDashboard() {
       <div className="flex gap-2 px-6 pt-5">
         {[
           { key: 'tables', label: 'Tables', icon: TableCellsIcon },
-          { key: 'room service', label: 'Room Service', icon: HomeModernIcon },
+          ...(hasHotel ? [{ key: 'room service', label: 'Room Service', icon: HomeModernIcon }] : []),
         ].map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${

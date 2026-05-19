@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Billing;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\RestaurantTable;
@@ -417,6 +418,14 @@ class InvoiceController extends Controller
             'created_by'      => auth()->id(),
         ]);
 
+        AuditLog::record('invoice.created', $invoice, [], [
+            'invoice_number' => $invoice->invoice_number,
+            'order_number'   => $order->order_number,
+            'table'          => $order->restaurant_table_id ? 'Table ' . ($order->table?->number ?? $order->restaurant_table_id) : null,
+            'total'          => $invoice->total,
+            'payment_method' => $invoice->payment_method,
+        ]);
+
         // Free table only if no other unbilled orders remain (any status except cancelled)
         if ($order->restaurant_table_id) {
             $remaining = Order::where('tenant_id', auth()->user()->tenant_id)
@@ -502,6 +511,13 @@ class InvoiceController extends Controller
             \Illuminate\Support\Facades\DB::rollBack();
             return $this->error('Failed: ' . $e->getMessage(), 500);
         }
+
+        AuditLog::record('invoice.bill_all', null, [], [
+            'table'          => 'Table ' . $table->number,
+            'invoice_count'  => count($invoices),
+            'total'          => $request->amount_paid,
+            'payment_method' => $request->payment_method,
+        ]);
 
         return $this->success(['invoice_ids' => $invoices], 'All orders billed and table closed');
     }

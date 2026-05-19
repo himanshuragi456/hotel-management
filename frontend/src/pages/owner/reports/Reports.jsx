@@ -51,13 +51,13 @@ export default function Reports() {
 
   return (
     <div className="max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Orders Report</h2>
           <p className="text-sm text-gray-400 mt-0.5">Revenue and order analytics by date range</p>
         </div>
         <button onClick={handleExport} disabled={exporting || !report?.orders?.length}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow self-start sm:self-auto">
           <ArrowDownTrayIcon className="w-4 h-4" />
           {exporting ? 'Exporting…' : 'Export PDF'}
         </button>
@@ -65,11 +65,15 @@ export default function Reports() {
 
       {/* Date range */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
-        <div className="flex gap-3 items-center flex-wrap">
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">From</label>
-          <input type="date" value={from} max={to || today} onChange={e => setFrom(e.target.value)} className={inp} />
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">To</label>
-          <input type="date" value={to} min={from || undefined} max={today} onChange={e => setTo(e.target.value)} className={inp} />
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">From</label>
+            <input type="date" value={from} max={to || today} onChange={e => setFrom(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">To</label>
+            <input type="date" value={to} min={from || undefined} max={today} onChange={e => setTo(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+          </div>
         </div>
       </div>
 

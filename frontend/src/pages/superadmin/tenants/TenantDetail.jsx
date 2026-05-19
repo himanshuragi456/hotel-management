@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTenant, updateTenantModules, exportTenantData, updateTenantAiSettings } from '@/services/superadminService'
+import { getTenant, updateTenantModules, exportTenantData, updateTenantAiSettings, loginAsStaff, changeUserPassword } from '@/services/superadminService'
 import Badge from '@/components/shared/Badge'
 import Modal from '@/components/shared/Modal'
 import TenantForm from './TenantForm'
+import { ROLE_HOME } from '@/components/layouts/RoleGuard'
+import useAuthStore from '@/store/authStore'
+import { validate, required, isStrongPassword } from '@/utils/validate'
 import {
   ArrowLeftIcon, PencilSquareIcon, ArrowDownTrayIcon, UsersIcon,
   ShoppingBagIcon, BuildingOfficeIcon, StarIcon, SparklesIcon,
-  CheckCircleIcon, XCircleIcon,
+  CheckCircleIcon, XCircleIcon, ArrowRightOnRectangleIcon, KeyIcon,
 } from '@heroicons/react/24/outline'
 
 // ── AI Settings card ──────────────────────────────────────────────────────────
@@ -110,14 +113,93 @@ function AiSettingsCard({ tenant, mutation }) {
   )
 }
 
+// ── Change Password Modal ─────────────────────────────────────────────────────
+
+function ChangePasswordModal({ user, onClose }) {
+  const [form, setForm] = useState({ password: '', password_confirmation: '' })
+  const [errors, setErrors] = useState({})
+  const [success, setSuccess] = useState(false)
+
+  const mutation = useMutation({
+    mutationFn: (data) => changeUserPassword(user.id, data),
+    onSuccess: () => { setSuccess(true); setTimeout(onClose, 1500) },
+    onError: (err) => {
+      const data = err.response?.data
+      if (data?.errors) {
+        const n = {}; for (const [k, v] of Object.entries(data.errors)) n[k] = Array.isArray(v) ? v[0] : v
+        setErrors(n)
+      } else setErrors({ general: data?.message ?? 'Failed' })
+    },
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const errs = validate({ password: [required('Password'), isStrongPassword()] }, form)
+    if (form.password !== form.password_confirmation) errs.password_confirmation = 'Passwords do not match'
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    mutation.mutate(form)
+  }
+
+  const inp = (f) => `w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50 ${errors[f] ? 'border-red-400' : 'border-gray-200'}`
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gray-50 rounded-xl px-4 py-3">
+        <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+        <p className="text-xs text-gray-500 capitalize">{user.role} · {user.email}</p>
+      </div>
+      {success && <div className="flex items-center gap-2 bg-green-50 text-green-700 text-sm px-3 py-2 rounded-xl"><CheckCircleIcon className="w-4 h-4" />Password changed!</div>}
+      {errors.general && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl">{errors.general}</div>}
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">New Password *</label>
+          <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} className={inp('password')} placeholder="Min 8 chars, A-Z, 0-9, @$!%*#?&" />
+          {errors.password && <p className="text-xs text-red-500 mt-0.5">{errors.password}</p>}
+          <p className="text-xs text-gray-400 mt-1">Must include uppercase, number, and special char (@$!%*#?&)</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Password *</label>
+          <input type="password" value={form.password_confirmation} onChange={e => setForm(f => ({ ...f, password_confirmation: e.target.value }))} className={inp('password_confirmation')} placeholder="Repeat password" />
+          {errors.password_confirmation && <p className="text-xs text-red-500 mt-0.5">{errors.password_confirmation}</p>}
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 text-sm py-2.5 rounded-xl hover:bg-gray-50">Cancel</button>
+          <button type="submit" disabled={mutation.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm py-2.5 rounded-xl font-semibold disabled:opacity-50">
+            {mutation.isPending ? 'Saving…' : 'Set Password'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function TenantDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { setAuth } = useAuthStore()
   const [showEdit, setShowEdit] = useState(false)
   const [feedbackDomain, setFeedbackDomain] = useState('')
+  const [loggingInAs, setLoggingInAs] = useState(null)
+  const [loginError, setLoginError] = useState('')
+  const [changePwdTarget, setChangePwdTarget] = useState(null)
+
+  const handleLoginAsStaff = async (user) => {
+    setLoggingInAs(user.id)
+    setLoginError('')
+    try {
+      const { data } = await loginAsStaff(user.id)
+      const { access_token, user: loggedUser } = data.data
+      setAuth(access_token, loggedUser)
+      navigate(ROLE_HOME[loggedUser.role] ?? '/', { replace: true })
+    } catch {
+      setLoginError(`Could not log in as ${user.name}`)
+    } finally {
+      setLoggingInAs(null)
+    }
+  }
 
   const { data: res, isLoading } = useQuery({
     queryKey: ['tenant', id],
@@ -327,22 +409,44 @@ export default function TenantDetail() {
             </button>
           </div>
           <div className="space-y-2">
-            {tenant.users?.slice(0, 5).map(u => (
-              <div key={u.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-                <div className="flex items-center gap-2">
+            {tenant.users?.map(u => (
+              <div key={u.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0 gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                     {u.name.charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-sm text-gray-800 font-medium">{u.name}</span>
+                  <div className="min-w-0">
+                    <span className="text-sm text-gray-800 font-medium truncate block">{u.name}</span>
+                    <div className="flex items-center gap-1">
+                      <Badge value={u.role} />
+                      {!u.is_active && <span className="text-xs text-red-500">Inactive</span>}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge value={u.role} />
-                  {!u.is_active && <span className="text-xs text-red-500">Inactive</span>}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleLoginAsStaff(u)}
+                    disabled={loggingInAs === u.id}
+                    title={`Login as ${u.name}`}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg font-medium transition-colors disabled:opacity-50"
+                  >
+                    <ArrowRightOnRectangleIcon className="w-3.5 h-3.5" />
+                    {loggingInAs === u.id ? '…' : 'Login'}
+                  </button>
+                  <button
+                    onClick={() => setChangePwdTarget(u)}
+                    title="Change password"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                  >
+                    <KeyIcon className="w-3.5 h-3.5" />Pwd
+                  </button>
                 </div>
               </div>
             ))}
-            {(tenant.users?.length ?? 0) > 5 && <p className="text-xs text-gray-400 pt-1">+{tenant.users.length - 5} more accounts</p>}
           </div>
+          {loginError && (
+            <p className="text-xs text-red-500 mt-2">{loginError}</p>
+          )}
         </div>
       </div>
 
@@ -351,6 +455,10 @@ export default function TenantDetail() {
 
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Tenant" size="lg">
         <TenantForm tenant={tenant} onSuccess={() => { setShowEdit(false); qc.invalidateQueries({ queryKey: ['tenant', id] }) }} />
+      </Modal>
+
+      <Modal open={!!changePwdTarget} onClose={() => setChangePwdTarget(null)} title="Change Password" size="sm">
+        {changePwdTarget && <ChangePasswordModal user={changePwdTarget} onClose={() => setChangePwdTarget(null)} />}
       </Modal>
     </div>
   )

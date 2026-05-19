@@ -60,12 +60,19 @@ export default function TenantList() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteTenant,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tenants'] }); setDeleteTarget(null) },
+    onSuccess: (_, id) => {
+      qc.setQueryData(['tenants', { search: debouncedSearch, status, page }], (old) => {
+        if (!old?.data) return old
+        return { ...old, data: { ...old.data, data: old.data.data.filter(t => t.id !== id) } }
+      })
+      qc.invalidateQueries({ queryKey: ['tenants'] })
+      setDeleteTarget(null)
+    },
   })
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-7">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-7">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Tenants</h2>
           <p className="text-sm text-gray-400 mt-0.5">Manage all registered businesses</p>
@@ -78,8 +85,8 @@ export default function TenantList() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-5">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-col sm:flex-row gap-3 mb-5">
+        <div className="relative flex-1 sm:max-w-xs">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             value={search}
@@ -102,10 +109,11 @@ export default function TenantList() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[700px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/60">
-              {['Name', 'Modules', 'Plan', 'Sub Status', 'Expires', 'Users', ''].map(h => (
+              {['Name', 'Modules', 'Plan', 'Status', 'Expires', 'Users', ''].map(h => (
                 <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -130,7 +138,11 @@ export default function TenantList() {
               </tr>
             ) : data?.data?.map(tenant => {
               const sub = tenant.subscription
-              const expDate = sub?.current_period_end ? new Date(sub.current_period_end) : null
+              // For tenants in trial with no subscription, compute expiry from created_at + 7 days
+              const trialExpiry = (!sub && tenant.status === 'trial' && tenant.created_at)
+                ? new Date(new Date(tenant.created_at).getTime() + 7 * 86400000)
+                : null
+              const expDate = sub?.current_period_end ? new Date(sub.current_period_end) : trialExpiry
               const isExpired = expDate && expDate < new Date()
               const daysLeft = expDate && !isExpired ? Math.ceil((expDate - new Date()) / 86400000) : null
               return (
@@ -157,7 +169,7 @@ export default function TenantList() {
                     : <span className="text-xs text-gray-400">No plan</span>}
                 </td>
                 <td className="px-5 py-4">
-                  {sub ? <Badge value={sub.status} /> : <span className="text-xs text-gray-400">—</span>}
+                  <Badge value={tenant.status} />
                 </td>
                 <td className="px-5 py-4">
                   {expDate ? (
@@ -198,6 +210,7 @@ export default function TenantList() {
             )})}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Pagination meta={data} onPageChange={setPage} />

@@ -34,7 +34,11 @@ export default function PlanList() {
 
   const deleteMutation = useMutation({
     mutationFn: deletePlan,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['plans'] }); setDeleteTarget(null) },
+    onSuccess: (_, id) => {
+      qc.setQueryData(['plans'], (old) => old ? old.filter(p => p.id !== id) : old)
+      qc.invalidateQueries({ queryKey: ['plans'] })
+      setDeleteTarget(null)
+    },
     onError: (err) => setDeleteError(err.response?.data?.message ?? 'Failed to delete plan'),
   })
 
@@ -43,7 +47,7 @@ export default function PlanList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-7">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-7">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Subscription Plans</h2>
           <p className="text-sm text-gray-400 mt-0.5">Define pricing tiers and module access</p>

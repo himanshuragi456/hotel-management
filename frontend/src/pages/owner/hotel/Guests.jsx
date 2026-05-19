@@ -227,13 +227,13 @@ export default function Guests() {
 
   return (
     <div className="max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Guests</h2>
           <p className="text-sm text-gray-400 mt-0.5">{guests.length} registered guests</p>
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true) }}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow self-start sm:self-auto">
           <PlusIcon className="w-4 h-4" />Add Guest
         </button>
       </div>

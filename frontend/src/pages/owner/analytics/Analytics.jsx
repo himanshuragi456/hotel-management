@@ -131,12 +131,12 @@ export default function Analytics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Analytics</h2>
           <p className="text-sm text-gray-400 mt-0.5">Revenue and performance insights</p>
         </div>
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl self-start sm:self-auto">
           {PERIOD_OPTIONS.map(opt => (
             <button key={opt.value} onClick={() => setDays(opt.value)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${days === opt.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>

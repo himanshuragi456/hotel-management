@@ -41,6 +41,7 @@ import FeedbackDashboard from '@/pages/owner/feedback/FeedbackDashboard'
 import Analytics from '@/pages/owner/analytics/Analytics'
 import OwnerAuditLog from '@/pages/owner/analytics/AuditLog'
 import StaffManager from '@/pages/owner/staff/StaffManager'
+import OwnerSettings from '@/pages/owner/settings/Settings'
 import FeedbackPage from '@/pages/feedback/FeedbackPage'
 
 // Waiter
@@ -107,6 +108,8 @@ export default function App() {
             <Route path="audit-log" element={<OwnerAuditLog />} />
             {/* Staff */}
             <Route path="staff" element={<StaffManager />} />
+            {/* Settings */}
+            <Route path="settings" element={<OwnerSettings />} />
             {/* Billing counter — owner has full billing powers */}
             <Route path="billing" element={<BillingDashboard embedded />} />
           </Route>

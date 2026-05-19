@@ -5,7 +5,7 @@ import Pusher from 'pusher-js'
 import {
   XMarkIcon, PlusIcon, MinusIcon, PrinterIcon, ArrowDownTrayIcon,
   CheckCircleIcon, ArrowRightOnRectangleIcon, UserIcon, PhoneIcon,
-  FireIcon, BanknotesIcon, DocumentTextIcon,
+  FireIcon, BanknotesIcon, DocumentTextIcon, MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import {
   getBillingTables, getBillingTableOrders, getBillingTableHistory, closeBillingTable, billAllOrders,
@@ -22,12 +22,14 @@ import {
   billingMarkServedRoom,
   extendBillingBookingStay,
   getActiveOrders,
+  getOwnerSettings,
 } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
 import HotelBookings, { CheckOutModal, BookingDetail } from '@/pages/owner/hotel/Bookings'
 import { formatOccupied } from '@/utils/time'
+import { printKot } from '@/utils/kotPrint'
 
 const PAYMENT_METHODS = ['cash', 'upi']
 
@@ -63,7 +65,6 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
     discount_type: 'flat',
     discount_value: '',
     payment_method: 'cash',
-    paid_amount: '',
     upi_ref: '',
     customer_name: '',
     customer_phone: '',
@@ -78,8 +79,6 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
   const afterDiscount = Math.max(0, order.subtotal - discountAmt)
   const taxAmt = afterDiscount * taxRate
   const total = afterDiscount + taxAmt
-  const paid = parseFloat(form.paid_amount) || total
-  const balance = paid - total
 
   const create = useMutation({
     mutationFn: createInvoice,
@@ -95,7 +94,7 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
       discount_type: form.discount_type === 'flat' ? 1 : form.discount_type === 'percent' ? 2 : 0,
       discount_value: parseFloat(form.discount_value) || 0,
       payment_method: form.payment_method,
-      amount_paid: paid,
+      amount_paid: total,
       customer_name: form.customer_name || undefined,
       customer_phone: form.customer_phone || undefined,
     })
@@ -177,15 +176,8 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
               </div>
             )}
             {form.payment_method === 'cash' && (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Cash Collected</label>
-                <input type="number" step="0.01" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))}
-                  placeholder={`₹${total.toFixed(0)}`} className={inp} />
-                {form.paid_amount && (
-                  <div className={`text-xs mt-1 font-semibold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {balance >= 0 ? `Give change: ₹${balance.toFixed(2)}` : `Remaining: ₹${Math.abs(balance).toFixed(2)}`}
-                  </div>
-                )}
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                <p className="text-xs font-semibold text-green-700">Collect <span className="text-base">₹{total.toFixed(0)}</span> in cash from customer</p>
               </div>
             )}
             <button type="submit" disabled={create.isPending}
@@ -204,12 +196,22 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
   const [cart, setCart] = useState([])
   const [activeCat, setActiveCat] = useState(null)
   const [waiterId, setWaiterId] = useState('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const qc = useQueryClient()
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(t)
+  }, [search])
 
   const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data) })
   const cats = menu ?? []
   const activeCatId = activeCat ?? cats[0]?.id
-  const visibleItems = cats.find(c => c.id === activeCatId)?.items ?? []
+  const allItems = cats.flatMap(c => c.items ?? [])
+  const visibleItems = debouncedSearch.trim()
+    ? allItems.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
+    : (cats.find(c => c.id === activeCatId)?.items ?? [])
 
   // Only fetch waiters when creating a new order (not adding items to existing)
   const { data: waiters } = useQuery({
@@ -246,16 +248,33 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="w-5 h-5" /></button>
         </div>
 
-        <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b bg-gray-50">
-          {cats.map(c => (
-            <button key={c.id} onClick={() => setActiveCat(c.id)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${activeCatId === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 border hover:bg-gray-100'}`}>
-              {c.name}
-            </button>
-          ))}
+        <div className="px-4 pt-3 pb-2 border-b bg-gray-50">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search items…"
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          {!debouncedSearch.trim() && (
+            <div className="flex gap-2 overflow-x-auto pt-2 pb-0.5">
+              {cats.map(c => (
+                <button key={c.id} onClick={() => setActiveCat(c.id)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${activeCatId === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 border hover:bg-gray-100'}`}>
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+          {visibleItems.length === 0 && debouncedSearch.trim() && (
+            <p className="text-center text-sm text-gray-400 py-10">No items match "{debouncedSearch}"</p>
+          )}
           {visibleItems.map(item => {
             const inCart = cart.find(x => x.menu_item_id === item.id)
             return (
@@ -634,16 +653,13 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
 
 // ─── Bill All Modal ───────────────────────────────────────────────────────────
 function BillAllModal({ table, total, onClose, onDone }) {
-  const [form, setForm] = useState({ payment_method: 'cash', paid_amount: '', upi_ref: '', customer_name: '', customer_phone: '' })
+  const [form, setForm] = useState({ payment_method: 'cash', upi_ref: '', customer_name: '', customer_phone: '' })
   const [error, setError] = useState('')
-
-  const paid    = parseFloat(form.paid_amount) || total
-  const balance = paid - total
 
   const submit = useMutation({
     mutationFn: () => billAllOrders(table.id, {
       payment_method: form.payment_method,
-      amount_paid:    paid,
+      amount_paid:    total,
       customer_name:  form.customer_name || undefined,
       customer_phone: form.customer_phone || undefined,
     }),
@@ -700,15 +716,8 @@ function BillAllModal({ table, total, onClose, onDone }) {
             </div>
           )}
           {form.payment_method === 'cash' && (
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Cash Collected</label>
-              <input type="number" step="0.01" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))}
-                placeholder={`₹${total.toFixed(0)}`} className={inp} />
-              {form.paid_amount && (
-                <div className={`text-xs mt-1 font-semibold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {balance >= 0 ? `Give change: ₹${balance.toFixed(2)}` : `Remaining: ₹${Math.abs(balance).toFixed(2)}`}
-                </div>
-              )}
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+              <p className="text-xs font-semibold text-green-700">Collect <span className="text-base">₹{total.toFixed(0)}</span> in cash from customer</p>
             </div>
           )}
           <button onClick={() => submit.mutate()} disabled={submit.isPending}
@@ -797,6 +806,26 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, tables = [] }) {
     queryFn: () => getActiveOrders().then(r => r.data.data),
     refetchInterval: 10000,
   })
+
+  const { data: settings } = useQuery({
+    queryKey: ['owner-settings'],
+    queryFn: () => getOwnerSettings().then(r => r.data.data),
+    staleTime: 60000,
+  })
+  const kotEnabled    = settings?.kot_enabled   ?? false
+  const kotAutoPrint  = settings?.kot_auto_print ?? false
+  const kotPrinter    = settings?.kot_printer    ?? 'kitchen'
+  const showKotButton = kotEnabled && kotPrinter === 'billing'
+
+  const knownKotIds = useRef(new Set())
+
+  // Auto-print KOT for new pending orders when billing is the KOT printer
+  useEffect(() => {
+    if (!orders.length || !kotEnabled || !kotAutoPrint || kotPrinter !== 'billing') return
+    const newOrders = orders.filter(o => o.status === 'pending' && !knownKotIds.current.has(o.id))
+    newOrders.forEach(o => { knownKotIds.current.add(o.id); printKot(o) })
+    orders.forEach(o => knownKotIds.current.add(o.id))
+  }, [orders, kotEnabled, kotAutoPrint, kotPrinter])
 
   // Pusher — stay up-to-date instantly
   useEffect(() => {
@@ -889,16 +918,26 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, tables = [] }) {
         <div className="px-6 pb-3 overflow-x-auto">
           <div className="flex gap-2 flex-wrap py-1">
             {orders.map(o => (
-              <button
-                key={o.id}
-                onClick={() => handleOrderClick(o)}
-                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium transition-opacity hover:opacity-80 ${statusColor(o.status)}`}
-              >
-                <span className="font-bold">{orderLabel(o)}</span>
-                <span className="opacity-60">#{o.order_number}</span>
-                <span className="capitalize opacity-80">· {o.status}</span>
-                <span className="opacity-50">· {o.elapsed_label}</span>
-              </button>
+              <div key={o.id} className="flex items-center gap-1">
+                <button
+                  onClick={() => handleOrderClick(o)}
+                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium transition-opacity hover:opacity-80 ${statusColor(o.status)}`}
+                >
+                  <span className="font-bold">{orderLabel(o)}</span>
+                  <span className="opacity-60">#{o.order_number}</span>
+                  <span className="capitalize opacity-80">· {o.status}</span>
+                  <span className="opacity-50">· {o.elapsed_label}</span>
+                </button>
+                {showKotButton && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); printKot(o) }}
+                    title="Print KOT"
+                    className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition-colors"
+                  >
+                    <PrinterIcon className="w-3.5 h-3.5" />KOT
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -1018,8 +1057,8 @@ function RecentBillsDrawer({ onClose }) {
                       )}
                     </div>
 
-                    {/* Individual invoices — only when expanded or single */}
-                    {(isOpen || session.invoices.length === 1) && (
+                    {/* Individual invoices — only when expanded (multiple invoices) */}
+                    {isOpen && session.invoices.length > 1 && (
                       <div className="divide-y divide-gray-100">
                         {session.invoices.map(inv => (
                           <div key={inv.id} className="px-4 py-2.5 flex items-center gap-3">
@@ -1605,12 +1644,22 @@ function BillingRoomServicePanel({ booking, onClose }) {
   const [cart, setCart] = useState([])
   const [activeCat, setActiveCat] = useState(null)
   const [waiterId, setWaiterId] = useState('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(t)
+  }, [search])
 
   const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data) })
   const { data: waiters } = useQuery({ queryKey: ['billing-waiters'], queryFn: () => getBillingWaiters().then(r => r.data.data) })
   const cats = menu ?? []
   const activeCatId = activeCat ?? cats[0]?.id
-  const visibleItems = cats.find(c => c.id === activeCatId)?.items ?? []
+  const allItems = cats.flatMap(c => c.items ?? [])
+  const visibleItems = debouncedSearch.trim()
+    ? allItems.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
+    : (cats.find(c => c.id === activeCatId)?.items ?? [])
 
   const create = useMutation({
     mutationFn: billingPlaceRoomService,
@@ -1640,15 +1689,32 @@ function BillingRoomServicePanel({ booking, onClose }) {
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </div>
-        <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b bg-gray-50">
-          {cats.map(c => (
-            <button key={c.id} onClick={() => setActiveCat(c.id)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${activeCatId === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 border hover:bg-gray-100'}`}>
-              {c.name}
-            </button>
-          ))}
+        <div className="px-4 pt-3 pb-2 border-b bg-gray-50">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search items…"
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          {!debouncedSearch.trim() && (
+            <div className="flex gap-2 overflow-x-auto pt-2 pb-0.5">
+              {cats.map(c => (
+                <button key={c.id} onClick={() => setActiveCat(c.id)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${activeCatId === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 border hover:bg-gray-100'}`}>
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+          {visibleItems.length === 0 && debouncedSearch.trim() && (
+            <p className="text-center text-sm text-gray-400 py-10">No items match "{debouncedSearch}"</p>
+          )}
           {visibleItems.map(item => {
             const inCart = cart.find(x => x.menu_item_id === item.id)
             return (

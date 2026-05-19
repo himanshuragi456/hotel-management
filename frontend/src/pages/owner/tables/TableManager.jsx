@@ -169,7 +169,11 @@ export default function TableManager() {
 
   const delTable = useMutation({
     mutationFn: deleteTable,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tables'] }),
+    onSuccess: (_, id) => {
+      qc.setQueryData(['tables'], (old) => old ? old.filter(t => t.id !== id) : old)
+      qc.invalidateQueries({ queryKey: ['tables'] })
+      setDeleteTarget(null)
+    },
   })
 
   const handleQr = async (table) => {
@@ -190,7 +194,7 @@ export default function TableManager() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Tables</h2>
           <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-3">
@@ -199,7 +203,7 @@ export default function TableManager() {
           </p>
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true) }}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow self-start sm:self-auto">
           <PlusIcon className="w-4 h-4" />
           Add Table
         </button>
@@ -256,8 +260,8 @@ export default function TableManager() {
         confirmLabel={deleteTarget?.status === 'occupied' ? 'OK' : 'Delete'}
         confirmClass={deleteTarget?.status === 'occupied' ? 'bg-gray-700 hover:bg-gray-800 text-white' : 'bg-red-500 hover:bg-red-600 text-white'}
         onConfirm={() => {
-          if (deleteTarget?.status !== 'occupied') delTable.mutate(deleteTarget.id)
-          setDeleteTarget(null)
+          if (deleteTarget?.status === 'occupied') setDeleteTarget(null)
+          else delTable.mutate(deleteTarget.id)
         }}
         onCancel={() => setDeleteTarget(null)}
       />

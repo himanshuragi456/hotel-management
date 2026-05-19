@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Waiter;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\MenuItem;
 use App\Models\Order;
@@ -107,6 +108,13 @@ class RoomServiceController extends Controller
 
             foreach ($createdOrders as $o) {
                 broadcast(new OrderStatusUpdated($o))->toOthers();
+                AuditLog::record('order.room_service_placed', $o, [], [
+                    'order_number' => $o->order_number,
+                    'room'         => 'Room ' . $booking->room?->number,
+                    'guest'        => $booking->guest?->name,
+                    'items'        => $o->items->map(fn($i) => $i->quantity . '× ' . $i->item_name)->implode(', '),
+                    'total'        => $o->total,
+                ]);
             }
 
             return $this->created([

@@ -11,7 +11,9 @@ class Tenant extends Model
     protected $fillable = [
         'name', 'slug', 'email', 'phone', 'address', 'city', 'state',
         'country', 'gstin', 'gst_rate', 'logo', 'currency', 'timezone',
-        'status', 'qr_ordering_enabled', 'customer_bill_request_enabled', 'google_place_id', 'google_review_url',
+        'status', 'qr_ordering_enabled', 'customer_bill_request_enabled',
+        'kot_enabled', 'kot_auto_print', 'kot_printer',
+        'google_place_id', 'google_review_url',
         'payment_gateway', 'business_domain', 'review_suggestions',
         'ai_suggestions_enabled', 'ai_monthly_quota', 'ai_usage_this_month', 'ai_usage_reset_at',
     ];
@@ -20,6 +22,8 @@ class Tenant extends Model
         'review_suggestions'     => 'array',
         'qr_ordering_enabled'               => 'boolean',
         'customer_bill_request_enabled'     => 'boolean',
+        'kot_enabled'                       => 'boolean',
+        'kot_auto_print'                    => 'boolean',
         'ai_suggestions_enabled' => 'boolean',
         'ai_monthly_quota'       => 'integer',
         'ai_usage_this_month'    => 'integer',

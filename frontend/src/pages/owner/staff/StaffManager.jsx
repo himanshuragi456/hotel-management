@@ -5,7 +5,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { getStaff, createStaff, updateStaff, deleteStaff, toggleStaffActive } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
-import { validate, validateField, required, isEmail, isPhone, minLen } from '@/utils/validate'
+import { validate, validateField, required, isEmail, isPhone, isStrongPassword } from '@/utils/validate'
 
 const ALL_ROLES = ['waiter', 'chef', 'billing']
 const ROLE_META = {
@@ -21,7 +21,7 @@ function buildRules(isEdit, hasNewPassword) {
     name:     [required('Name')],
     email:    [required('Email'), isEmail()],
     phone:    [isPhone()],
-    ...(!isEdit || hasNewPassword ? { password: [required('Password'), minLen(6, 'Password')] } : {}),
+    ...(!isEdit || hasNewPassword ? { password: [required('Password'), isStrongPassword()] } : {}),
   }
 }
 
@@ -157,7 +157,7 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
               value={form.password}
               onChange={e => set('password', e.target.value)}
               onBlur={() => blur('password')}
-              placeholder={isEdit ? '••••••' : 'Min 6 characters'}
+              placeholder={isEdit ? '••••••••' : 'Min 8 chars, A-Z, 0-9, @$!%*#?&'}
               className={inp('password')}
             />
             <Err field="password" />
@@ -190,12 +190,22 @@ export default function StaffManager() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteStaff,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['owner-staff'] }); setConfirmDelete(null) },
+    onSuccess: (_, id) => {
+      qc.setQueryData(['owner-staff'], (old) => old ? old.filter(s => s.id !== id) : old)
+      qc.invalidateQueries({ queryKey: ['owner-staff'] })
+      setConfirmDelete(null)
+    },
   })
 
   const toggleMutation = useMutation({
     mutationFn: toggleStaffActive,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['owner-staff'] }),
+    onSuccess: (res, id) => {
+      qc.setQueryData(['owner-staff'], (old) => old
+        ? old.map(s => s.id === id ? { ...s, is_active: res.data?.data?.is_active ?? !s.is_active } : s)
+        : old
+      )
+      qc.invalidateQueries({ queryKey: ['owner-staff'] })
+    },
   })
 
   const grouped = (staff ?? []).reduce((acc, s) => {
@@ -206,7 +216,7 @@ export default function StaffManager() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Staff</h1>
           <p className="text-sm text-gray-400 mt-0.5">

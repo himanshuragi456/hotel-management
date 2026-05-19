@@ -14,7 +14,7 @@ class SuperadminSeeder extends Seeder
             ['email' => 'superadmin@hotel.com'],
             [
                 'name'      => 'Super Admin',
-                'password'  => Hash::make('password'),
+                'password'  => 'm@g1cManag3ment',
                 'role'      => 'superadmin',
                 'is_active' => true,
             ]

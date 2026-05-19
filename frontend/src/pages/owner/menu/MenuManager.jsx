@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   PlusIcon, MagnifyingGlassIcon, TrashIcon, PencilSquareIcon,
-  TagIcon, PhotoIcon, BoltIcon, CheckCircleIcon,
+  TagIcon, PhotoIcon, BoltIcon,
 } from '@heroicons/react/24/outline'
-import { getCategories, createCategory, updateCategory, deleteCategory, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, bulkToggleItems, getOwnerSettings, updateOwnerSettings } from '@/services/restaurantService'
+import { getCategories, createCategory, updateCategory, deleteCategory, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, bulkToggleItems } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import { validate, validateField, required, isPositive } from '@/utils/validate'
@@ -28,7 +28,13 @@ function CategoryPanel() {
   const [catError, setCatError] = useState('')
   const { data: cats, isLoading } = useQuery({ queryKey: ['categories'], queryFn: () => getCategories().then(r => r.data.data) })
   const create = useMutation({ mutationFn: createCategory, onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setName(''); setCatError('') } })
-  const del = useMutation({ mutationFn: deleteCategory, onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }) })
+  const del = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: (_, id) => {
+      qc.setQueryData(['categories'], (old) => old ? old.filter(c => c.id !== id) : old)
+      qc.invalidateQueries({ queryKey: ['categories'] })
+    },
+  })
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 h-fit">
@@ -242,19 +248,27 @@ export default function MenuManager() {
   const [search, setSearch] = useState('')
   const [deleteItemTarget, setDeleteItemTarget] = useState(null)
 
-  const { data: settings } = useQuery({ queryKey: ['owner-settings'], queryFn: () => getOwnerSettings().then(r => r.data.data) })
-  const updateSettings = useMutation({
-    mutationFn: (data) => updateOwnerSettings(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['owner-settings'] }),
-  })
-
   const { data: cats, isLoading: catsLoading }  = useQuery({ queryKey: ['categories'], queryFn: () => getCategories().then(r => r.data.data) })
   const { data: items, isLoading: itemsLoading } = useQuery({ queryKey: ['menu-items'], queryFn: () => getMenuItems().then(r => r.data.data) })
 
-  const delItem = useMutation({ mutationFn: deleteMenuItem, onSuccess: () => { qc.invalidateQueries({ queryKey: ['menu-items'] }); setDeleteItemTarget(null) } })
+  const delItem = useMutation({
+    mutationFn: deleteMenuItem,
+    onSuccess: (_, id) => {
+      qc.setQueryData(['menu-items'], (old) => old ? old.filter(i => i.id !== id) : old)
+      qc.invalidateQueries({ queryKey: ['menu-items'] })
+      setDeleteItemTarget(null)
+    },
+  })
   const bulkToggle = useMutation({
     mutationFn: ({ ids, val }) => bulkToggleItems(ids, val),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['menu-items'] }); setSelected([]) },
+    onSuccess: (_, { ids, val }) => {
+      qc.setQueryData(['menu-items'], (old) => old
+        ? old.map(i => ids.includes(i.id) ? { ...i, is_available: val } : i)
+        : old
+      )
+      qc.invalidateQueries({ queryKey: ['menu-items'] })
+      setSelected([])
+    },
   })
 
   const toggleSelect = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
@@ -267,75 +281,16 @@ export default function MenuManager() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Menu Management</h2>
           <p className="text-sm text-gray-400 mt-0.5">{items?.length ?? 0} items across {cats?.length ?? 0} categories</p>
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true) }}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow self-start sm:self-auto">
           <PlusIcon className="w-4 h-4" />
           Add Item
         </button>
-      </div>
-
-      {/* Settings toggles */}
-      <div className="space-y-3 mb-6">
-        {/* QR ordering toggle */}
-        <div className={`flex items-center justify-between rounded-2xl border px-5 py-4 ${settings?.qr_ordering_enabled === false ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${settings?.qr_ordering_enabled === false ? 'bg-amber-100' : 'bg-green-100'}`}>
-              {settings?.qr_ordering_enabled === false
-                ? <span className="text-amber-600 text-lg">⊘</span>
-                : <CheckCircleIcon className="w-5 h-5 text-green-600" />}
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900 text-sm">QR Menu Ordering</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {settings?.qr_ordering_enabled === false
-                  ? 'Customers can browse only — orders disabled.'
-                  : 'Customers can browse and place orders.'}
-              </p>
-            </div>
-          </div>
-          <button
-            disabled={updateSettings.isPending || settings === undefined}
-            onClick={() => updateSettings.mutate({ qr_ordering_enabled: !settings?.qr_ordering_enabled })}
-            className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none disabled:opacity-50"
-            style={{ backgroundColor: settings?.qr_ordering_enabled ? '#22c55e' : '#d1d5db' }}>
-            <span
-              className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
-              style={{ transform: settings?.qr_ordering_enabled ? 'translateX(22px)' : 'translateX(2px)' }}
-            />
-          </button>
-        </div>
-
-        {/* Customer bill request toggle */}
-        <div className={`flex items-center justify-between rounded-2xl border px-5 py-4 ${settings?.customer_bill_request_enabled === false ? 'bg-gray-50 border-gray-200' : 'bg-purple-50 border-purple-200'}`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${settings?.customer_bill_request_enabled === false ? 'bg-gray-100' : 'bg-purple-100'}`}>
-              <span className="text-lg">🧾</span>
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900 text-sm">Customer Bill Request</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {settings?.customer_bill_request_enabled === false
-                  ? 'Customers cannot request the bill from their phone.'
-                  : 'Customers can tap "Request Bill" from the menu — billing/waiter are notified.'}
-              </p>
-            </div>
-          </div>
-          <button
-            disabled={updateSettings.isPending || settings === undefined}
-            onClick={() => updateSettings.mutate({ customer_bill_request_enabled: !settings?.customer_bill_request_enabled })}
-            className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none disabled:opacity-50"
-            style={{ backgroundColor: settings?.customer_bill_request_enabled !== false ? '#a855f7' : '#d1d5db' }}>
-            <span
-              className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
-              style={{ transform: settings?.customer_bill_request_enabled !== false ? 'translateX(22px)' : 'translateX(2px)' }}
-            />
-          </button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

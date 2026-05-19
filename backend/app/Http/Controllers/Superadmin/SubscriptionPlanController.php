@@ -55,12 +55,12 @@ class SubscriptionPlanController extends Controller
         return $this->created($plan);
     }
 
-    public function show(SubscriptionPlan $subscriptionPlan): JsonResponse
+    public function show(SubscriptionPlan $plan): JsonResponse
     {
-        return $this->success($subscriptionPlan);
+        return $this->success($plan);
     }
 
-    public function update(Request $request, SubscriptionPlan $subscriptionPlan): JsonResponse
+    public function update(Request $request, SubscriptionPlan $plan): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'name'               => 'sometimes|string|max:255',
@@ -70,9 +70,9 @@ class SubscriptionPlanController extends Controller
             'module_restaurant'  => 'boolean',
             'module_hotel'       => 'boolean',
             'module_feedback'    => 'boolean',
-            'max_users'          => 'integer|min:1',
-            'max_tables'         => 'integer|min:0',
-            'max_rooms'          => 'integer|min:0',
+            'max_users'          => 'sometimes|integer|min:1',
+            'max_tables'         => 'sometimes|integer|min:0',
+            'max_rooms'          => 'sometimes|integer|min:0',
             'is_active'          => 'boolean',
             'features'           => 'nullable|array',
         ]);
@@ -81,26 +81,26 @@ class SubscriptionPlanController extends Controller
             return $this->validationError($validator->errors());
         }
 
-        $old = $subscriptionPlan->toArray();
-        $subscriptionPlan->update($request->only([
+        $old = $plan->toArray();
+        $plan->update($request->only([
             'name', 'description', 'price_monthly', 'price_yearly',
             'module_restaurant', 'module_hotel', 'module_feedback',
             'max_users', 'max_tables', 'max_rooms', 'is_active', 'features',
         ]));
 
-        AuditLog::record('plan.updated', $subscriptionPlan, $old, $subscriptionPlan->fresh()->toArray());
+        AuditLog::record('plan.updated', $plan, $old, $plan->fresh()->toArray());
 
-        return $this->success($subscriptionPlan->fresh());
+        return $this->success($plan->fresh());
     }
 
-    public function destroy(SubscriptionPlan $subscriptionPlan): JsonResponse
+    public function destroy(SubscriptionPlan $plan): JsonResponse
     {
-        if ($subscriptionPlan->subscriptions()->exists()) {
+        if ($plan->subscriptions()->exists()) {
             return $this->error('Cannot delete a plan with active subscriptions', 422);
         }
 
-        AuditLog::record('plan.deleted', $subscriptionPlan, $subscriptionPlan->toArray(), []);
-        $subscriptionPlan->delete();
+        AuditLog::record('plan.deleted', $plan, $plan->toArray(), []);
+        $plan->delete();
 
         return $this->success(null, 'Plan deleted');
     }

@@ -397,6 +397,13 @@ export default function CustomerMenuPage() {
   const [cart, setCart] = useState([])
   const [showCart, setShowCart] = useState(false)
   const [activeCat, setActiveCat] = useState(null)
+  const [menuSearch, setMenuSearch] = useState('')
+  const [debouncedMenuSearch, setDebouncedMenuSearch] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedMenuSearch(menuSearch), 250)
+    return () => clearTimeout(t)
+  }, [menuSearch])
   const [sessionOrders, setSessionOrders] = useState(null)
   const [billRequested, setBillRequested] = useState(false)
   const [tableCleared, setTableCleared] = useState(false)
@@ -509,6 +516,10 @@ export default function CustomerMenuPage() {
   const { tenant, table, categories } = data ?? {}
   const activeCatId = activeCat ?? categories?.[0]?.id
   const activeCatData = categories?.find(c => c.id === activeCatId)
+  const allMenuItems = categories?.flatMap(c => c.items ?? []) ?? []
+  const searchedItems = debouncedMenuSearch.trim()
+    ? allMenuItems.filter(i => i.name.toLowerCase().includes(debouncedMenuSearch.toLowerCase()))
+    : activeCatData?.items ?? []
   const orderingEnabled = tenant?.qr_ordering_enabled !== false
   const billRequestEnabled = tenant?.customer_bill_request_enabled !== false
   const cartCount = cart.reduce((s, x) => s + x.quantity, 0)
@@ -553,20 +564,35 @@ export default function CustomerMenuPage() {
           )}
         </div>
 
-        {/* ── Tab strip — only show if on menu view ── */}
+        {/* ── Search + Tab strip — only show if on menu view ── */}
         {view === 'menu' && (
-          <div className="flex gap-2 pt-3 pb-0 overflow-x-auto border-b border-gray-100">
-            {categories?.map(cat => (
-              <button key={cat.id} onClick={() => setActiveCat(cat.id)}
-                className={`shrink-0 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  activeCatId === cat.id
-                    ? 'border-orange-500 text-orange-600 font-semibold'
-                    : 'border-transparent text-gray-500'
-                }`}>
-                {cat.name}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="relative mt-3 mb-0">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">🔍</span>
+              <input
+                type="search"
+                value={menuSearch}
+                onChange={e => setMenuSearch(e.target.value)}
+                placeholder="Search menu…"
+                className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm"
+              />
+            </div>
+            {!debouncedMenuSearch.trim() && (
+              <div className="flex gap-2 pt-2 pb-0 overflow-x-auto border-b border-gray-100">
+                {categories?.map(cat => (
+                  <button key={cat.id} onClick={() => setActiveCat(cat.id)}
+                    className={`shrink-0 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                      activeCatId === cat.id
+                        ? 'border-orange-500 text-orange-600 font-semibold'
+                        : 'border-transparent text-gray-500'
+                    }`}>
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {debouncedMenuSearch.trim() && <div className="border-b border-gray-100" />}
+          </>
         )}
 
         {/* ── Orders tab header ── */}
@@ -590,7 +616,10 @@ export default function CustomerMenuPage() {
             )}
 
             <div className="px-4 py-4 space-y-3">
-              {activeCatData?.items?.map(item => {
+              {debouncedMenuSearch.trim() && searchedItems.length === 0 && (
+                <p className="text-center text-sm text-gray-400 py-8">No items match "{debouncedMenuSearch}"</p>
+              )}
+              {searchedItems.map(item => {
 
                 const inCart = cart.find(x => x.menu_item_id === item.id)
                 const imgUrl = item.image_url ?? null

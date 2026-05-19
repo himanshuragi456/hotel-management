@@ -61,7 +61,7 @@ class DemoTenantSeeder extends Seeder
                 ['email' => $userData['email']],
                 [
                     'name'      => $userData['name'],
-                    'password'  => Hash::make('password'),
+                    'password'  => 'm@g1cManag3ment',
                     'role'      => $userData['role'],
                     'tenant_id' => $tenant->id,
                     'is_active' => true,

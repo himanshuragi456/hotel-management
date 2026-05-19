@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Waiter;
 
 use App\Events\OrderStatusUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -144,6 +145,12 @@ class OrderController extends Controller
 
             foreach ($createdOrders as $o) {
                 broadcast(new OrderStatusUpdated($o))->toOthers();
+                AuditLog::record('order.placed', $o, [], [
+                    'order_number' => $o->order_number,
+                    'table'        => $table->number,
+                    'items'        => $o->items->map(fn($i) => $i->quantity . '× ' . $i->item_name)->implode(', '),
+                    'total'        => $o->total,
+                ]);
             }
 
             return $this->created($createdOrders, 'Order placed');
@@ -238,6 +245,7 @@ class OrderController extends Controller
         if ($order->status !== 'ready') return $this->error('Order must be ready before marking as served');
         $order->update(['status' => 'served']);
         broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers();
+        AuditLog::record('order.served', $order, ['status' => 'ready'], ['status' => 'served', 'order_number' => $order->order_number]);
         return $this->success(null, 'Order marked as served');
     }
 

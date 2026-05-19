@@ -164,3 +164,4 @@ export const toggleStaffActive = (id)       => api.post(`/owner/staff/${id}/togg
 // Owner — Settings
 export const getOwnerSettings    = ()     => api.get('/owner/settings')
 export const updateOwnerSettings = (data) => api.put('/owner/settings', data)
+export const changeOwnPassword   = (data) => api.post('/owner/change-password', data)

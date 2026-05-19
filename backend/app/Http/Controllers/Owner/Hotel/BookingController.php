@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Owner\Hotel;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Room;
 use App\Traits\ApiResponse;
@@ -91,6 +92,13 @@ class BookingController extends Controller
         ]));
 
         $booking->load(['guest', 'room']);
+        AuditLog::record('booking.created', $booking, [], [
+            'booking_number' => $booking->booking_number,
+            'guest'          => $booking->guest?->name,
+            'room'           => 'Room ' . $booking->room?->number,
+            'check_in'       => $booking->check_in_date,
+            'check_out'      => $booking->check_out_date,
+        ]);
         return $this->created($this->bookingData($booking));
     }
 
@@ -134,6 +142,11 @@ class BookingController extends Controller
             'actual_check_in' => now(),
         ]);
         $booking->room->occupy();
+        AuditLog::record('booking.checked_in', $booking, ['status' => 'upcoming'], [
+            'booking_number' => $booking->booking_number,
+            'guest'          => $booking->guest?->name,
+            'room'           => 'Room ' . $booking->room?->number,
+        ]);
 
         return $this->success($this->bookingData($booking->fresh()->load(['guest', 'room'])), 'Checked in successfully');
     }
@@ -217,6 +230,13 @@ class BookingController extends Controller
             'advance_paid'     => $booking->advance_paid + $extraPaid,
         ]);
         $booking->room->free();
+        AuditLog::record('booking.checked_out', $booking, ['status' => 'checked_in'], [
+            'booking_number' => $booking->booking_number,
+            'guest'          => $booking->guest?->name,
+            'room'           => 'Room ' . $booking->room?->number,
+            'total_amount'   => $booking->total_amount,
+            'payment_method' => $data['payment_method'],
+        ]);
 
         return $this->success($this->bookingData($booking->fresh()->load(['guest', 'room'])), 'Checked out successfully');
     }
@@ -232,6 +252,11 @@ class BookingController extends Controller
             $booking->room->free();
         }
         $booking->update(['status' => 'cancelled']);
+        AuditLog::record('booking.cancelled', $booking, [], [
+            'booking_number' => $booking->booking_number,
+            'guest'          => $booking->guest?->name,
+            'room'           => 'Room ' . $booking->room?->number,
+        ]);
 
         return $this->success(null, 'Booking cancelled');
     }

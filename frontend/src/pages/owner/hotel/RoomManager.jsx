@@ -238,7 +238,11 @@ export default function RoomManager() {
 
   const del = useMutation({
     mutationFn: deleteRoom,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rooms'] }); setDeleteTarget(null) },
+    onSuccess: (_, id) => {
+      qc.setQueryData(['rooms'], (old) => old ? old.filter(r => r.id !== id) : old)
+      qc.invalidateQueries({ queryKey: ['rooms'] })
+      setDeleteTarget(null)
+    },
   })
 
   const counts = rooms?.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc }, {}) ?? {}
@@ -253,13 +257,13 @@ export default function RoomManager() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Rooms</h2>
           <p className="text-sm text-gray-400 mt-0.5">{rooms?.length ?? 0} rooms total</p>
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true) }}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow self-start sm:self-auto">
           <PlusIcon className="w-4 h-4" />
           Add Room
         </button>
