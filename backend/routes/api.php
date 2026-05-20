@@ -187,6 +187,9 @@ Route::middleware(['auth:api'])->group(function () {
             Route::put('settings', [SettingsController::class, 'update']);
         });
 
+        // Shared read-only settings — accessible to all staff roles for KOT config etc.
+        Route::middleware(['role:waiter,chef,billing,owner'])->get('tenant-settings', [SettingsController::class, 'show']);
+
         // Waiter routes — restaurant module only
         Route::middleware(['role:waiter,owner', 'module:restaurant'])->prefix('waiter')->group(function () {
             Route::get('tables', [WaiterOrderController::class, 'tables']);
@@ -249,6 +252,10 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::get('hotel/bookings/{bookingId}/orders', [InvoiceController::class, 'bookingOrders']);
                 Route::post('orders/{order}/mark-served-room', [InvoiceController::class, 'markServedRoom']);
                 Route::post('hotel/room-service/orders', [RoomServiceController::class, 'placeOrder']);
+            });
+            // Takeaway orders — restaurant module
+            Route::middleware(['module:restaurant'])->group(function () {
+                Route::post('takeaway/orders', [InvoiceController::class, 'storeTakeaway']);
             });
             // Cross-module: invoices and active-order feed available if any module active
             Route::get('orders/ready', [InvoiceController::class, 'readyOrders']);

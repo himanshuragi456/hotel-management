@@ -22,6 +22,9 @@ class SettingsController extends Controller
             'kot_enabled'                   => $tenant->kot_enabled,
             'kot_auto_print'                => $tenant->kot_auto_print,
             'kot_printer'                   => $tenant->kot_printer ?? 'kitchen',
+            'bill_auto_print'               => $tenant->bill_auto_print ?? false,
+            'feedback_on_bill'              => $tenant->feedback_on_bill ?? false,
+            'upi_id'                        => $tenant->upi_id,
         ]);
     }
 
@@ -34,6 +37,9 @@ class SettingsController extends Controller
             'kot_enabled'                   => 'sometimes|boolean',
             'kot_auto_print'                => 'sometimes|boolean',
             'kot_printer'                   => 'sometimes|in:kitchen,billing',
+            'bill_auto_print'               => 'sometimes|boolean',
+            'feedback_on_bill'              => 'sometimes|boolean',
+            'upi_id'                        => 'sometimes|nullable|string|max:100',
         ]);
         $tenant->update($request->only([
             'qr_ordering_enabled',
@@ -41,6 +47,9 @@ class SettingsController extends Controller
             'kot_enabled',
             'kot_auto_print',
             'kot_printer',
+            'bill_auto_print',
+            'feedback_on_bill',
+            'upi_id',
         ]));
         return $this->success([
             'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
@@ -48,6 +57,9 @@ class SettingsController extends Controller
             'kot_enabled'                   => $tenant->kot_enabled,
             'kot_auto_print'                => $tenant->kot_auto_print,
             'kot_printer'                   => $tenant->kot_printer ?? 'kitchen',
+            'bill_auto_print'               => $tenant->bill_auto_print ?? false,
+            'feedback_on_bill'              => $tenant->feedback_on_bill ?? false,
+            'upi_id'                        => $tenant->upi_id,
         ], 'Settings updated');
     }
 

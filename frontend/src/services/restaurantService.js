@@ -71,8 +71,9 @@ export const getBillingTableOrders   = (tableId) => api.get(`/billing/tables/${t
 export const getBillingTableHistory  = (tableId) => api.get(`/billing/tables/${tableId}/history`)
 export const closeBillingTable   = (tableId)       => api.post(`/billing/tables/${tableId}/close`)
 export const billAllOrders       = (tableId, data) => api.post(`/billing/tables/${tableId}/bill-all`, data)
-export const billingNewOrder     = (data)          => api.post('/billing/orders', data)
-export const billingAddItems     = (orderId, data) => api.post(`/billing/orders/${orderId}/items`, data)
+export const billingNewOrder      = (data)          => api.post('/billing/orders', data)
+export const billingAddItems      = (orderId, data) => api.post(`/billing/orders/${orderId}/items`, data)
+export const billingPlaceTakeaway = (data)          => api.post('/billing/takeaway/orders', data)
 export const billingMarkServed      = (orderId)         => api.post(`/billing/orders/${orderId}/mark-served`)
 export const billingUpdateStatus    = (orderId, status) => api.put(`/billing/orders/${orderId}/status`, { status })
 export const getBillingMenu      = ()              => api.get('/billing/menu')
@@ -164,4 +165,5 @@ export const toggleStaffActive = (id)       => api.post(`/owner/staff/${id}/togg
 // Owner — Settings
 export const getOwnerSettings    = ()     => api.get('/owner/settings')
 export const updateOwnerSettings = (data) => api.put('/owner/settings', data)
+export const getTenantSettings   = ()     => api.get('/tenant-settings')
 export const changeOwnPassword   = (data) => api.post('/owner/change-password', data)

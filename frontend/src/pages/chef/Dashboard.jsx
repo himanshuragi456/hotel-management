@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getKitchenOrders, updateOrderStatus, getOwnerSettings } from '@/services/restaurantService'
+import { getKitchenOrders, updateOrderStatus, getTenantSettings } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
@@ -59,10 +59,15 @@ function OrderCard({ order, onStatusChange, showKotButton, onKotPrint }) {
       <div className="flex items-start justify-between mb-3">
         <div>
           <span className="text-white font-bold text-lg leading-tight">
-            {order.table?.number
+            {order.type === 'takeaway'
+              ? `🛍️ Takeaway`
+              : order.table?.number
               ? `Table ${order.table.number}`
               : `Room ${order.room?.number ?? '—'}`}
           </span>
+          {order.type === 'takeaway' && order.customer_name && (
+            <div className="text-slate-400 text-xs mt-0.5">{order.customer_name}{order.customer_phone ? ` · ${order.customer_phone}` : ''}</div>
+          )}
           <div className="text-slate-500 text-xs mt-0.5 font-mono">{order.order_number}</div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
@@ -177,8 +182,8 @@ export default function ChefDashboard() {
   const knownOrderIds = useRef(new Set())
 
   const { data: settings } = useQuery({
-    queryKey: ['owner-settings'],
-    queryFn: () => getOwnerSettings().then(r => r.data.data),
+    queryKey: ['tenant-settings'],
+    queryFn: () => getTenantSettings().then(r => r.data.data),
     staleTime: 60000,
   })
 

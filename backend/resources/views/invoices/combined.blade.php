@@ -74,15 +74,15 @@
     @endif
   </table>
 
-  @if(isset($upiQr))
+  @if(!empty($upiQrBase64))
   <div class="line"></div>
   <div class="upi">
     @if($totals['due'] > 0)
     <div style="font-size:10px;margin-bottom:3px;">Scan to pay balance &#8377;{{ number_format($totals['due'], 2) }}</div>
     @else
-    <div style="font-size:10px;margin-bottom:3px;">UPI Payment</div>
+    <div style="font-size:10px;margin-bottom:3px;">Scan to pay via UPI</div>
     @endif
-    {!! $upiQr !!}
+    <img src="{{ $upiQrBase64 }}" width="120" height="120" style="display:block;margin:0 auto;" />
   </div>
   @endif
 

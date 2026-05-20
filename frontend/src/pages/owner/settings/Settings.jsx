@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   KeyIcon, PrinterIcon, CheckCircleIcon, ExclamationCircleIcon,
-  QrCodeIcon, BellAlertIcon,
+  QrCodeIcon, BellAlertIcon, CreditCardIcon,
 } from '@heroicons/react/24/outline'
-import { getOwnerSettings, updateOwnerSettings, changeOwnPassword } from '@/services/restaurantService'
+import { getOwnerSettings, updateOwnerSettings, changeOwnPassword, getFeedbackQrCodes } from '@/services/restaurantService'
 import { validate, validateField, required, isStrongPassword } from '@/utils/validate'
 import useAuthStore from '@/store/authStore'
 
@@ -64,10 +64,12 @@ function CustomerOrderingCard({ settings, onUpdate, isPending }) {
   )
 }
 
-function KotSettingsCard({ settings, onUpdate, isPending }) {
-  const kotEnabled  = settings?.kot_enabled   ?? false
-  const autoPrint   = settings?.kot_auto_print ?? false
-  const kotPrinter  = settings?.kot_printer    ?? 'kitchen'
+function KotSettingsCard({ settings, onUpdate, isPending, hasFeedback, feedbackReady }) {
+  const kotEnabled      = settings?.kot_enabled      ?? false
+  const autoPrint       = settings?.kot_auto_print   ?? false
+  const kotPrinter      = settings?.kot_printer      ?? 'kitchen'
+  const billAutoPrint   = settings?.bill_auto_print  ?? false
+  const feedbackOnBill  = settings?.feedback_on_bill ?? false
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -76,12 +78,39 @@ function KotSettingsCard({ settings, onUpdate, isPending }) {
           <PrinterIcon className="w-4 h-4 text-orange-500" />
         </div>
         <div>
-          <h3 className="font-semibold text-gray-900 text-sm">KOT Printing</h3>
-          <p className="text-xs text-gray-400">Kitchen Order Ticket — printed when an order reaches the kitchen</p>
+          <h3 className="font-semibold text-gray-900 text-sm">Printing</h3>
+          <p className="text-xs text-gray-400">KOT and bill auto-print settings</p>
         </div>
       </div>
 
       <div className="divide-y divide-gray-50 mt-3">
+        <Toggle
+          label="Auto-print bill on close table"
+          description="Automatically opens the print dialog when a table is billed and closed"
+          checked={billAutoPrint}
+          disabled={isPending}
+          onChange={() => onUpdate({ bill_auto_print: !billAutoPrint })}
+        />
+
+        {hasFeedback && (
+          <div>
+            <Toggle
+              label="Show feedback QR on bill"
+              description={feedbackReady
+                ? "Prints a 'Leave us your feedback' QR code at the top of every bill"
+                : "Set up at least one active feedback QR in the Feedback section first"}
+              checked={feedbackOnBill}
+              disabled={isPending || !feedbackReady}
+              onChange={() => feedbackReady && onUpdate({ feedback_on_bill: !feedbackOnBill })}
+            />
+            {!feedbackReady && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-1">
+                No active feedback QR found. Go to <strong>Feedback → QR Codes</strong> and create one first.
+              </p>
+            )}
+          </div>
+        )}
+
         <Toggle
           label="Enable KOT printing"
           description="When on, KOT can be printed for every new kitchen order"
@@ -93,7 +122,7 @@ function KotSettingsCard({ settings, onUpdate, isPending }) {
         {kotEnabled && (
           <>
             <Toggle
-              label="Auto-print on new order"
+              label="Auto-print KOT on new order"
               description="Automatically triggers print when a new order arrives at the kitchen"
               checked={autoPrint}
               disabled={isPending}
@@ -101,7 +130,7 @@ function KotSettingsCard({ settings, onUpdate, isPending }) {
             />
 
             <div className="py-3">
-              <p className="text-sm font-medium text-gray-800 mb-2">Print from</p>
+              <p className="text-sm font-medium text-gray-800 mb-2">Print KOT from</p>
               <div className="flex gap-2">
                 {[
                   { value: 'kitchen', label: 'Kitchen screen', desc: "Chef's display prints the KOT" },
@@ -123,6 +152,56 @@ function KotSettingsCard({ settings, onUpdate, isPending }) {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+function UpiSettingsCard({ settings, onUpdate, isPending }) {
+  const [upiId, setUpiId] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (settings?.upi_id != null) setUpiId(settings.upi_id)
+  }, [settings?.upi_id])
+
+  const handleSave = () => {
+    onUpdate({ upi_id: upiId.trim() || null })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
+          <CreditCardIcon className="w-4 h-4 text-green-600" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-900 text-sm">UPI Payment</h3>
+          <p className="text-xs text-gray-400">Your UPI ID will appear as a scannable QR on printed bills when payment method is UPI</p>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={upiId}
+          onChange={e => { setUpiId(e.target.value); setSaved(false) }}
+          placeholder="yourname@upi or yourname@okaxis"
+          className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+        <button
+          onClick={handleSave}
+          disabled={isPending}
+          className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${saved ? 'bg-green-500 text-white' : 'bg-orange-500 text-white hover:bg-orange-600'} disabled:opacity-50`}
+        >
+          {saved ? 'Saved!' : 'Save'}
+        </button>
+      </div>
+      {upiId && (
+        <p className="text-xs text-gray-400 mt-2">
+          QR will encode: <span className="font-mono text-gray-600">upi://pay?pa={upiId}</span>
+        </p>
+      )}
     </div>
   )
 }
@@ -236,11 +315,19 @@ export default function OwnerSettings() {
   const { user } = useAuthStore()
   const qc = useQueryClient()
   const hasRestaurant = !!user?.modules?.restaurant
+  const hasFeedback   = !!user?.modules?.feedback
 
   const { data: settings } = useQuery({
     queryKey: ['owner-settings'],
     queryFn: () => getOwnerSettings().then(r => r.data.data),
   })
+
+  const { data: feedbackQrCodes } = useQuery({
+    queryKey: ['feedback-qr-codes'],
+    queryFn: () => getFeedbackQrCodes().then(r => r.data.data),
+    enabled: hasFeedback,
+  })
+  const feedbackReady = (feedbackQrCodes ?? []).some(q => q.is_active)
 
   const updateMutation = useMutation({
     mutationFn: updateOwnerSettings,
@@ -266,6 +353,13 @@ export default function OwnerSettings() {
               isPending={updateMutation.isPending}
             />
             <KotSettingsCard
+              settings={settings}
+              onUpdate={(patch) => updateMutation.mutate(patch)}
+              isPending={updateMutation.isPending}
+              hasFeedback={hasFeedback}
+              feedbackReady={feedbackReady}
+            />
+            <UpiSettingsCard
               settings={settings}
               onUpdate={(patch) => updateMutation.mutate(patch)}
               isPending={updateMutation.isPending}

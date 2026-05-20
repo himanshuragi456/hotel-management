@@ -23,6 +23,8 @@ import {
   extendBillingBookingStay,
   getActiveOrders,
   getOwnerSettings,
+  getTenantSettings,
+  billingPlaceTakeaway,
 } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
@@ -65,7 +67,6 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
     discount_type: 'flat',
     discount_value: '',
     payment_method: 'cash',
-    upi_ref: '',
     customer_name: '',
     customer_phone: '',
   })
@@ -162,17 +163,11 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
             </div>
             {form.payment_method === 'upi' && (
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
-                <p className="text-xs font-semibold text-blue-700 mb-2">Show QR to customer for payment</p>
+                <p className="text-xs font-semibold text-blue-700 mb-1">Show QR to customer for payment</p>
                 <div className="flex items-center justify-center gap-2 text-xs text-blue-600">
                   <span className="font-mono bg-white border border-blue-200 px-3 py-1.5 rounded-lg">₹{total.toFixed(0)}</span>
                   <span>payable via UPI</span>
                 </div>
-                <input
-                  value={form.upi_ref}
-                  onChange={e => setForm(f => ({ ...f, upi_ref: e.target.value }))}
-                  placeholder="UPI transaction ref (optional)"
-                  className="mt-2 w-full border border-blue-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-                />
               </div>
             )}
             {form.payment_method === 'cash' && (
@@ -653,7 +648,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
 
 // ─── Bill All Modal ───────────────────────────────────────────────────────────
 function BillAllModal({ table, total, onClose, onDone }) {
-  const [form, setForm] = useState({ payment_method: 'cash', upi_ref: '', customer_name: '', customer_phone: '' })
+  const [form, setForm] = useState({ payment_method: 'cash', customer_name: '', customer_phone: '' })
   const [error, setError] = useState('')
 
   const submit = useMutation({
@@ -702,17 +697,11 @@ function BillAllModal({ table, total, onClose, onDone }) {
           </div>
           {form.payment_method === 'upi' && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
-              <p className="text-xs font-semibold text-blue-700 mb-2">Show QR to customer for payment</p>
+              <p className="text-xs font-semibold text-blue-700 mb-1">Show QR to customer for payment</p>
               <div className="flex items-center justify-center gap-2 text-xs text-blue-600">
                 <span className="font-mono bg-white border border-blue-200 px-3 py-1.5 rounded-lg">₹{total.toFixed(0)}</span>
                 <span>payable via UPI</span>
               </div>
-              <input
-                value={form.upi_ref}
-                onChange={e => setForm(f => ({ ...f, upi_ref: e.target.value }))}
-                placeholder="UPI transaction ref (optional)"
-                className="mt-2 w-full border border-blue-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-              />
             </div>
           )}
           {form.payment_method === 'cash' && (
@@ -731,8 +720,8 @@ function BillAllModal({ table, total, onClose, onDone }) {
 }
 
 // ─── Download Bar ─────────────────────────────────────────────────────────────
-async function fetchSingleBlob(invoiceId) {
-  const res = await downloadInvoicePdf(invoiceId)
+async function fetchSingleBlob(invoiceId, upiId) {
+  const res = await downloadInvoicePdf(invoiceId, upiId)
   return URL.createObjectURL(res.data)
 }
 
@@ -752,7 +741,7 @@ function openPrintIframe(url) {
   })
 }
 
-function DownloadBar({ invoiceIds, onDismiss }) {
+function DownloadBar({ invoiceIds, upiId, onDismiss }) {
   const ids = Array.isArray(invoiceIds) ? invoiceIds : [invoiceIds]
   const isMulti = ids.length > 1
   const [loading, setLoading] = useState(null) // 'download' | 'print' | null
@@ -760,7 +749,7 @@ function DownloadBar({ invoiceIds, onDismiss }) {
   const handleDownload = async () => {
     setLoading('download')
     try {
-      const url = isMulti ? await fetchCombinedBlob(ids) : await fetchSingleBlob(ids[0])
+      const url = isMulti ? await fetchCombinedBlob(ids) : await fetchSingleBlob(ids[0], upiId)
       const a = document.createElement('a')
       a.href = url
       a.download = isMulti ? 'combined-invoice.pdf' : `invoice-${ids[0]}.pdf`
@@ -772,7 +761,7 @@ function DownloadBar({ invoiceIds, onDismiss }) {
   const handlePrint = async () => {
     setLoading('print')
     try {
-      const url = isMulti ? await fetchCombinedBlob(ids) : await fetchSingleBlob(ids[0])
+      const url = isMulti ? await fetchCombinedBlob(ids) : await fetchSingleBlob(ids[0], upiId)
       openPrintIframe(url)
     } finally { setLoading(null) }
   }
@@ -794,7 +783,7 @@ function DownloadBar({ invoiceIds, onDismiss }) {
 }
 
 // ─── Active Orders Bar ────────────────────────────────────────────────────────
-function ActiveOrdersBar({ onSelectTable, onSelectBooking, tables = [] }) {
+function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tables = [] }) {
   const qc = useQueryClient()
   const { getTenantId } = useAuthStore()
   const tenantId = getTenantId?.()
@@ -808,8 +797,8 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, tables = [] }) {
   })
 
   const { data: settings } = useQuery({
-    queryKey: ['owner-settings'],
-    queryFn: () => getOwnerSettings().then(r => r.data.data),
+    queryKey: ['tenant-settings'],
+    queryFn: () => getTenantSettings().then(r => r.data.data),
     staleTime: 60000,
   })
   const kotEnabled    = settings?.kot_enabled   ?? false
@@ -859,12 +848,16 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, tables = [] }) {
 
   if (!orders.length) return null
 
-  const orderLabel = (o) => o.type === 'room-service'
+  const orderLabel = (o) => o.type === 'takeaway'
+    ? `🛍️ ${o.customer_name || 'Takeaway'}`
+    : o.type === 'room-service'
     ? `Room ${o.booking?.room?.number ?? o.room_id}`
     : `Table ${o.table?.number ?? '?'}`
 
   const handleOrderClick = (o) => {
-    if (o.type === 'room-service' && o.booking) {
+    if (o.type === 'takeaway') {
+      onSelectTakeaway?.(o)
+    } else if (o.type === 'room-service' && o.booking) {
       onSelectBooking?.(o.booking)
     } else if (o.table) {
       const tableObj = tables.find(t => t.id === o.table.id) ?? o.table
@@ -879,6 +872,7 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, tables = [] }) {
 
   return (
     <div className="border-b bg-white">
+
       {/* Ready orders row — always visible */}
       {readyOrders.length > 0 && (
         <div className="px-6 py-2 bg-green-50 border-b border-green-200 flex items-center gap-3 flex-wrap">
@@ -1102,6 +1096,192 @@ function RecentBillsDrawer({ onClose }) {
   )
 }
 
+// ─── Takeaway Panel ───────────────────────────────────────────────────────────
+function TakeawayPanel({ onClose, onDone }) {
+  const qc = useQueryClient()
+  const [cart, setCart] = useState([])
+  const [activeCat, setActiveCat] = useState(null)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [notes, setNotes] = useState('')
+  const [nameError, setNameError] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data) })
+  const cats = menu ?? []
+  const activeCatId = activeCat ?? cats[0]?.id
+  const allItems = cats.flatMap(c => c.items ?? [])
+  const visibleItems = debouncedSearch.trim()
+    ? allItems.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
+    : (cats.find(c => c.id === activeCatId)?.items ?? [])
+
+  const place = useMutation({
+    mutationFn: billingPlaceTakeaway,
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
+      onDone?.(res.data.data)
+      onClose()
+    },
+  })
+
+  const addToCart = (item) => setCart(c => {
+    const ex = c.find(x => x.menu_item_id === item.id)
+    if (ex) return c.map(x => x.menu_item_id === item.id ? { ...x, quantity: x.quantity + 1 } : x)
+    return [...c, { menu_item_id: item.id, name: item.name, price: item.price, quantity: 1 }]
+  })
+  const updateQty = (id, delta) =>
+    setCart(c => c.map(x => x.menu_item_id === id ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
+
+  const total = cart.reduce((s, x) => s + x.price * x.quantity, 0)
+
+  const handlePlace = () => {
+    if (!cart.length) return
+    if (!customerName.trim()) { setNameError('Customer name is required'); return }
+    setNameError('')
+    place.mutate({
+      items: cart.map(x => ({ menu_item_id: x.menu_item_id, quantity: x.quantity })),
+      customer_name: customerName.trim(),
+      customer_phone: customerPhone || undefined,
+      notes: notes || undefined,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:rounded-2xl sm:max-w-lg max-h-[92vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">🛍️</span>
+            <h2 className="font-bold text-gray-900">New Takeaway Order</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="w-5 h-5" /></button>
+        </div>
+
+        {/* Customer info */}
+        <div className="px-5 py-3 border-b bg-gray-50 shrink-0">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <div className="relative">
+                <UserIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={e => { setCustomerName(e.target.value); if (e.target.value.trim()) setNameError('') }}
+                  placeholder="Customer name *"
+                  className={`w-full pl-8 pr-3 py-2 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 ${nameError ? 'border-red-400' : 'border-gray-200'}`}
+                />
+              </div>
+              {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
+            </div>
+            <div className="flex-1">
+              <div className="relative">
+                <PhoneIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={e => setCustomerPhone(e.target.value)}
+                  placeholder="Phone (optional)"
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Search + Categories */}
+        <div className="px-4 pt-3 pb-2 border-b bg-gray-50 shrink-0">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search items…"
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          {!debouncedSearch.trim() && (
+            <div className="flex gap-2 overflow-x-auto pt-2 pb-0.5">
+              {cats.map(c => (
+                <button key={c.id} onClick={() => setActiveCat(c.id)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${activeCatId === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 border hover:bg-gray-100'}`}>
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Items */}
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+          {visibleItems.length === 0 && debouncedSearch.trim() && (
+            <p className="text-center text-sm text-gray-400 py-10">No items match "{debouncedSearch}"</p>
+          )}
+          {visibleItems.map(item => {
+            const inCart = cart.find(x => x.menu_item_id === item.id)
+            return (
+              <div key={item.id} className="flex items-center justify-between px-5 py-3">
+                <div>
+                  <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                  <div className="text-xs text-gray-400">₹{item.price}</div>
+                </div>
+                {inCart ? (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center"><MinusIcon className="w-3.5 h-3.5" /></button>
+                    <span className="w-5 text-center font-semibold text-sm">{inCart.quantity}</span>
+                    <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center"><PlusIcon className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <button onClick={() => addToCart(item)} className="bg-orange-500 text-white text-xs px-4 py-1.5 rounded-full font-medium">Add</button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Cart summary + place */}
+        {cart.length > 0 && (
+          <div className="border-t px-5 py-4 bg-gray-50 shrink-0">
+            <div className="space-y-1 mb-3 max-h-24 overflow-y-auto">
+              {cart.map(item => (
+                <div key={item.menu_item_id} className="flex justify-between text-sm">
+                  <span className="text-gray-700">{item.quantity}× {item.name}</span>
+                  <span className="text-gray-900 font-medium">₹{item.price * item.quantity}</span>
+                </div>
+              ))}
+            </div>
+            <input
+              type="text"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Order notes (optional)"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 mb-3"
+            />
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-700">Total</span>
+              <span className="text-base font-bold text-orange-600">₹{total}</span>
+            </div>
+            <button
+              onClick={handlePlace}
+              disabled={place.isPending}
+              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50 hover:shadow-md transition-shadow"
+            >
+              {place.isPending ? 'Placing…' : `Place Takeaway Order · ₹${total}`}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function BillingDashboard({ embedded = false }) {
   const { user, logout: clearAuth } = useAuthStore()
   const modules = user?.modules
@@ -1114,6 +1294,15 @@ export default function BillingDashboard({ embedded = false }) {
   const [placingOrderFor, setPlacingOrderFor] = useState(null)
   const [lastInvoiceIds, setLastInvoiceIds] = useState(null)
   const [showRecentBills, setShowRecentBills] = useState(false)
+  const [showTakeaway, setShowTakeaway] = useState(false)
+  const [selectedTakeawayOrder, setSelectedTakeawayOrder] = useState(null)
+
+  const { data: tenantSettings } = useQuery({
+    queryKey: ['tenant-settings'],
+    queryFn: () => getTenantSettings().then(r => r.data.data),
+    staleTime: 60000,
+  })
+  const tenantUpiId = tenantSettings?.upi_id ?? null
 
   const openTable = (t) => {
     qc.invalidateQueries({ queryKey: ['billing-table-orders', t.id] })
@@ -1138,6 +1327,19 @@ export default function BillingDashboard({ embedded = false }) {
     refetchInterval: 10000,
     enabled: hasRestaurant,
   })
+
+  const billAutoPrint = tenantSettings?.bill_auto_print ?? false
+
+  const handleInvoiceDone = (ids) => {
+    const idsArr = Array.isArray(ids) ? ids : [ids]
+    setLastInvoiceIds(idsArr)
+    if (billAutoPrint && idsArr.length > 0) {
+      const printFn = idsArr.length > 1
+        ? () => fetchCombinedBlob(idsArr).then(openPrintIframe)
+        : () => fetchSingleBlob(idsArr[0], tenantUpiId).then(openPrintIframe)
+      printFn().catch(() => {})
+    }
+  }
 
   const handleLogout = async () => {
     try { await logoutApi() } catch (_) {}
@@ -1167,6 +1369,13 @@ export default function BillingDashboard({ embedded = false }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {hasRestaurant && (
+              <button onClick={() => setShowTakeaway(true)}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-xl transition-colors shadow-sm">
+                <span>🛍️</span>
+                <span className="hidden sm:inline">Takeaway</span>
+              </button>
+            )}
             <button onClick={() => setShowRecentBills(true)}
               className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
               <DocumentTextIcon className="w-4 h-4" />
@@ -1187,17 +1396,27 @@ export default function BillingDashboard({ embedded = false }) {
             <h2 className="text-xl font-semibold text-gray-900">Billing Counter</h2>
             <p className="text-sm text-gray-400 mt-0.5">Manage tables, orders, and invoices</p>
           </div>
-          <button onClick={() => setShowRecentBills(true)}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
-            <DocumentTextIcon className="w-4 h-4" />
-            Recent Bills
-          </button>
+          <div className="flex items-center gap-2">
+            {hasRestaurant && (
+              <button onClick={() => setShowTakeaway(true)}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-xl transition-colors border border-orange-500">
+                <span>🛍️</span>
+                Takeaway
+              </button>
+            )}
+            <button onClick={() => setShowRecentBills(true)}
+              className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
+              <DocumentTextIcon className="w-4 h-4" />
+              Recent Bills
+            </button>
+          </div>
         </div>
       )}
 
       <ActiveOrdersBar
         onSelectTable={openTable}
         onSelectBooking={openBooking}
+        onSelectTakeaway={setSelectedTakeawayOrder}
         tables={tables ?? []}
       />
 
@@ -1266,7 +1485,7 @@ export default function BillingDashboard({ embedded = false }) {
         <TablePanel
           table={selectedTable}
           onClose={() => { setSelectedTable(null); qc.invalidateQueries({ queryKey: ['billing-tables'] }) }}
-          onInvoiceDone={(ids) => setLastInvoiceIds(ids)}
+          onInvoiceDone={handleInvoiceDone}
         />
       )}
 
@@ -1292,8 +1511,50 @@ export default function BillingDashboard({ embedded = false }) {
         />
       )}
 
+      {showTakeaway && (
+        <TakeawayPanel
+          onClose={() => setShowTakeaway(false)}
+          onDone={() => qc.invalidateQueries({ queryKey: ['billing-active-orders'] })}
+        />
+      )}
+
+      {selectedTakeawayOrder && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:rounded-2xl sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+              <div>
+                <h2 className="font-bold text-gray-900">🛍️ Takeaway — {selectedTakeawayOrder.order_number}</h2>
+                {selectedTakeawayOrder.customer_name && (
+                  <p className="text-xs text-gray-400 mt-0.5">{selectedTakeawayOrder.customer_name}{selectedTakeawayOrder.customer_phone ? ` · ${selectedTakeawayOrder.customer_phone}` : ''}</p>
+                )}
+              </div>
+              <button onClick={() => setSelectedTakeawayOrder(null)} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="space-y-2 mb-4">
+                {selectedTakeawayOrder.items?.map((item, i) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span className="text-gray-700">{item.quantity}× {item.item_name}</span>
+                    <span className="text-gray-900 font-medium">₹{item.subtotal}</span>
+                  </div>
+                ))}
+              </div>
+              <InvoiceForm
+                order={selectedTakeawayOrder}
+                onClose={() => setSelectedTakeawayOrder(null)}
+                onDone={(ids) => {
+                  handleInvoiceDone(ids)
+                  setSelectedTakeawayOrder(null)
+                  qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {lastInvoiceIds && (
-        <DownloadBar invoiceIds={lastInvoiceIds} onDismiss={() => setLastInvoiceIds(null)} />
+        <DownloadBar invoiceIds={lastInvoiceIds} upiId={tenantUpiId} onDismiss={() => setLastInvoiceIds(null)} />
       )}
 
       {showRecentBills && (

@@ -12,7 +12,8 @@
   td { padding: 1px 0; vertical-align: top; }
   .right { text-align: right; }
   .total-row td { font-weight: bold; font-size: 13px; }
-  .upi { text-align: center; margin-top: 6px; }
+  .upi { text-align: center; margin-top: 6px; margin-bottom: 8px; }
+  .feedback { text-align: center; margin: 4px 0; }
 </style>
 </head>
 <body>
@@ -22,6 +23,15 @@
   @endif
   @if($invoice->tenant->gstin)
   <div class="center">GSTIN: {{ $invoice->tenant->gstin }}</div>
+  @endif
+
+  @if(!empty($feedbackQrBase64))
+  <div class="line"></div>
+  <div class="feedback">
+    <div style="font-size:10px;margin-bottom:3px;font-weight:bold;">Leave us your feedback!</div>
+    <img src="{{ $feedbackQrBase64 }}" width="50" height="50" style="display:block;margin:0 auto;" />
+    <div style="font-size:9px;color:#555;margin-top:2px;">Scan to rate your experience</div>
+  </div>
   @endif
 
   <div class="line"></div>
@@ -71,20 +81,21 @@
     @endif
   </table>
 
-  @if(isset($upiQr))
+  @if(!empty($upiQrBase64))
   <div class="line"></div>
   <div class="upi">
     @if($invoice->amount_due > 0)
     <div style="font-size:10px;margin-bottom:3px;">Scan to pay balance &#8377;{{ number_format($invoice->amount_due, 2) }}</div>
     @else
-    <div style="font-size:10px;margin-bottom:3px;">UPI Payment</div>
+    <div style="font-size:10px;margin-bottom:3px;">Scan to pay via UPI</div>
     @endif
-    {!! $upiQr !!}
+    <img src="{{ $upiQrBase64 }}" width="96" height="96" style="display:block;margin:0 auto;" />
   </div>
   @endif
 
   <div class="line"></div>
   <div class="center" style="font-size:10px;">Thank you for visiting!</div>
   <div class="center" style="font-size:9px;margin-top:2px;">{{ $invoice->tenant->name }}</div>
+  <div class="center" style="font-size:8px;color:#000;margin-top:2px;">Software powered by www.magicmanagement.in</div>
 </body>
 </html>

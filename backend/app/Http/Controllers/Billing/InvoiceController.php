@@ -226,6 +226,106 @@ class InvoiceController extends Controller
         }
     }
 
+    public function storeTakeaway(Request $request): JsonResponse
+    {
+        $v = Validator::make($request->all(), [
+            'items'               => 'required|array|min:1',
+            'items.*.menu_item_id'=> 'required|exists:menu_items,id',
+            'items.*.quantity'    => 'required|integer|min:1',
+            'items.*.notes'       => 'nullable|string',
+            'customer_name'       => 'required|string|max:100',
+            'customer_phone'      => 'nullable|string|max:20',
+            'notes'               => 'nullable|string',
+        ]);
+        if ($v->fails()) return $this->validationError($v->errors());
+
+        $tenantId = auth()->user()->tenant_id;
+
+        $resolvedItems = collect($request->items)->map(function ($row) use ($tenantId) {
+            $menuItem = \App\Models\MenuItem::where('id', $row['menu_item_id'])->where('tenant_id', $tenantId)->firstOrFail();
+            return array_merge($row, ['menu_item' => $menuItem]);
+        });
+
+        $kitchenItems   = $resolvedItems->filter(fn($r) => ! $r['menu_item']->is_ready_made);
+        $readyMadeItems = $resolvedItems->filter(fn($r) =>   $r['menu_item']->is_ready_made);
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $createdOrders = [];
+
+            if ($kitchenItems->isNotEmpty()) {
+                $order = Order::create([
+                    'tenant_id'      => $tenantId,
+                    'waiter_id'      => auth()->id(),
+                    'type'           => 'takeaway',
+                    'status'         => 'pending',
+                    'customer_name'  => $request->customer_name,
+                    'customer_phone' => $request->customer_phone,
+                    'notes'          => $request->notes,
+                ]);
+                foreach ($kitchenItems as $row) {
+                    $m = $row['menu_item'];
+                    \App\Models\OrderItem::create([
+                        'order_id'     => $order->id,
+                        'menu_item_id' => $m->id,
+                        'item_name'    => $m->name,
+                        'item_price'   => $m->price,
+                        'quantity'     => $row['quantity'],
+                        'subtotal'     => $m->price * $row['quantity'],
+                        'notes'        => $row['notes'] ?? null,
+                    ]);
+                }
+                $order->load('items');
+                $order->recalculate();
+                $createdOrders[] = $order->fresh()->load('items');
+            }
+
+            if ($readyMadeItems->isNotEmpty()) {
+                $rmOrder = Order::create([
+                    'tenant_id'      => $tenantId,
+                    'waiter_id'      => auth()->id(),
+                    'type'           => 'takeaway',
+                    'status'         => 'ready',
+                    'customer_name'  => $request->customer_name,
+                    'customer_phone' => $request->customer_phone,
+                    'notes'          => $request->notes,
+                ]);
+                foreach ($readyMadeItems as $row) {
+                    $m = $row['menu_item'];
+                    \App\Models\OrderItem::create([
+                        'order_id'     => $rmOrder->id,
+                        'menu_item_id' => $m->id,
+                        'item_name'    => $m->name,
+                        'item_price'   => $m->price,
+                        'quantity'     => $row['quantity'],
+                        'subtotal'     => $m->price * $row['quantity'],
+                        'notes'        => $row['notes'] ?? null,
+                    ]);
+                }
+                $rmOrder->load('items');
+                $rmOrder->recalculate();
+                $createdOrders[] = $rmOrder->fresh()->load('items');
+            }
+
+            \Illuminate\Support\Facades\DB::commit();
+
+            foreach ($createdOrders as $o) {
+                broadcast(new \App\Events\OrderStatusUpdated($o))->toOthers();
+                AuditLog::record('order.placed', $o, [], [
+                    'order_number' => $o->order_number,
+                    'type'         => 'takeaway',
+                    'customer'     => $request->customer_name ?? 'Walk-in',
+                    'items'        => $o->items->map(fn($i) => $i->quantity . '× ' . $i->item_name)->implode(', '),
+                ]);
+            }
+
+            return $this->created($createdOrders, 'Takeaway order placed');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            return $this->error('Failed: ' . $e->getMessage(), 500);
+        }
+    }
+
     public function markServed(Order $order): JsonResponse
     {
         if ($order->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
@@ -426,7 +526,11 @@ class InvoiceController extends Controller
             'payment_method' => $invoice->payment_method,
         ]);
 
-        // Free table only if no other unbilled orders remain (any status except cancelled)
+        // Mark order as served now that it's invoiced
+        $order->update(['status' => 'served']);
+        broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
+
+        // Free table only if no other unbilled orders remain
         if ($order->restaurant_table_id) {
             $remaining = Order::where('tenant_id', auth()->user()->tenant_id)
                 ->where('restaurant_table_id', $order->restaurant_table_id)
@@ -613,14 +717,34 @@ class InvoiceController extends Controller
         if ($invoice->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
         $invoice->load('order.items', 'order.table', 'tenant');
 
-        $upiId  = request()->query('upi_id', $invoice->tenant->upi_id ?? 'restaurant@upi');
-        $amount = $invoice->amount_due > 0 ? $invoice->amount_due : $invoice->total;
-        $upiUrl = "upi://pay?pa={$upiId}&pn=" . urlencode($invoice->tenant->name) . "&am={$amount}&cu=INR";
-        $upiQr  = QrCode::format('svg')->size(120)->generate($upiUrl);
+        $upiQrBase64      = null;
+        $feedbackQrBase64 = null;
+
+        $upiIdParam = request()->query('upi_id', $invoice->tenant->upi_id ?? null);
+        if ($invoice->payment_method === 'upi' && $upiIdParam) {
+            $amount      = $invoice->amount_due > 0 ? $invoice->amount_due : $invoice->total;
+            $upiUrl      = "upi://pay?pa={$upiIdParam}&pn=" . urlencode($invoice->tenant->name) . "&am={$amount}&cu=INR";
+            $pngData     = QrCode::format('png')->size(120)->generate($upiUrl);
+            $upiQrBase64 = 'data:image/png;base64,' . base64_encode($pngData);
+        }
+
+        $tenant = $invoice->tenant;
+        $hasFeedbackModule = $tenant->modules?->feedback ?? false;
+        if ($hasFeedbackModule && ($tenant->feedback_on_bill ?? false)) {
+            $feedbackQr = \App\Models\FeedbackQrCode::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->first();
+            if ($feedbackQr) {
+                $feedbackUrl      = url("/feedback/{$feedbackQr->qr_token}");
+                $pngData          = QrCode::format('png')->size(50)->generate($feedbackUrl);
+                $feedbackQrBase64 = 'data:image/png;base64,' . base64_encode($pngData);
+            }
+        }
 
         $pdf = Pdf::loadView('invoices.receipt', [
-            'invoice' => $invoice,
-            'upiQr'   => $upiQr,
+            'invoice'          => $invoice,
+            'upiQrBase64'      => $upiQrBase64,
+            'feedbackQrBase64' => $feedbackQrBase64,
         ])->setPaper([0, 0, 226.77, 600], 'portrait'); // ~80mm thermal width
 
         return $pdf->download("invoice-{$invoice->invoice_number}.pdf");
@@ -649,16 +773,21 @@ class InvoiceController extends Controller
             'due'      => $invoices->sum('amount_due'),
         ];
 
-        $tenant = $invoices->first()->tenant;
-        $upiId  = $tenant->upi_id ?? 'restaurant@upi';
-        $amount = $totals['due'] > 0 ? $totals['due'] : $totals['total'];
-        $upiUrl = "upi://pay?pa={$upiId}&pn=" . urlencode($tenant->name) . "&am={$amount}&cu=INR";
-        $upiQr  = QrCode::format('svg')->size(120)->generate($upiUrl);
+        $tenant      = $invoices->first()->tenant;
+        $upiQrBase64 = null;
+        // Show UPI QR on combined PDF if all invoices share the same UPI payment method
+        $allUpi = $invoices->every(fn($inv) => $inv->payment_method === 'upi');
+        if ($allUpi && $tenant->upi_id) {
+            $amount      = $totals['due'] > 0 ? $totals['due'] : $totals['total'];
+            $upiUrl      = "upi://pay?pa={$tenant->upi_id}&pn=" . urlencode($tenant->name) . "&am={$amount}&cu=INR";
+            $pngData     = QrCode::format('png')->size(120)->generate($upiUrl);
+            $upiQrBase64 = 'data:image/png;base64,' . base64_encode($pngData);
+        }
 
         $pdf = Pdf::loadView('invoices.combined', [
-            'invoices' => $invoices,
-            'totals'   => $totals,
-            'upiQr'    => $upiQr,
+            'invoices'    => $invoices,
+            'totals'      => $totals,
+            'upiQrBase64' => $upiQrBase64,
         ])->setPaper([0, 0, 226.77, 800], 'portrait');
 
         return $pdf->download('combined-invoice.pdf');
