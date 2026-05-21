@@ -382,7 +382,10 @@ export default function MenuManager() {
                           <VegDot type={item.type} />
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">{item.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            {item.image_url && <VegDot type={item.type} />}
+                            <p className="font-semibold text-gray-900">{item.name}</p>
+                          </div>
                           {item.description && <p className="text-xs text-gray-400 truncate max-w-[160px]">{item.description}</p>}
                         </div>
                       </div>
