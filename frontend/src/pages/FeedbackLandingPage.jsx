@@ -151,7 +151,7 @@ const faqs = [
 
 // Reuses CalendarBooking from LandingPage pattern — violet variant
 function ContactForm() {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', type: '', message: '' })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', type: '', typeOther: '', message: '' })
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -173,7 +173,7 @@ function ContactForm() {
       const res = await fetch('/api/landing/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ ...form, outlets: form.type }),
+        body: JSON.stringify({ ...form, outlets: form.type === 'other' ? (form.typeOther || 'Other') : form.type }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Something went wrong')
@@ -198,7 +198,7 @@ function ContactForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor="f-name" className="block text-sm font-medium text-slate-700 mb-1.5">Full Name <span className="text-rose-500">*</span></label>
@@ -208,38 +208,47 @@ function ContactForm() {
             value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
         </div>
         <div>
-          <label htmlFor="f-email" className="block text-sm font-medium text-slate-700 mb-1.5">
-            Email <span className="text-slate-400 font-normal text-xs">(or phone)</span>
-          </label>
-          <input id="f-email" type="email" autoComplete="email"
-            placeholder="meera@myrestaurant.com"
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
-            value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="f-phone" className="block text-sm font-medium text-slate-700 mb-1.5">
-            Phone <span className="text-slate-400 font-normal text-xs">(or email)</span>
-          </label>
-          <input id="f-phone" type="tel" autoComplete="tel"
-            placeholder="+91 93014 20919"
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
-            value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
-        </div>
-        <div>
-          <label htmlFor="f-type" className="block text-sm font-medium text-slate-700 mb-1.5">Property Type</label>
+          <label htmlFor="f-type" className="block text-sm font-medium text-slate-700 mb-1.5">Business Domain</label>
           <select id="f-type"
             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm cursor-pointer"
-            value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+            value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, typeOther: '' }))}>
             <option value="">Select…</option>
-            <option>Restaurant</option>
-            <option>Hotel</option>
-            <option>Hotel + Restaurant</option>
-            <option>Cafe / QSR</option>
-            <option>Other</option>
+            <option value="restaurant">Restaurant</option>
+            <option value="hotel">Hotel</option>
+            <option value="cafe">Café</option>
+            <option value="bar">Bar</option>
+            <option value="bakery">Bakery</option>
+            <option value="clinic">Clinic</option>
+            <option value="dentist">Dentist</option>
+            <option value="salon">Salon</option>
+            <option value="gym">Gym</option>
+            <option value="retail">Retail Shop</option>
+            <option value="other">Other</option>
           </select>
+          {form.type === 'other' && (
+            <input type="text" placeholder="Please specify…"
+              className="w-full mt-2 px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
+              value={form.typeOther} onChange={e => setForm(f => ({ ...f, typeOther: e.target.value }))} />
+          )}
         </div>
+      </div>
+      <div>
+        <label htmlFor="f-email" className="block text-sm font-medium text-slate-700 mb-1.5">
+          Email <span className="text-slate-400 font-normal text-xs">(or phone)</span>
+        </label>
+        <input id="f-email" type="email" autoComplete="email"
+          placeholder="meera@myrestaurant.com"
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
+          value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+      </div>
+      <div>
+        <label htmlFor="f-phone" className="block text-sm font-medium text-slate-700 mb-1.5">
+          Phone <span className="text-slate-400 font-normal text-xs">(or email)</span>
+        </label>
+        <input id="f-phone" type="tel" autoComplete="tel"
+          placeholder="+91 93014 20919"
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
+          value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
       </div>
       <div>
         <label htmlFor="f-message" className="block text-sm font-medium text-slate-700 mb-1.5">Current Google Rating (if known)</label>
@@ -657,7 +666,7 @@ export default function FeedbackLandingPage() {
               {steps.map((s, i) => (
                 <div key={s.step} className="relative">
                   {i < steps.length - 1 && (
-                    <div className="hidden lg:block absolute top-10 left-full w-full h-px bg-gradient-to-r from-slate-200 to-transparent z-10" aria-hidden="true" />
+                    <div className="hidden lg:block absolute top-10 left-full w-6 h-px bg-slate-200 z-10" aria-hidden="true" />
                   )}
                   <div className="bg-white rounded-2xl p-6 border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-200 h-full">
                     <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${s.color} flex items-center justify-center mb-4 shadow-md`}>

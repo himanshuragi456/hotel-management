@@ -182,6 +182,7 @@ export default function TenantDetail() {
   const { setAuth } = useAuthStore()
   const [showEdit, setShowEdit] = useState(false)
   const [feedbackDomain, setFeedbackDomain] = useState('')
+  const [feedbackDomainOther, setFeedbackDomainOther] = useState('')
   const [loggingInAs, setLoggingInAs] = useState(null)
   const [loginError, setLoginError] = useState('')
   const [changePwdTarget, setChangePwdTarget] = useState(null)
@@ -258,7 +259,8 @@ export default function TenantDetail() {
   }
 
   const saveDomain = () => {
-    modulesMutation.mutate({ ...modules, business_domain: resolvedDomain })
+    const domain = resolvedDomain === 'other' ? (feedbackDomainOther.trim() || 'other') : resolvedDomain
+    modulesMutation.mutate({ ...modules, business_domain: domain })
   }
 
   const MODULE_ITEMS = [
@@ -358,12 +360,21 @@ export default function TenantDetail() {
                       </select>
                       <button
                         onClick={saveDomain}
-                        disabled={!resolvedDomain || modulesMutation.isPending}
+                        disabled={!resolvedDomain || (resolvedDomain === 'other' && !feedbackDomainOther?.trim()) || modulesMutation.isPending}
                         className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors"
                       >
                         {modulesMutation.isPending ? '…' : 'Save'}
                       </button>
                     </div>
+                    {resolvedDomain === 'other' && (
+                      <input
+                        type="text"
+                        placeholder="Specify business type…"
+                        value={feedbackDomainOther || ''}
+                        onChange={e => setFeedbackDomainOther(e.target.value)}
+                        className="mt-1.5 w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50"
+                      />
+                    )}
                     {tenant.business_domain && (
                       <p className="text-xs text-gray-400 mt-1">Current: <span className="font-medium text-gray-600">{tenant.business_domain}</span></p>
                     )}
