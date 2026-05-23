@@ -613,7 +613,7 @@ export default function FeedbackLandingPage() {
                   <button onClick={() => scrollTo('contact')}
                     className="px-8 py-4 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white text-base font-semibold rounded-2xl shadow-xl shadow-violet-500/30 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 flex items-center justify-center gap-2">
                     <Icon d={icons.calendar} size={18} />
-                    Get Free Setup
+                    Book a Free Demo
                   </button>
                   <button onClick={() => scrollTo('how-it-works')}
                     className="px-8 py-4 bg-white/80 border border-slate-200 text-slate-700 text-base font-semibold rounded-2xl hover:bg-white hover:shadow-md transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 flex items-center justify-center gap-2">
