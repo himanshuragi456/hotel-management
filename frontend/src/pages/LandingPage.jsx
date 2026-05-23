@@ -200,26 +200,24 @@ function ContactForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="c-name" className="block text-sm font-medium text-slate-700 mb-1.5">Full Name <span className="text-rose-500">*</span></label>
-          <input id="c-name" type="text" required autoComplete="name"
-            placeholder="Rahul Sharma"
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-sm"
-            value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        </div>
-        <div>
-          <label htmlFor="c-outlets" className="block text-sm font-medium text-slate-700 mb-1.5">Number of outlets</label>
-          <select id="c-outlets"
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-sm cursor-pointer"
-            value={form.outlets} onChange={e => setForm(f => ({ ...f, outlets: e.target.value }))}>
-            <option value="">Select…</option>
-            <option>1 outlet</option>
-            <option>2–5 outlets</option>
-            <option>6–20 outlets</option>
-            <option>20+ outlets</option>
-          </select>
-        </div>
+      <div>
+        <label htmlFor="c-name" className="block text-sm font-medium text-slate-700 mb-1.5">Full Name <span className="text-rose-500">*</span></label>
+        <input id="c-name" type="text" required autoComplete="name"
+          placeholder="Rahul Sharma"
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-sm"
+          value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+      </div>
+      <div>
+        <label htmlFor="c-outlets" className="block text-sm font-medium text-slate-700 mb-1.5">Number of outlets</label>
+        <select id="c-outlets"
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-sm cursor-pointer"
+          value={form.outlets} onChange={e => setForm(f => ({ ...f, outlets: e.target.value }))}>
+          <option value="">Select…</option>
+          <option>1 outlet</option>
+          <option>2–5 outlets</option>
+          <option>6–20 outlets</option>
+          <option>20+ outlets</option>
+        </select>
       </div>
       <div>
         <label htmlFor="c-email" className="block text-sm font-medium text-slate-700 mb-1.5">

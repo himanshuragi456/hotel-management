@@ -199,38 +199,36 @@ function ContactForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="f-name" className="block text-sm font-medium text-slate-700 mb-1.5">Full Name <span className="text-rose-500">*</span></label>
-          <input id="f-name" type="text" required autoComplete="name"
-            placeholder="Meera Joshi"
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
-            value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        </div>
-        <div>
-          <label htmlFor="f-type" className="block text-sm font-medium text-slate-700 mb-1.5">Business Domain</label>
-          <select id="f-type"
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm cursor-pointer"
-            value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, typeOther: '' }))}>
-            <option value="">Select…</option>
-            <option value="restaurant">Restaurant</option>
-            <option value="hotel">Hotel</option>
-            <option value="cafe">Café</option>
-            <option value="bar">Bar</option>
-            <option value="bakery">Bakery</option>
-            <option value="clinic">Clinic</option>
-            <option value="dentist">Dentist</option>
-            <option value="salon">Salon</option>
-            <option value="gym">Gym</option>
-            <option value="retail">Retail Shop</option>
-            <option value="other">Other</option>
-          </select>
-          {form.type === 'other' && (
-            <input type="text" placeholder="Please specify…"
-              className="w-full mt-2 px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
-              value={form.typeOther} onChange={e => setForm(f => ({ ...f, typeOther: e.target.value }))} />
-          )}
-        </div>
+      <div>
+        <label htmlFor="f-name" className="block text-sm font-medium text-slate-700 mb-1.5">Full Name <span className="text-rose-500">*</span></label>
+        <input id="f-name" type="text" required autoComplete="name"
+          placeholder="Meera Joshi"
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
+          value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+      </div>
+      <div>
+        <label htmlFor="f-type" className="block text-sm font-medium text-slate-700 mb-1.5">Business Domain</label>
+        <select id="f-type"
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm cursor-pointer"
+          value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, typeOther: '' }))}>
+          <option value="">Select…</option>
+          <option value="restaurant">Restaurant</option>
+          <option value="hotel">Hotel</option>
+          <option value="cafe">Café</option>
+          <option value="bar">Bar</option>
+          <option value="bakery">Bakery</option>
+          <option value="clinic">Clinic</option>
+          <option value="dentist">Dentist</option>
+          <option value="salon">Salon</option>
+          <option value="gym">Gym</option>
+          <option value="retail">Retail Shop</option>
+          <option value="other">Other</option>
+        </select>
+        {form.type === 'other' && (
+          <input type="text" placeholder="Please specify…"
+            className="w-full mt-2 px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
+            value={form.typeOther} onChange={e => setForm(f => ({ ...f, typeOther: e.target.value }))} />
+        )}
       </div>
       <div>
         <label htmlFor="f-email" className="block text-sm font-medium text-slate-700 mb-1.5">
