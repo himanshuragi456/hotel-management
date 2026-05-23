@@ -34,6 +34,7 @@ const icons = {
   route:       ['M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z','M13 13l6 6'],
   heart:       'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
   lock:        ['M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z','M7 11V7a5 5 0 0 1 10 0v4'],
+  whatsapp:    ['M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z'],
 }
 
 function StarRating({ count = 5, size = 16 }) {
@@ -155,8 +156,17 @@ function ContactForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const validateContact = (email, phone) => {
+    if (!email.trim() && !phone.trim()) return 'Please provide at least an email or phone number.'
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email address.'
+    if (phone.trim() && !/^[+]?[\d\s\-().]{7,15}$/.test(phone.trim())) return 'Please enter a valid phone number.'
+    return null
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const contactErr = validateContact(form.email, form.phone)
+    if (contactErr) { setError(contactErr); return }
     setLoading(true)
     setError('')
     try {
@@ -198,8 +208,10 @@ function ContactForm() {
             value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
         </div>
         <div>
-          <label htmlFor="f-email" className="block text-sm font-medium text-slate-700 mb-1.5">Email <span className="text-rose-500">*</span></label>
-          <input id="f-email" type="email" required autoComplete="email"
+          <label htmlFor="f-email" className="block text-sm font-medium text-slate-700 mb-1.5">
+            Email <span className="text-slate-400 font-normal text-xs">(or phone)</span>
+          </label>
+          <input id="f-email" type="email" autoComplete="email"
             placeholder="meera@myrestaurant.com"
             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
             value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
@@ -207,7 +219,9 @@ function ContactForm() {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="f-phone" className="block text-sm font-medium text-slate-700 mb-1.5">Phone</label>
+          <label htmlFor="f-phone" className="block text-sm font-medium text-slate-700 mb-1.5">
+            Phone <span className="text-slate-400 font-normal text-xs">(or email)</span>
+          </label>
           <input id="f-phone" type="tel" autoComplete="tel"
             placeholder="+91 93014 20919"
             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
@@ -266,11 +280,17 @@ function CalendarBooking() {
   }
   const dateLabel = selectedDate?.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
 
+  const validateContact = (email, phone) => {
+    if (!email.trim() && !phone.trim()) return 'Please provide at least an email or phone number.'
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email address.'
+    if (phone.trim() && !/^[+]?[\d\s\-().]{7,15}$/.test(phone.trim())) return 'Please enter a valid phone number.'
+    return null
+  }
+
   const handleConfirm = async () => {
-    if (!userInfo.name.trim() || !userInfo.email.trim() || !userInfo.phone.trim()) {
-      setError('Please fill in all fields.')
-      return
-    }
+    if (!userInfo.name.trim()) { setError('Please enter your name.'); return }
+    const contactErr = validateContact(userInfo.email, userInfo.phone)
+    if (contactErr) { setError(contactErr); return }
     setError('')
     setLoading(true)
     try {
@@ -316,13 +336,13 @@ function CalendarBooking() {
             value={userInfo.name} onChange={e => setUserInfo(u => ({ ...u, name: e.target.value }))} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Email <span className="text-rose-500">*</span></label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Email <span className="text-slate-400 font-normal">(or phone)</span></label>
           <input type="email" autoComplete="email" placeholder="meera@myrestaurant.com"
             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
             value={userInfo.email} onChange={e => setUserInfo(u => ({ ...u, email: e.target.value }))} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Phone <span className="text-rose-500">*</span></label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Phone <span className="text-slate-400 font-normal">(or email)</span></label>
           <input type="tel" autoComplete="tel" placeholder="+91 93014 20919"
             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
             value={userInfo.phone} onChange={e => setUserInfo(u => ({ ...u, phone: e.target.value }))} />
@@ -798,12 +818,28 @@ export default function FeedbackLandingPage() {
                       </div>
                     </div>
                   ))}
+                  <a href="https://wa.me/919301420919?text=Hi%2C%20I%27d%20like%20to%20know%20more%20about%20Magic%20QR%20Feedback"
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] hover:bg-[#20bd5c] text-white font-semibold rounded-xl transition-colors text-sm shadow-md shadow-green-500/20 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                    <svg width="20" height="20" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M24 4C13 4 4 13 4 24c0 3.6 1 7 2.7 9.9L4 44l10.4-2.7C17.2 43 20.5 44 24 44c11 0 20-9 20-20S35 4 24 4z" fill="white"/><path fillRule="evenodd" clipRule="evenodd" d="M24 7.2c-9.3 0-16.8 7.5-16.8 16.8 0 3.2.9 6.2 2.5 8.8l.4.6-1.6 5.9 6.1-1.6.6.3c2.5 1.5 5.4 2.3 8.3 2.3 9.3 0 16.8-7.5 16.8-16.8S33.3 7.2 24 7.2zm9.9 23.4c-.4 1.1-2.3 2.1-3.2 2.2-.8.1-1.9.2-3-.2-1.7-.6-3.9-1.5-6.7-4.2-2.9-2.7-4-5.2-4.6-7-.3-1-.2-2.1.1-2.9.3-.8.8-1.4 1.4-1.9.5-.4 1-.6 1.5-.6h1c.4 0 .8.2 1.1.9.4.8 1.3 3.1 1.4 3.4.1.2.2.5 0 .8-.1.3-.3.5-.5.7l-.5.6c-.2.2-.4.4-.2.8.2.4.9 1.5 2 2.5 1.3 1.2 2.4 1.6 2.8 1.8.4.2.6.1.9-.1.2-.2.9-1 1.2-1.4.3-.4.5-.3.9-.2.4.1 2.5 1.2 2.9 1.4.4.2.7.3.8.5.1.3.1 1.4-.3 2.5z" fill="#25D366"/></svg>
+                    Chat on WhatsApp
+                  </a>
                 </div>
               </div>
             </div>
           </div>
         </section>
       </main>
+
+      {/* ── WhatsApp bubble ── */}
+      <a href="https://wa.me/919301420919?text=Hi%2C%20I%27d%20like%20to%20know%20more%20about%20Magic%20QR%20Feedback"
+        target="_blank" rel="noopener noreferrer" aria-label="Chat on WhatsApp"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#25D366] hover:bg-[#20bd5c] text-white rounded-full shadow-lg shadow-green-500/40 flex items-center justify-center transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+        <svg width="30" height="30" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <path fillRule="evenodd" clipRule="evenodd" d="M24 4C13 4 4 13 4 24c0 3.6 1 7 2.7 9.9L4 44l10.4-2.7C17.2 43 20.5 44 24 44c11 0 20-9 20-20S35 4 24 4z" fill="white"/>
+          <path fillRule="evenodd" clipRule="evenodd" d="M24 7.2c-9.3 0-16.8 7.5-16.8 16.8 0 3.2.9 6.2 2.5 8.8l.4.6-1.6 5.9 6.1-1.6.6.3c2.5 1.5 5.4 2.3 8.3 2.3 9.3 0 16.8-7.5 16.8-16.8S33.3 7.2 24 7.2zm9.9 23.4c-.4 1.1-2.3 2.1-3.2 2.2-.8.1-1.9.2-3-.2-1.7-.6-3.9-1.5-6.7-4.2-2.9-2.7-4-5.2-4.6-7-.3-1-.2-2.1.1-2.9.3-.8.8-1.4 1.4-1.9.5-.4 1-.6 1.5-.6h1c.4 0 .8.2 1.1.9.4.8 1.3 3.1 1.4 3.4.1.2.2.5 0 .8-.1.3-.3.5-.5.7l-.5.6c-.2.2-.4.4-.2.8.2.4.9 1.5 2 2.5 1.3 1.2 2.4 1.6 2.8 1.8.4.2.6.1.9-.1.2-.2.9-1 1.2-1.4.3-.4.5-.3.9-.2.4.1 2.5 1.2 2.9 1.4.4.2.7.3.8.5.1.3.1 1.4-.3 2.5z" fill="#25D366"/>
+        </svg>
+      </a>
 
       {/* ── Footer ── */}
       <footer className="bg-slate-900 text-slate-400 py-12 px-4 sm:px-6">
