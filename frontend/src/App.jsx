@@ -1,4 +1,11 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
+
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => { window.scrollTo(0, 0) }, [pathname])
+  return null
+}
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RequireAuth, RedirectIfAuth } from '@/components/layouts/RoleGuard'
 import { ToastProvider } from '@/components/shared/Toast'
@@ -14,6 +21,8 @@ function OwnerIndexRedirect() {
 }
 
 import Login from '@/pages/auth/Login'
+import LandingPage from '@/pages/LandingPage'
+import FeedbackLandingPage from '@/pages/FeedbackLandingPage'
 
 // Superadmin
 import SuperadminLayout from '@/components/layouts/SuperadminLayout'
@@ -65,6 +74,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <GlobalErrorModal />
         <Routes>
           {/* Public */}
@@ -123,9 +133,10 @@ export default function App() {
           {/* Billing */}
           <Route path="/billing" element={<RequireAuth roles={['billing']}><BillingDashboard /></RequireAuth>} />
 
-          {/* Fallback */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          {/* Landing pages */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/feedback-landing" element={<FeedbackLandingPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
       </ToastProvider>

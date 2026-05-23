@@ -8,9 +8,12 @@
   .center { text-align: center; }
   .bold { font-weight: bold; }
   .line { border-top: 1px dashed #000; margin: 4px 0; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 1px 0; vertical-align: top; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { padding: 1px 0; vertical-align: top; word-break: break-word; }
   .right { text-align: right; }
+  .col-item { width: 55%; }
+  .col-qty  { width: 15%; text-align: center; }
+  .col-amt  { width: 30%; text-align: right; }
   .total-row td { font-weight: bold; font-size: 13px; }
   .upi { text-align: center; margin-top: 6px; margin-bottom: 8px; }
   .feedback { text-align: center; margin: 4px 0; }
@@ -29,7 +32,7 @@
   <div class="line"></div>
   <div class="feedback">
     <div style="font-size:10px;margin-bottom:3px;font-weight:bold;">Leave us your feedback!</div>
-    <img src="{{ $feedbackQrBase64 }}" width="50" height="50" style="display:block;margin:0 auto;" />
+    <img src="{{ $feedbackQrBase64 }}" width="65" height="65" style="display:block;margin:0 auto;" />
     <div style="font-size:9px;color:#555;margin-top:2px;">Scan to rate your experience</div>
   </div>
   @endif
@@ -50,16 +53,16 @@
   <div class="line"></div>
   <table>
     <tr>
-      <td class="bold">Item</td>
-      <td class="bold center">Qty</td>
-      <td class="bold right">Amount</td>
+      <td class="bold col-item">Item</td>
+      <td class="bold col-qty">Qty</td>
+      <td class="bold col-amt">Amount</td>
     </tr>
     <tr><td colspan="3"><div class="line"></div></td></tr>
     @foreach($invoice->order->items as $item)
     <tr>
-      <td>{{ $item->item_name }}</td>
-      <td class="center">{{ $item->quantity }}</td>
-      <td class="right">&#8377;{{ number_format($item->subtotal, 2) }}</td>
+      <td class="col-item">{{ $item->item_name }}</td>
+      <td class="col-qty">{{ $item->quantity }}</td>
+      <td class="col-amt">&#8377;{{ number_format($item->subtotal, 2) }}</td>
     </tr>
     @if($item->notes)
     <tr><td colspan="3" style="font-size:10px;color:#555;">  * {{ $item->notes }}</td></tr>
@@ -87,7 +90,7 @@
     @if($invoice->amount_due > 0)
     <div style="font-size:10px;margin-bottom:3px;">Scan to pay balance &#8377;{{ number_format($invoice->amount_due, 2) }}</div>
     @else
-    <div style="font-size:10px;margin-bottom:3px;">Scan to pay via UPI</div>
+    <div style="font-size:10px;margin-bottom:3px;">Scan to pay &#8377;{{ number_format($invoice->total, 2) }} via UPI</div>
     @endif
     <img src="{{ $upiQrBase64 }}" width="96" height="96" style="display:block;margin:0 auto;" />
   </div>

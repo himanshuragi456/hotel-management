@@ -736,7 +736,7 @@ class InvoiceController extends Controller
                 ->first();
             if ($feedbackQr) {
                 $feedbackUrl      = url("/feedback/{$feedbackQr->qr_token}");
-                $pngData          = QrCode::format('png')->size(50)->generate($feedbackUrl);
+                $pngData          = QrCode::format('png')->size(600)->generate($feedbackUrl);
                 $feedbackQrBase64 = 'data:image/png;base64,' . base64_encode($pngData);
             }
         }

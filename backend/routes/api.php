@@ -17,6 +17,7 @@ use App\Http\Controllers\Owner\Hotel\GuestController;
 use App\Http\Controllers\Owner\Hotel\RoomController;
 use App\Http\Controllers\Public\BrandingController as PublicBrandingController;
 use App\Http\Controllers\Public\FeedbackSubmissionController;
+use App\Http\Controllers\Public\LandingController;
 use App\Http\Controllers\Superadmin\BrandingController as SuperadminBrandingController;
 use App\Http\Controllers\Waiter\OrderController as WaiterOrderController;
 use App\Http\Controllers\Waiter\RoomServiceController;
@@ -276,6 +277,10 @@ Route::middleware(['auth:api'])->group(function () {
 | Public customer / QR routes (no auth required)
 |--------------------------------------------------------------------------
 */
+// Landing page public endpoints (no auth)
+Route::post('landing/contact',   [LandingController::class, 'contact']);
+Route::post('landing/book-demo', [LandingController::class, 'bookDemo']);
+
 Route::prefix('public')->group(function () {
     // System branding (no auth — shown on all public pages)
     Route::get('branding', [PublicBrandingController::class, 'show']);
