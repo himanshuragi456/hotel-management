@@ -13,7 +13,7 @@ class LandingController extends Controller
     {
         $v = Validator::make($request->all(), [
             'name'    => 'required|string|max:100',
-            'email'   => 'required|email|max:150',
+            'email'   => 'nullable|email|max:150',
             'phone'   => 'nullable|string|max:20',
             'outlets' => 'nullable|string|max:50',
             'type'    => 'nullable|string|max:50',
@@ -26,11 +26,17 @@ class LandingController extends Controller
 
         $data = $v->validated();
 
+        if (empty($data['email']) && empty($data['phone'])) {
+            return response()->json(['status' => false, 'message' => 'Please provide at least an email or phone number.'], 422);
+        }
+
         Mail::send([], [], function ($m) use ($data) {
-            $m->to('hirehimanshuragi@gmail.com')
-              ->replyTo($data['email'], $data['name'])
-              ->subject('New Contact — Magic Management Website')
-              ->html($this->contactHtml($data));
+            $mail = $m->to('hirehimanshuragi@gmail.com')
+                      ->subject('New Contact — Magic Management Website')
+                      ->html($this->contactHtml($data));
+            if (!empty($data['email'])) {
+                $mail->replyTo($data['email'], $data['name']);
+            }
         });
 
         return response()->json(['status' => true, 'message' => 'Message sent successfully.']);
@@ -40,8 +46,8 @@ class LandingController extends Controller
     {
         $v = Validator::make($request->all(), [
             'name'  => 'required|string|max:100',
-            'email' => 'required|email|max:150',
-            'phone' => 'required|string|max:20',
+            'email' => 'nullable|email|max:150',
+            'phone' => 'nullable|string|max:20',
             'date'  => 'required|string|max:50',
             'slot'  => 'required|string|max:20',
             'page'  => 'nullable|string|max:50',
@@ -53,20 +59,28 @@ class LandingController extends Controller
 
         $data = $v->validated();
 
+        if (empty($data['email']) && empty($data['phone'])) {
+            return response()->json(['status' => false, 'message' => 'Please provide at least an email or phone number.'], 422);
+        }
+
         Mail::send([], [], function ($m) use ($data) {
-            $m->to('hirehimanshuragi@gmail.com')
-              ->replyTo($data['email'], $data['name'])
-              ->subject('Demo Booking — ' . $data['date'] . ' ' . $data['slot'])
-              ->html($this->bookingHtml($data));
+            $mail = $m->to('hirehimanshuragi@gmail.com')
+                      ->subject('Demo Booking — ' . $data['date'] . ' ' . $data['slot'])
+                      ->html($this->bookingHtml($data));
+            if (!empty($data['email'])) {
+                $mail->replyTo($data['email'], $data['name']);
+            }
         });
 
-        // Send confirmation to the customer
-        Mail::send([], [], function ($m) use ($data) {
-            $m->to($data['email'], $data['name'])
-              ->from('hirehimanshuragi@gmail.com', 'Magic Management')
-              ->subject('Your demo is confirmed — ' . $data['date'] . ' at ' . $data['slot'])
-              ->html($this->confirmationHtml($data));
-        });
+        // Send confirmation to the customer only if email was provided
+        if (!empty($data['email'])) {
+            Mail::send([], [], function ($m) use ($data) {
+                $m->to($data['email'], $data['name'])
+                  ->from('hirehimanshuragi@gmail.com', 'Magic Management')
+                  ->subject('Your demo is confirmed — ' . $data['date'] . ' at ' . $data['slot'])
+                  ->html($this->confirmationHtml($data));
+            });
+        }
 
         return response()->json(['status' => true, 'message' => 'Demo booked successfully.']);
     }
