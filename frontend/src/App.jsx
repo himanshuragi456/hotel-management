@@ -47,6 +47,8 @@ import Guests from '@/pages/owner/hotel/Guests'
 import HotelReports from '@/pages/owner/hotel/HotelReports'
 import FeedbackSetup from '@/pages/owner/feedback/FeedbackSetup'
 import FeedbackDashboard from '@/pages/owner/feedback/FeedbackDashboard'
+import GmbReviews from '@/pages/owner/feedback/GmbReviews'
+import GmbPosts from '@/pages/owner/feedback/GmbPosts'
 import Analytics from '@/pages/owner/analytics/Analytics'
 import OwnerAuditLog from '@/pages/owner/analytics/AuditLog'
 import StaffManager from '@/pages/owner/staff/StaffManager'
@@ -113,6 +115,8 @@ export default function App() {
             {/* Feedback module */}
             <Route path="feedback/setup" element={<FeedbackSetup />} />
             <Route path="feedback/dashboard" element={<FeedbackDashboard />} />
+            <Route path="feedback/reviews" element={<GmbReviews />} />
+            <Route path="feedback/posts" element={<GmbPosts />} />
             {/* Analytics */}
             <Route path="analytics" element={<Analytics />} />
             <Route path="audit-log" element={<OwnerAuditLog />} />

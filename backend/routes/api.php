@@ -17,6 +17,8 @@ use App\Http\Controllers\Owner\Hotel\GuestController;
 use App\Http\Controllers\Owner\Hotel\RoomController;
 use App\Http\Controllers\Public\BrandingController as PublicBrandingController;
 use App\Http\Controllers\Public\FeedbackSubmissionController;
+use App\Http\Controllers\Public\GmbWebhookController;
+use App\Http\Controllers\Owner\Feedback\GmbController;
 use App\Http\Controllers\Public\LandingController;
 use App\Http\Controllers\Public\MagicTablesController;
 use App\Http\Controllers\Superadmin\BrandingController as SuperadminBrandingController;
@@ -172,6 +174,28 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::put('feedback/review-config', [FeedbackController::class, 'updateReviewConfig']);
                 Route::post('feedback/find-place', [FeedbackController::class, 'findPlace']);
                 Route::get('feedback/dashboard', [FeedbackController::class, 'dashboard']);
+
+                // GMB OAuth & settings
+                Route::get('gmb/status', [GmbController::class, 'status']);
+                Route::get('gmb/connect', [GmbController::class, 'connectRedirect']);
+                Route::post('gmb/disconnect', [GmbController::class, 'disconnect']);
+                Route::put('gmb/settings', [GmbController::class, 'updateSettings']);
+                Route::get('gmb/accounts', [GmbController::class, 'listAccounts']);
+                Route::get('gmb/locations', [GmbController::class, 'listLocations']);
+                Route::post('gmb/select-location', [GmbController::class, 'selectLocation']);
+
+                // GMB Reviews
+                Route::get('gmb/reviews', [GmbController::class, 'listReviews']);
+                Route::post('gmb/reviews/sync', [GmbController::class, 'syncReviews']);
+                Route::post('gmb/reviews/{review}/ai-reply', [GmbController::class, 'generateAiReply']);
+                Route::post('gmb/reviews/{review}/reply', [GmbController::class, 'postReply']);
+
+                // GMB Posts
+                Route::get('gmb/posts', [GmbController::class, 'listPosts']);
+                Route::post('gmb/posts/generate', [GmbController::class, 'generatePostSuggestions']);
+                Route::post('gmb/posts/{post}/publish', [GmbController::class, 'publishPost']);
+                Route::post('gmb/posts/{post}/dismiss', [GmbController::class, 'dismissPost']);
+                Route::put('gmb/posts/{post}', [GmbController::class, 'updatePost']);
             });
             // Available regardless of module (dashboard stats + staff management always needed)
             Route::get('orders/live', [RevenueController::class, 'liveOrders']);
@@ -293,6 +317,12 @@ Route::prefix('public')->group(function () {
     Route::post('menu/{tenantSlug}/{qrToken}/call-waiter', [CustomerMenuController::class, 'callWaiter']);
     Route::get('orders/{orderNumber}/status', [CustomerMenuController::class, 'orderStatus']);
     // Feedback submission (public — no auth)
+    // Google OAuth callback (redirects to frontend after token exchange)
+    Route::get('auth/google/gmb/callback', [GmbController::class, 'connectCallback']);
+
+    // Google Pub/Sub push webhook for review notifications
+    Route::post('webhooks/gmb-reviews', [GmbWebhookController::class, 'handle']);
+
     Route::get('feedback/{token}', [FeedbackSubmissionController::class, 'show']);
     Route::post('feedback/{token}/submit', [FeedbackSubmissionController::class, 'submit']);
     Route::post('feedback/{token}/ai-suggestions', [FeedbackSubmissionController::class, 'aiSuggestions']);

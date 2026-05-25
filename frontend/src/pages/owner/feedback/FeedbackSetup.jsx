@@ -1,160 +1,288 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircleIcon, ExclamationTriangleIcon, ArrowTopRightOnSquareIcon,
   QrCodeIcon, PlusIcon, TrashIcon, ArrowDownTrayIcon, LinkIcon,
+  ArrowPathIcon, XMarkIcon, BuildingStorefrontIcon,
 } from '@heroicons/react/24/outline'
 import {
   getFeedbackQrCodes, createFeedbackQrCode, updateFeedbackQrCode,
-  deleteFeedbackQrCode, downloadFeedbackQr, getReviewConfig, updateReviewConfig,
+  deleteFeedbackQrCode, downloadFeedbackQr,
+  getGmbStatus, getGmbConnectUrl, disconnectGmb, updateGmbSettings,
+  getGmbAccounts, getGmbLocations, selectGmbLocation,
 } from '@/services/restaurantService'
+
 const PLACEMENTS = ['reception', 'entrance', 'counter', 'table', 'room', 'other']
 
-function extractPlaceId(input) {
-  input = input.trim()
-  if (/^[A-Za-z0-9_\-]+$/.test(input) && input.length > 10) return input
-  let m = input.match(/[?&]placeid=([^&]+)/)
-  if (m) return m[1]
-  m = input.match(/ChIJ[A-Za-z0-9_\-]+/)
-  if (m) return m[0]
-  return null
-}
+// ─── Google Connect Panel ──────────────────────────────────────────────────────
 
-function ReviewConfig({ onSaved }) {
+function GoogleConnectPanel() {
   const qc = useQueryClient()
+  const [step, setStep] = useState('idle') // idle | picking_account | picking_location
+  const [selectedAccount, setSelectedAccount] = useState(null)
+  const [connectError, setConnectError] = useState('')
 
-  const { data: config, isLoading } = useQuery({
-    queryKey: ['review-config'],
-    queryFn: () => getReviewConfig().then(r => r.data.data),
+  const { data: status, isLoading: statusLoading } = useQuery({
+    queryKey: ['gmb-status'],
+    queryFn: () => getGmbStatus().then(r => r.data.data),
+    refetchOnWindowFocus: true,
   })
 
-  const [mapsInput, setMapsInput] = useState('')
-  const [saved, setSaved] = useState(false)
+  // Handle OAuth callback redirect params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('gmb_connected') === '1') {
+      qc.invalidateQueries({ queryKey: ['gmb-status'] })
+      setStep('picking_account')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    if (params.get('gmb_error')) {
+      setConnectError('Google connection failed. Please try again.')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [qc])
 
-  const inp = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50'
+  const { data: accounts, isLoading: accountsLoading } = useQuery({
+    queryKey: ['gmb-accounts'],
+    queryFn: () => getGmbAccounts().then(r => r.data.data),
+    enabled: step === 'picking_account',
+  })
 
-  const placeId = extractPlaceId(mapsInput)
-  const reviewUrl = placeId ? `https://search.google.com/local/writereview?placeid=${placeId}` : null
+  const { data: locations, isLoading: locationsLoading } = useQuery({
+    queryKey: ['gmb-locations', selectedAccount],
+    queryFn: () => getGmbLocations(selectedAccount).then(r => r.data.data),
+    enabled: step === 'picking_location' && !!selectedAccount,
+  })
 
-  const save = useMutation({
-    mutationFn: (payload) => updateReviewConfig(payload),
+  const connect = useMutation({
+    mutationFn: () => getGmbConnectUrl().then(r => r.data.data),
+    onSuccess: ({ url }) => { window.location.href = url },
+    onError: () => setConnectError('Could not start Google connection. Please try again.'),
+  })
+
+  const disconnect = useMutation({
+    mutationFn: disconnectGmb,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['review-config'] })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-      onSaved?.()
+      qc.invalidateQueries({ queryKey: ['gmb-status'] })
+      setStep('idle')
     },
   })
 
-  const handleSave = () => save.mutate({
-    google_place_id:   placeId,
-    google_review_url: reviewUrl,
+  const selectLocation = useMutation({
+    mutationFn: selectGmbLocation,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['gmb-status'] })
+      qc.invalidateQueries({ queryKey: ['review-config'] })
+      setStep('idle')
+    },
+    onError: () => setConnectError('Failed to connect location. Please try again.'),
   })
 
-  const isConfigured = !!(config?.google_review_url)
-  const canSave = !!placeId
+  const autoReply = useMutation({
+    mutationFn: (data) => updateGmbSettings(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['gmb-status'] }),
+  })
 
-  if (isLoading) return <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 animate-pulse h-48" />
+  if (statusLoading) return <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 animate-pulse h-40" />
+
+  const connected = status?.connected
+  const hasLocation = !!status?.location_name
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-gray-900">Google Review Setup</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Configure first — QR codes unlock once setup is complete.</p>
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            Google Business Profile
+          </h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {connected && hasLocation ? status.location_name : 'Connect to enable AI features'}
+          </p>
         </div>
-        {isConfigured && (
+        {connected && hasLocation && (
           <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 font-medium px-2.5 py-1 rounded-full">
-            <CheckCircleIcon className="w-3.5 h-3.5" />Configured
+            <CheckCircleIcon className="w-3.5 h-3.5" />Connected
           </span>
         )}
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Google Maps URL or Place ID *
-          </label>
-          <input
-            value={mapsInput}
-            onChange={e => setMapsInput(e.target.value)}
-            placeholder="Paste your Google Maps business URL or Place ID"
-            className={inp}
-          />
-          <div className="flex items-center justify-between mt-1.5">
-            <p className="text-xs text-gray-400">Search your business on Google Maps and paste the URL here.</p>
-            <a
-              href="https://www.google.com/maps/search/?q=my+business"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-500 hover:underline flex items-center gap-0.5 shrink-0 ml-2"
-            >
-              Find on Maps <ArrowTopRightOnSquareIcon className="w-3 h-3" />
-            </a>
-          </div>
+      {connectError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
+          <p className="text-xs text-red-600">{connectError}</p>
+          <button onClick={() => setConnectError('')}><XMarkIcon className="w-4 h-4 text-red-400" /></button>
         </div>
+      )}
 
-        {/* Parsed result */}
-        {mapsInput && (
-          placeId ? (
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <CheckCircleIcon className="w-4 h-4 text-green-500 shrink-0" />
-                <span className="text-xs text-green-700 font-semibold">Place ID found</span>
-                <a href={reviewUrl} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-blue-500 hover:underline ml-auto flex items-center gap-0.5">
+      {/* Not connected at all */}
+      {!connected && step === 'idle' && (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">
+            Connect your Google Business account so we can automatically fetch your location,
+            sync reviews, auto-reply with AI, and post weekly updates — all without manually
+            entering a Place ID.
+          </p>
+          <button
+            onClick={() => connect.mutate()}
+            disabled={connect.isPending}
+            className="w-full flex items-center justify-center gap-2 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {connect.isPending ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            )}
+            Sign in with Google
+          </button>
+        </div>
+      )}
+
+      {/* Connected — pick account */}
+      {connected && step === 'picking_account' && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-gray-700">Select your Google Business account:</p>
+          {accountsLoading ? (
+            <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-12 bg-gray-100 rounded-xl animate-pulse" />)}</div>
+          ) : accounts?.length > 0 ? (
+            <div className="space-y-2">
+              {accounts.map(acc => (
+                <button
+                  key={acc.id}
+                  onClick={() => { setSelectedAccount(acc.id); setStep('picking_location') }}
+                  className="w-full text-left flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 hover:border-orange-400 hover:bg-orange-50 transition-colors"
+                >
+                  <BuildingStorefrontIcon className="w-5 h-5 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{acc.name}</p>
+                    <p className="text-xs text-gray-400 capitalize">{acc.type?.toLowerCase().replace('_', ' ')}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">No Google Business accounts found. Make sure you have a GMB profile.</p>
+          )}
+        </div>
+      )}
+
+      {/* Pick location */}
+      {connected && step === 'picking_location' && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setStep('picking_account')} className="text-xs text-gray-400 hover:text-gray-600">← Back</button>
+            <p className="text-sm font-medium text-gray-700">Select your business location:</p>
+          </div>
+          {locationsLoading ? (
+            <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />)}</div>
+          ) : locations?.length > 0 ? (
+            <div className="space-y-2">
+              {locations.map(loc => (
+                <button
+                  key={loc.id}
+                  onClick={() => selectLocation.mutate({
+                    account_id: selectedAccount,
+                    location_id: loc.id,
+                    location_name: loc.title,
+                    place_id: loc.place_id,
+                  })}
+                  disabled={selectLocation.isPending}
+                  className="w-full text-left flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 hover:border-orange-400 hover:bg-orange-50 transition-colors disabled:opacity-50"
+                >
+                  <CheckCircleIcon className="w-5 h-5 text-gray-300 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{loc.title}</p>
+                    {loc.address && <p className="text-xs text-gray-400">{loc.address}</p>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">No locations found for this account.</p>
+          )}
+        </div>
+      )}
+
+      {/* Connected with location */}
+      {connected && hasLocation && step === 'idle' && (
+        <div className="space-y-4">
+          <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-gray-500 font-medium">Location</span>
+              <span className="text-xs font-semibold text-gray-800">{status.location_name}</span>
+            </div>
+            {status.google_review_url && (
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-500 font-medium">Review link</span>
+                <a href={status.google_review_url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline flex items-center gap-0.5">
                   Test link <ArrowTopRightOnSquareIcon className="w-3 h-3" />
                 </a>
               </div>
-              <p className="text-xs text-gray-500 font-mono break-all">{placeId}</p>
-            </div>
-          ) : (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2">
-              <ExclamationTriangleIcon className="w-4 h-4 text-amber-500 shrink-0" />
-              <p className="text-xs text-amber-700">Couldn't extract a Place ID. Try pasting the full Google Maps URL.</p>
-            </div>
-          )
-        )}
-
-        {/* Currently configured */}
-        {isConfigured && !mapsInput && (
-          <div className="border border-gray-200 rounded-xl p-3.5 bg-gray-50 space-y-1">
-            <p className="text-xs font-medium text-gray-500">Currently configured</p>
-            <a href={config.google_review_url} target="_blank" rel="noopener noreferrer"
-               className="text-xs text-blue-500 hover:underline block truncate flex items-center gap-1">
-              {config.google_review_url} <ArrowTopRightOnSquareIcon className="w-3 h-3 shrink-0" />
-            </a>
+            )}
           </div>
-        )}
 
-        {config?.has_suggestions && (
-          <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-            <CheckCircleIcon className="w-4 h-4 text-green-500 shrink-0" />
-            <p className="text-xs text-green-700 font-medium">{config.suggestions_count} AI review suggestions ready</p>
+          {/* Auto-reply toggle */}
+          <div className="flex items-center justify-between border border-gray-200 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Auto AI Reply</p>
+              <p className="text-xs text-gray-400">Automatically reply to new reviews with AI</p>
+            </div>
+            <button
+              onClick={() => autoReply.mutate({ auto_reply_enabled: !status.auto_reply_enabled })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${status.auto_reply_enabled ? 'bg-orange-500' : 'bg-gray-200'}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${status.auto_reply_enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
-        )}
 
-        <button
-          onClick={handleSave}
-          disabled={save.isPending || !canSave}
-          className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2 hover:shadow-md transition-shadow"
-        >
-          {save.isPending ? (
-            <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              Saving & generating suggestions…
-            </>
-          ) : saved ? (
-            <><CheckCircleIcon className="w-4 h-4" /> Saved</>
-          ) : 'Save Configuration'}
-        </button>
-      </div>
+          {/* Tone selector */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reply tone</label>
+            <select
+              value={status.auto_reply_tone}
+              onChange={e => autoReply.mutate({ auto_reply_tone: e.target.value })}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            >
+              <option value="professional">Professional</option>
+              <option value="friendly">Friendly</option>
+              <option value="formal">Formal</option>
+              <option value="enthusiastic">Enthusiastic</option>
+            </select>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStep('picking_account')}
+              className="flex-1 text-xs text-gray-500 border border-gray-200 rounded-xl py-2 hover:bg-gray-50 transition-colors"
+            >
+              Change location
+            </button>
+            <button
+              onClick={() => disconnect.mutate()}
+              disabled={disconnect.isPending}
+              className="text-xs text-red-500 border border-red-200 rounded-xl px-4 py-2 hover:bg-red-50 transition-colors"
+            >
+              Disconnect
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Connected but no location chosen yet */}
+      {connected && !hasLocation && step === 'idle' && (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">Google account connected. Now select your business location.</p>
+          <button
+            onClick={() => setStep('picking_account')}
+            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-3 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow"
+          >
+            Select Location
+          </button>
+        </div>
+      )}
     </div>
   )
 }
+
+// ─── QR Card ──────────────────────────────────────────────────────────────────
 
 function QrCard({ qr, onDelete, onDownload, onToggle }) {
   const feedbackUrl = `${window.location.origin}/feedback/${qr.qr_token}`
@@ -191,7 +319,6 @@ function QrCard({ qr, onDelete, onDownload, onToggle }) {
           target="_blank"
           rel="noopener noreferrer"
           className="w-8 h-8 rounded-xl bg-blue-50 hover:bg-blue-100 flex items-center justify-center transition-colors"
-          title="Open feedback page"
         >
           <LinkIcon className="w-3.5 h-3.5 text-blue-500" />
         </a>
@@ -206,15 +333,17 @@ function QrCard({ qr, onDelete, onDownload, onToggle }) {
   )
 }
 
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function FeedbackSetup() {
   const qc = useQueryClient()
   const [label, setLabel] = useState('')
   const [placement, setPlacement] = useState('reception')
   const [error, setError] = useState('')
 
-  const { data: config } = useQuery({
-    queryKey: ['review-config'],
-    queryFn: () => getReviewConfig().then(r => r.data.data),
+  const { data: status } = useQuery({
+    queryKey: ['gmb-status'],
+    queryFn: () => getGmbStatus().then(r => r.data.data),
   })
 
   const { data: qrCodes, isLoading: qrLoading } = useQuery({
@@ -222,7 +351,7 @@ export default function FeedbackSetup() {
     queryFn: () => getFeedbackQrCodes().then(r => r.data.data),
   })
 
-  const isConfigured = !!(config?.google_review_url)
+  const isConfigured = !!(status?.google_review_url)
 
   const create = useMutation({
     mutationFn: createFeedbackQrCode,
@@ -253,18 +382,18 @@ export default function FeedbackSetup() {
     <div className="max-w-2xl space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-gray-900">Feedback Setup</h2>
-        <p className="text-sm text-gray-400 mt-0.5">Configure Google Reviews and manage your feedback QR codes</p>
+        <p className="text-sm text-gray-400 mt-0.5">Connect Google, manage QR codes, and enable AI features</p>
       </div>
 
-      <ReviewConfig onSaved={() => qc.invalidateQueries({ queryKey: ['review-config'] })} />
+      <GoogleConnectPanel />
 
-      {/* QR codes section */}
+      {/* QR codes section — unlocked once location is configured */}
       <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-5 transition-opacity ${isConfigured ? '' : 'opacity-50 pointer-events-none'}`}>
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="font-semibold text-gray-900">Your QR Codes</h3>
             {!isConfigured ? (
-              <p className="text-xs text-amber-600 mt-0.5">Complete setup above to enable QR creation.</p>
+              <p className="text-xs text-amber-600 mt-0.5">Connect Google above to enable QR creation.</p>
             ) : (
               <p className="text-xs text-gray-400 mt-0.5">Print and place these at your premises</p>
             )}
@@ -283,9 +412,7 @@ export default function FeedbackSetup() {
           <div className="flex-1 min-w-36">
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Label</label>
             <input
-              required
-              value={label}
-              onChange={e => setLabel(e.target.value)}
+              required value={label} onChange={e => setLabel(e.target.value)}
               placeholder="e.g. Front Desk"
               className={`${inp} w-full`}
             />
@@ -293,14 +420,11 @@ export default function FeedbackSetup() {
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Placement</label>
             <select value={placement} onChange={e => setPlacement(e.target.value)} className={inp}>
-              {PLACEMENTS.map(p => (
-                <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-              ))}
+              {PLACEMENTS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
             </select>
           </div>
           <button
-            type="submit"
-            disabled={create.isPending}
+            type="submit" disabled={create.isPending}
             className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow whitespace-nowrap"
           >
             <PlusIcon className="w-4 h-4" />
@@ -315,9 +439,7 @@ export default function FeedbackSetup() {
         ) : qrCodes?.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {qrCodes.map(qr => (
-              <QrCard
-                key={qr.id}
-                qr={qr}
+              <QrCard key={qr.id} qr={qr}
                 onDelete={(q) => del.mutate(q)}
                 onDownload={handleDownload}
                 onToggle={(q) => toggle.mutate(q)}

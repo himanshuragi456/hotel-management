@@ -35,8 +35,10 @@ const isFeedbackOnly = (modules) =>
 const buildNav = (modules) => {
   if (isFeedbackOnly(modules)) {
     return [
-      { label: 'QR Setup', path: '/owner/feedback/setup',     Icon: QrCodeIcon },
-      { label: 'Reviews',  path: '/owner/feedback/dashboard', Icon: StarIcon },
+      { label: 'QR Setup',    path: '/owner/feedback/setup',      Icon: QrCodeIcon },
+      { label: 'Submissions', path: '/owner/feedback/dashboard',  Icon: StarIcon },
+      { label: 'G Reviews',   path: '/owner/feedback/reviews',    Icon: StarIcon },
+      { label: 'GMB Posts',   path: '/owner/feedback/posts',      Icon: ChartBarIcon },
     ]
   }
 
@@ -70,8 +72,10 @@ const buildNav = (modules) => {
   if (has('feedback')) {
     items.push(
       { label: 'Feedback', divider: true },
-      { label: 'QR Setup', path: '/owner/feedback/setup',     Icon: QrCodeIcon },
-      { label: 'Reviews',  path: '/owner/feedback/dashboard', Icon: StarIcon },
+      { label: 'QR Setup',    path: '/owner/feedback/setup',     Icon: QrCodeIcon },
+      { label: 'Submissions', path: '/owner/feedback/dashboard', Icon: StarIcon },
+      { label: 'G Reviews',   path: '/owner/feedback/reviews',   Icon: StarIcon },
+      { label: 'GMB Posts',   path: '/owner/feedback/posts',     Icon: ChartBarIcon },
     )
   }
 

@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('subscriptions:expire')->dailyAt('00:05');
+Schedule::command('gmb:generate-weekly-posts')->weeklyOn(1, '09:00'); // Every Monday 9am
