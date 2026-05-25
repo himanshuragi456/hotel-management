@@ -1,0 +1,134 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { MapPin, TrendingUp, Sparkles, AlertCircle } from "lucide-react";
+import { RestaurantCard } from "@/components/restaurant/restaurant-card";
+import { RestaurantCardSkeleton } from "@/components/ui/skeleton";
+import { SearchBar } from "@/components/search/search-bar";
+import { CuisineFilterBar } from "@/components/search/cuisine-filter";
+import { useRestaurants, useCities } from "@/hooks/useRestaurants";
+import type { CuisineFilter } from "@/types";
+
+export default function HomePage() {
+  const [search, setSearch] = useState("");
+  const [selectedCity, setSelectedCity] = useState("All Cities");
+  const [selectedCuisine, setSelectedCuisine] = useState<CuisineFilter>("All");
+
+  const { data: cities = [] } = useCities();
+  const { data: allRestaurants = [], isLoading, isError } = useRestaurants({
+    city: selectedCity === "All Cities" ? undefined : selectedCity,
+    search: search || undefined,
+  });
+
+  const restaurants = useMemo(() => {
+    if (selectedCuisine === "All") return allRestaurants;
+    return allRestaurants.filter(
+      (r) => r.cuisine_type?.toLowerCase() === selectedCuisine.toLowerCase()
+    );
+  }, [allRestaurants, selectedCuisine]);
+
+  const featured = useMemo(
+    () => restaurants.filter((r) => r.is_open).slice(0, 3),
+    [restaurants]
+  );
+
+  const showFeatured = !search && selectedCuisine === "All" && featured.length > 0;
+
+  return (
+    <main>
+      {/* Hero */}
+      <section className="bg-gradient-to-br from-rose-50 via-white to-amber-50 border-b border-stone-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <div className="max-w-2xl mx-auto text-center mb-8">
+            <div className="inline-flex items-center gap-2 bg-rose-100 text-rose-700 rounded-full px-3 py-1.5 text-sm font-medium mb-4">
+              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+              Book before you arrive
+            </div>
+            <h1 className="text-4xl sm:text-5xl font-bold text-stone-900 tracking-tight leading-tight mb-4">
+              Find a table,{" "}
+              <span className="text-rose-600">order ahead</span>
+            </h1>
+            <p className="text-stone-500 text-lg leading-relaxed">
+              Browse restaurants near you, check live table availability, and
+              place your order before you arrive.
+            </p>
+          </div>
+
+          <div className="max-w-2xl mx-auto space-y-3">
+            <div className="flex gap-2">
+              <div className="relative flex-shrink-0">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" aria-hidden="true" />
+                <select
+                  value={selectedCity}
+                  onChange={(e) => setSelectedCity(e.target.value)}
+                  className="h-14 pl-9 pr-4 rounded-2xl bg-white border border-stone-200 text-stone-800 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent appearance-none cursor-pointer"
+                  aria-label="Select city"
+                >
+                  <option>All Cities</option>
+                  {cities.map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <SearchBar value={search} onChange={setSearch} className="flex-1" />
+            </div>
+            <CuisineFilterBar selected={selectedCuisine} onChange={setSelectedCuisine} />
+          </div>
+        </div>
+      </section>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-14">
+        {/* Error state */}
+        {isError && (
+          <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-2xl px-5 py-4 text-sm text-red-700">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+            Could not load restaurants. Please check your connection and try again.
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!isLoading && !isError && restaurants.length === 0 && (
+          <div className="text-center py-24">
+            <div className="text-6xl mb-4" aria-hidden="true">🔍</div>
+            <h2 className="text-xl font-semibold text-stone-800 mb-2">No restaurants found</h2>
+            <p className="text-stone-500">Try adjusting your search or filters</p>
+          </div>
+        )}
+
+        {/* Featured / open now */}
+        {showFeatured && (
+          <section aria-labelledby="featured-heading">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="w-5 h-5 text-amber-500" aria-hidden="true" />
+              <h2 id="featured-heading" className="text-xl font-bold text-stone-900">Open Now</h2>
+            </div>
+            <p className="text-sm text-stone-500 mb-5">Accepting orders right now</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {featured.map((r) => <RestaurantCard key={r.id} restaurant={r} />)}
+            </div>
+          </section>
+        )}
+
+        {/* All results */}
+        {(isLoading || restaurants.length > 0) && (
+          <section aria-labelledby="all-heading">
+            <div className="flex items-center gap-2 mb-1">
+              <MapPin className="w-5 h-5 text-rose-500" aria-hidden="true" />
+              <h2 id="all-heading" className="text-xl font-bold text-stone-900">
+                {search || selectedCuisine !== "All" ? "Results" : "All Restaurants"}
+              </h2>
+            </div>
+            {!isLoading && (
+              <p className="text-sm text-stone-500 mb-5">
+                {restaurants.length} {restaurants.length === 1 ? "place" : "places"} found
+              </p>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-5">
+              {isLoading
+                ? Array.from({ length: 6 }).map((_, i) => <RestaurantCardSkeleton key={i} />)
+                : restaurants.map((r) => <RestaurantCard key={r.id} restaurant={r} />)}
+            </div>
+          </section>
+        )}
+      </div>
+    </main>
+  );
+}
