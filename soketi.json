@@ -5,9 +5,9 @@
   "appManager.driver": "array",
   "appManager.array.apps": [
     {
-      "id": "hotel-app",
-      "key": "hotel-local-key",
-      "secret": "hotel-local-secret",
+      "id": "2155596",
+      "key": "0013f9a0b2dc9ca93937",
+      "secret": "3a3ac7470c02cdc4bd3e",
       "maxConnections": -1,
       "enableClientMessages": false,
       "enabled": true,

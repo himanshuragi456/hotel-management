@@ -11,7 +11,7 @@ class Tenant extends Model
     protected $fillable = [
         'name', 'slug', 'email', 'phone', 'address', 'city', 'state',
         'country', 'gstin', 'gst_rate', 'logo', 'currency', 'timezone',
-        'status', 'qr_ordering_enabled', 'customer_bill_request_enabled',
+        'status', 'is_open', 'qr_ordering_enabled', 'customer_bill_request_enabled',
         'kot_enabled', 'kot_auto_print', 'kot_printer', 'bill_auto_print', 'feedback_on_bill', 'upi_id',
         'google_place_id', 'google_review_url',
         'payment_gateway', 'business_domain', 'review_suggestions',
@@ -20,6 +20,7 @@ class Tenant extends Model
 
     protected $casts = [
         'review_suggestions'     => 'array',
+        'is_open'                           => 'boolean',
         'qr_ordering_enabled'               => 'boolean',
         'customer_bill_request_enabled'     => 'boolean',
         'kot_enabled'                       => 'boolean',

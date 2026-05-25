@@ -30,6 +30,7 @@ function Toggle({ label, description, checked, onChange, disabled }) {
 }
 
 function CustomerOrderingCard({ settings, onUpdate, isPending }) {
+  const isOpen      = settings?.is_open                       ?? true
   const qrEnabled   = settings?.qr_ordering_enabled          ?? true
   const billEnabled = settings?.customer_bill_request_enabled ?? true
 
@@ -45,6 +46,13 @@ function CustomerOrderingCard({ settings, onUpdate, isPending }) {
         </div>
       </div>
       <div className="divide-y divide-gray-50 mt-3">
+        <Toggle
+          label="Restaurant Open"
+          description="Mark your restaurant as open or closed. When closed, Magic Tables shows a 'We're closed' screen and blocks new orders."
+          checked={isOpen}
+          disabled={isPending}
+          onChange={() => onUpdate({ is_open: !isOpen })}
+        />
         <Toggle
           label="QR Menu Ordering"
           description="Customers can browse and place orders from their phone. Disable to make the QR menu view-only."

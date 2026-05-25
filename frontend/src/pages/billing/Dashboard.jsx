@@ -22,7 +22,7 @@ import {
   billingMarkServedRoom,
   extendBillingBookingStay,
   getActiveOrders,
-  getOwnerSettings,
+  getOwnerSettings, updateOwnerSettings,
   getTenantSettings,
   billingPlaceTakeaway,
 } from '@/services/restaurantService'
@@ -394,7 +394,8 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
 
   const allServed      = orders?.length > 0 && orders.every(o => o.status === 'served')
   const hasOpenOrders  = orders?.some(o => !['served', 'cancelled'].includes(o.status))
-  const unbilledOrders = orders?.filter(o => o.status !== 'cancelled' && !o.invoice) ?? []
+  // MT orders are pre-paid online — exclude them from billing queue
+  const unbilledOrders = orders?.filter(o => o.status !== 'cancelled' && !o.invoice && o.source !== 'magic_tables') ?? []
   const unbilledTotal  = unbilledOrders.reduce((s, o) => s + parseFloat(o.total ?? 0), 0)
   const [billAllForm, setBillAllForm] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -410,15 +411,27 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
       <div className="bg-white w-full sm:rounded-2xl sm:max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h2 className="font-bold text-gray-900">Table {table.number}</h2>
               {table.bill_requested_at && (
                 <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">🧾 Bill Requested</span>
+              )}
+              {table.waiter_called_at && !table.bill_requested_at && (
+                <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">🔔 Waiter Called</span>
+              )}
+              {table.magic_tables_customer && (
+                <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">Magic Tables</span>
               )}
             </div>
             <p className="text-xs text-gray-400">
               {table.section} · {table.status === 'occupied' ? `Occupied ${table.occupied_label ?? ''}` : 'Free'}
             </p>
+            {table.magic_tables_customer && (
+              <div className="flex items-center gap-3 mt-1.5 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-indigo-700 font-medium">{table.magic_tables_customer.customer_name}</span>
+                <span className="text-xs text-indigo-500">+91 {table.magic_tables_customer.customer_phone}</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -435,7 +448,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                 + Add Order
               </button>
             )}
-            {hasOpenOrders && unbilledOrders.length === 0 && (
+            {orders?.length > 0 && unbilledOrders.length === 0 && allServed && (
               <button
                 onClick={() => closeTable.mutate()}
                 disabled={closeTable.isPending}
@@ -583,7 +596,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                       Mark Served
                     </button>
                   )}
-                  {['ready', 'served'].includes(order.status) && !order.invoice && (
+                  {['ready', 'served'].includes(order.status) && !order.invoice && order.source !== 'magic_tables' && (
                     <button
                       onClick={() => setInvoiceOrder(order)}
                       className={`flex-1 text-xs py-1.5 rounded-lg font-semibold ${
@@ -594,6 +607,11 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                     >
                       {unbilledOrders.length > 1 ? 'Bill separately' : 'Bill'}
                     </button>
+                  )}
+                  {order.source === 'magic_tables' && (
+                    <span className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center bg-indigo-50 text-indigo-600 border border-indigo-200">
+                      Paid Online
+                    </span>
                   )}
                 </div>
               </div>
@@ -1303,6 +1321,12 @@ export default function BillingDashboard({ embedded = false }) {
     staleTime: 60000,
   })
   const tenantUpiId = tenantSettings?.upi_id ?? null
+  const isOpen = tenantSettings?.is_open ?? true
+
+  const toggleOpen = useMutation({
+    mutationFn: (val) => updateOwnerSettings({ is_open: val }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tenant-settings'] }),
+  })
 
   const openTable = (t) => {
     qc.invalidateQueries({ queryKey: ['billing-table-orders', t.id] })
@@ -1369,6 +1393,19 @@ export default function BillingDashboard({ embedded = false }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Open / Closed toggle */}
+            <button
+              onClick={() => toggleOpen.mutate(!isOpen)}
+              disabled={toggleOpen.isPending}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold transition-colors border ${
+                isOpen
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${isOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              <span className="hidden sm:inline">{isOpen ? 'Open' : 'Closed'}</span>
+            </button>
             {hasRestaurant && (
               <button onClick={() => setShowTakeaway(true)}
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-xl transition-colors shadow-sm">
@@ -1447,20 +1484,35 @@ export default function BillingDashboard({ embedded = false }) {
                         onClick={() => openTable(t)}
                         className={`rounded-xl border-2 p-3 text-center transition-all hover:shadow-md active:scale-95 relative ${
                           t.bill_requested_at ? 'border-purple-400 bg-purple-50' :
+                          t.waiter_called_at  ? 'border-amber-400 bg-amber-50' :
+                          t.magic_tables_customer ? 'border-indigo-400 bg-indigo-50' :
                           t.status === 'occupied' ? 'border-orange-400 bg-orange-50' : 'border-green-300 bg-green-50'
                         }`}
                       >
                         {t.bill_requested_at && (
                           <span className="absolute -top-1.5 -right-1.5 bg-purple-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">BILL</span>
                         )}
+                        {t.waiter_called_at && !t.bill_requested_at && (
+                          <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">CALL</span>
+                        )}
+                        {t.magic_tables_customer && !t.bill_requested_at && !t.waiter_called_at && (
+                          <span className="absolute -top-1.5 -left-1.5 bg-indigo-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">MT</span>
+                        )}
                         <div className="text-base font-bold text-gray-900">{t.number}</div>
                         <div className={`text-xs font-medium mt-0.5 ${
                           t.bill_requested_at ? 'text-purple-600' :
+                          t.waiter_called_at  ? 'text-amber-600' :
+                          t.magic_tables_customer ? 'text-indigo-600' :
                           t.status === 'free' ? 'text-green-600' : 'text-orange-600'
                         }`}>
-                          {t.bill_requested_at ? '🧾 Bill req.' : t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
+                          {t.bill_requested_at ? '🧾 Bill req.' : t.waiter_called_at ? '🔔 Called' : t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
                         </div>
-                        {t.active_order && !t.bill_requested_at && (
+                        {t.magic_tables_customer && !t.bill_requested_at && !t.waiter_called_at && (
+                          <div className="text-[10px] text-indigo-500 mt-0.5 truncate leading-tight">
+                            {t.magic_tables_customer.customer_name}
+                          </div>
+                        )}
+                        {t.active_order && !t.magic_tables_customer && !t.bill_requested_at && !t.waiter_called_at && (
                           <div className={`text-xs mt-0.5 font-medium ${
                             t.active_order.status === 'ready' ? 'text-green-600' :
                             t.active_order.status === 'preparing' ? 'text-blue-500' : 'text-yellow-600'

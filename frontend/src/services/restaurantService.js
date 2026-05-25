@@ -148,6 +148,7 @@ export const placePublicOrder = (slug, token, data) => api.post(`/public/menu/${
 export const getCustomerMenu = (slug, token) => api.get(`/public/menu/${slug}/${token}`)
 export const customerPlaceOrder = (slug, token, data) => api.post(`/public/menu/${slug}/${token}/order`, data)
 export const customerRequestBill = (slug, token) => api.post(`/public/menu/${slug}/${token}/request-bill`)
+export const customerCallWaiter  = (slug, token) => api.post(`/public/menu/${slug}/${token}/call-waiter`)
 export const getOrderStatus = (orderNumber) => api.get(`/public/orders/${orderNumber}/status`)
 
 // Owner — Staff

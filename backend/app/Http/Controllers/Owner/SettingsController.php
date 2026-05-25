@@ -17,6 +17,7 @@ class SettingsController extends Controller
     {
         $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
         return $this->success([
+            'is_open'                       => $tenant->is_open ?? true,
             'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
             'customer_bill_request_enabled' => $tenant->customer_bill_request_enabled,
             'kot_enabled'                   => $tenant->kot_enabled,
@@ -32,6 +33,7 @@ class SettingsController extends Controller
     {
         $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
         $request->validate([
+            'is_open'                       => 'sometimes|boolean',
             'qr_ordering_enabled'           => 'sometimes|boolean',
             'customer_bill_request_enabled' => 'sometimes|boolean',
             'kot_enabled'                   => 'sometimes|boolean',
@@ -42,6 +44,7 @@ class SettingsController extends Controller
             'upi_id'                        => 'sometimes|nullable|string|max:100',
         ]);
         $tenant->update($request->only([
+            'is_open',
             'qr_ordering_enabled',
             'customer_bill_request_enabled',
             'kot_enabled',
@@ -52,6 +55,7 @@ class SettingsController extends Controller
             'upi_id',
         ]));
         return $this->success([
+            'is_open'                       => $tenant->is_open ?? true,
             'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
             'customer_bill_request_enabled' => $tenant->customer_bill_request_enabled,
             'kot_enabled'                   => $tenant->kot_enabled,

@@ -9,14 +9,15 @@ class RestaurantTable extends Model
 {
     protected $fillable = [
         'tenant_id', 'number', 'capacity', 'section',
-        'status', 'occupied_since', 'bill_requested_at', 'qr_token',
+        'status', 'occupied_since', 'bill_requested_at', 'waiter_called_at', 'qr_token',
     ];
 
     protected function casts(): array
     {
         return [
-            'occupied_since'     => 'datetime',
-            'bill_requested_at'  => 'datetime',
+            'occupied_since'    => 'datetime',
+            'bill_requested_at' => 'datetime',
+            'waiter_called_at'  => 'datetime',
         ];
     }
 
@@ -27,8 +28,11 @@ class RestaurantTable extends Model
         });
     }
 
-    public function tenant()        { return $this->belongsTo(Tenant::class); }
-    public function activeOrder()   { return $this->hasOne(Order::class, 'restaurant_table_id')->whereNotIn('status', ['served', 'cancelled']); }
+    public function tenant()      { return $this->belongsTo(Tenant::class); }
+    public function activeOrder() {
+        return $this->hasOne(Order::class, 'restaurant_table_id')
+            ->whereNotIn('status', ['served', 'cancelled']);
+    }
 
     public function occupy(): void
     {
@@ -47,8 +51,18 @@ class RestaurantTable extends Model
         $this->update(['bill_requested_at' => null]);
     }
 
+    public function callWaiter(): void
+    {
+        $this->update(['waiter_called_at' => now()]);
+    }
+
+    public function clearWaiterCall(): void
+    {
+        $this->update(['waiter_called_at' => null]);
+    }
+
     public function free(): void
     {
-        $this->update(['status' => 'free', 'occupied_since' => null, 'bill_requested_at' => null]);
+        $this->update(['status' => 'free', 'occupied_since' => null, 'bill_requested_at' => null, 'waiter_called_at' => null]);
     }
 }

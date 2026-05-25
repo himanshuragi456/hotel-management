@@ -6,7 +6,7 @@ import {
   ClockIcon, BoltIcon, FireIcon, SparklesIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 import Pusher from 'pusher-js'
-import { getCustomerMenu, customerPlaceOrder, getOrderStatus, customerRequestBill } from '@/services/restaurantService'
+import { getCustomerMenu, customerPlaceOrder, getOrderStatus, customerRequestBill, customerCallWaiter } from '@/services/restaurantService'
 import PoweredByBanner from '@/components/shared/PoweredByBanner'
 import TenantSuspendedScreen from '@/components/shared/TenantSuspendedScreen'
 
@@ -17,9 +17,10 @@ const typeIcon = { veg: VEG_DOT, 'non-veg': NONVEG_DOT, vegan: VEGAN_DOT }
 
 // ── Cart components ────────────────────────────────────────────────────────────
 
-function CartBar({ cart, onOpen, onViewOrders, sessionOrders, onRequestBill, billRequestEnabled, billRequested, billRequesting, allServed }) {
+function CartBar({ cart, onOpen, onViewOrders, sessionOrders, onRequestBill, billRequestEnabled, billRequested, billRequesting, allServed, unpaidTotal, onCallWaiter, waiterCalled, waiterCalling }) {
   const count = cart.reduce((s, x) => s + x.quantity, 0)
   const total = cart.reduce((s, x) => s + x.price * x.quantity, 0)
+  const showRequestBill = sessionOrders && billRequestEnabled && allServed && unpaidTotal > 0
   return (
     <div className="fixed bottom-0 left-0 right-0 z-30 px-4 pb-5 pt-2 bg-gradient-to-t from-gray-100 via-gray-100/90 to-transparent pointer-events-none">
       <div className="pointer-events-auto space-y-2 max-w-md mx-auto">
@@ -33,20 +34,25 @@ function CartBar({ cart, onOpen, onViewOrders, sessionOrders, onRequestBill, bil
             <ChevronRightIcon className="w-4 h-4" />
           </button>
         )}
-        {sessionOrders && billRequestEnabled && allServed && (
+        {/* Call Waiter — always when session active */}
+        {sessionOrders && (
+          <button onClick={onCallWaiter} disabled={waiterCalled || waiterCalling}
+            className={`w-full rounded-2xl px-5 py-3 flex items-center justify-center gap-2 font-semibold text-sm shadow-sm transition-colors ${
+              waiterCalled
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+            }`}>
+            {waiterCalled ? <>🔔 Waiter called — on the way!</> : waiterCalling ? <>Calling…</> : <>🔔 Call Waiter</>}
+          </button>
+        )}
+        {showRequestBill && (
           <button onClick={onRequestBill} disabled={billRequested || billRequesting}
             className={`w-full rounded-2xl px-5 py-3 flex items-center justify-center gap-2 font-semibold text-sm shadow-sm transition-colors ${
               billRequested
                 ? 'bg-green-100 text-green-700 border border-green-200'
                 : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
             }`}>
-            {billRequested ? (
-              <>✅ Bill requested — staff is on the way</>
-            ) : billRequesting ? (
-              <>Requesting…</>
-            ) : (
-              <>🧾 Request Bill</>
-            )}
+            {billRequested ? <>✅ Bill requested — staff is on the way</> : billRequesting ? <>Requesting…</> : <>🧾 Request Bill</>}
           </button>
         )}
         {count > 0 && (
@@ -189,6 +195,7 @@ function BatchCard({ batch, batchNum, totalBatches }) {
   const isReadyMade = batch.is_ready_made
   const cfg = STATUS_CONFIG[batch.status] ?? STATUS_CONFIG.pending
   const isServed = batch.status === 'served'
+  const isPaid = batch.payment_status === 'paid'
 
   return (
     <div className="bg-white rounded-3xl overflow-hidden shadow-sm mb-4">
@@ -204,7 +211,15 @@ function BatchCard({ batch, batchNum, totalBatches }) {
             <p className={`text-lg font-bold ${cfg.heroText}`}>{cfg.headline}</p>
             <p className={`text-sm ${cfg.heroText} opacity-80`}>{cfg.sub}</p>
           </div>
-          <div className="text-4xl leading-none">{isReadyMade ? '⚡' : cfg.icon}</div>
+          {isPaid ? (
+            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-500 text-white shadow-sm">
+              ✓ Paid
+            </span>
+          ) : (
+            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-rose-500 text-white shadow-sm">
+              Unpaid
+            </span>
+          )}
         </div>
 
         {/* Queue position badge */}
@@ -242,13 +257,13 @@ function BatchCard({ batch, batchNum, totalBatches }) {
                 </span>
                 <span className="text-sm text-gray-800 font-medium">{item.name}</span>
               </div>
-              <span className="text-sm text-gray-500 font-medium">₹{item.subtotal}</span>
+              <span className="text-sm text-gray-500 font-medium tabular-nums">₹{Number(item.subtotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           ))}
         </div>
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
           <span className="text-sm font-semibold text-gray-500">Subtotal</span>
-          <span className="text-base font-bold text-gray-900">₹{batch.total}</span>
+          <span className="text-base font-bold text-gray-900 tabular-nums">₹{Number(batch.total).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
       </div>
 
@@ -260,7 +275,7 @@ function BatchCard({ batch, batchNum, totalBatches }) {
   )
 }
 
-function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnabled, billRequested, billRequesting, onAllServedChange, tenantId, tableId }) {
+function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnabled, billRequested, billRequesting, onAllServedChange, onUnpaidTotalChange, tenantId, tableId, onCallWaiter, waiterCalled, waiterCalling }) {
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['order-tracker', sessionOrders],
     queryFn: () => getOrderStatus(sessionOrders).then(r => r.data.data),
@@ -291,8 +306,10 @@ function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnab
 
   const batches = data?.batches ?? []
   const allDone = batches.length > 0 && batches.every(b => b.status === 'served')
+  const unpaidTotal = batches.filter(b => b.payment_status !== 'paid').reduce((s, b) => s + Number(b.total), 0)
 
   useEffect(() => { onAllServedChange?.(allDone) }, [allDone])
+  useEffect(() => { onUnpaidTotalChange?.(unpaidTotal) }, [unpaidTotal])
   const hasReady = batches.some(b => b.status === 'ready')
 
   if (!sessionOrders) return (
@@ -357,15 +374,47 @@ function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnab
       )}
 
       {/* Grand total */}
-      {data?.grand_total != null && batches.length > 1 && (
-        <div className="mx-4 bg-gray-900 text-white rounded-2xl px-5 py-4 flex justify-between items-center mb-4">
-          <span className="text-sm font-semibold text-gray-300">Total for this visit</span>
-          <span className="text-xl font-bold">₹{data.grand_total}</span>
+      {batches.length > 0 && (() => {
+        const paidTotal   = batches.filter(b => b.payment_status === 'paid').reduce((s, b) => s + Number(b.total), 0)
+        const unpaidTotal = batches.filter(b => b.payment_status !== 'paid').reduce((s, b) => s + Number(b.total), 0)
+        return (
+          <div className="mx-4 bg-gray-900 text-white rounded-2xl px-5 py-4 mb-4 space-y-2">
+            {paidTotal > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Paid online</span>
+                <span className="text-emerald-400 font-semibold tabular-nums">₹{paidTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            {unpaidTotal > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">To pay at counter</span>
+                <span className="text-rose-400 font-semibold tabular-nums">₹{unpaidTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-2 border-t border-white/10">
+              <span className="text-sm font-semibold text-gray-300">Total this visit</span>
+              <span className="text-xl font-bold tabular-nums">₹{(paidTotal + unpaidTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Call Waiter — always when there are orders */}
+      {batches.length > 0 && (
+        <div className="px-4 mb-3">
+          <button onClick={onCallWaiter} disabled={waiterCalled || waiterCalling}
+            className={`w-full font-bold py-4 rounded-2xl text-sm transition-colors ${
+              waiterCalled
+                ? 'bg-amber-50 border-2 border-amber-300 text-amber-700'
+                : 'bg-white border-2 border-gray-200 text-gray-700 hover:bg-gray-50'
+            }`}>
+            {waiterCalled ? '🔔 Waiter called — on the way!' : waiterCalling ? 'Calling…' : '🔔 Call Waiter'}
+          </button>
         </div>
       )}
 
-      {/* Request Bill — only once everything is served */}
-      {billRequestEnabled && allDone && (
+      {/* Request Bill — only once everything is served AND unpaid balance > 0 */}
+      {billRequestEnabled && allDone && unpaidTotal > 0 && (
         <div className="px-4 mb-3">
           <button onClick={onRequestBill} disabled={billRequested || billRequesting}
             className={`w-full font-bold py-4 rounded-2xl text-sm transition-colors ${
@@ -406,8 +455,10 @@ export default function CustomerMenuPage() {
   }, [menuSearch])
   const [sessionOrders, setSessionOrders] = useState(null)
   const [billRequested, setBillRequested] = useState(false)
+  const [waiterCalled, setWaiterCalled] = useState(false)
   const [tableCleared, setTableCleared] = useState(false)
   const [allServed, setAllServed] = useState(false)
+  const [unpaidTotal, setUnpaidTotal] = useState(0)
 
   const { data, isLoading, error, refetch: refetchMenu } = useQuery({
     queryKey: ['customer-menu', slug, token],
@@ -475,6 +526,15 @@ export default function CustomerMenuPage() {
   const requestBill = useMutation({
     mutationFn: () => customerRequestBill(slug, token),
     onSuccess: () => setBillRequested(true),
+  })
+
+  const callWaiter = useMutation({
+    mutationFn: () => customerCallWaiter(slug, token),
+    onSuccess: () => {
+      setWaiterCalled(true)
+      // Reset after 60 seconds so customer can call again if needed
+      setTimeout(() => setWaiterCalled(false), 60_000)
+    },
   })
 
   const addToCart = (item) => {
@@ -679,8 +739,12 @@ export default function CustomerMenuPage() {
             billRequested={billRequested}
             billRequesting={requestBill.isPending}
             onAllServedChange={setAllServed}
+            onUnpaidTotalChange={setUnpaidTotal}
             tenantId={data?.tenant_id}
             tableId={data?.table?.id}
+            onCallWaiter={() => callWaiter.mutate()}
+            waiterCalled={waiterCalled}
+            waiterCalling={callWaiter.isPending}
           />
         )}
       </div>
@@ -697,6 +761,10 @@ export default function CustomerMenuPage() {
           billRequested={billRequested}
           billRequesting={requestBill.isPending}
           allServed={allServed}
+          unpaidTotal={unpaidTotal}
+          onCallWaiter={() => callWaiter.mutate()}
+          waiterCalled={waiterCalled}
+          waiterCalling={callWaiter.isPending}
         />
       )}
 

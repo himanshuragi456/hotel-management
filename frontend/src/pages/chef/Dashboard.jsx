@@ -58,15 +58,29 @@ function OrderCard({ order, onStatusChange, showKotButton, onKotPrint }) {
       {/* Card header */}
       <div className="flex items-start justify-between mb-3">
         <div>
-          <span className="text-white font-bold text-lg leading-tight">
-            {order.type === 'takeaway'
-              ? `🛍️ Takeaway`
-              : order.table?.number
-              ? `Table ${order.table.number}`
-              : `Room ${order.room?.number ?? '—'}`}
-          </span>
-          {order.type === 'takeaway' && order.customer_name && (
-            <div className="text-slate-400 text-xs mt-0.5">{order.customer_name}{order.customer_phone ? ` · ${order.customer_phone}` : ''}</div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-white font-bold text-lg leading-tight">
+              {order.type === 'takeaway'
+                ? `Takeaway`
+                : order.table?.number
+                ? `Table ${order.table.number}`
+                : `Room ${order.room?.number ?? '—'}`}
+            </span>
+            {order.source === 'magic_tables' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/40">
+                Magic Tables
+              </span>
+            )}
+            {order.type === 'takeaway' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/40">
+                Takeaway
+              </span>
+            )}
+          </div>
+          {order.customer_name && (
+            <div className="text-slate-400 text-xs mt-0.5">
+              {order.customer_name}{order.customer_phone ? ` · ${order.customer_phone}` : ''}
+            </div>
           )}
           <div className="text-slate-500 text-xs mt-0.5 font-mono">{order.order_number}</div>
         </div>

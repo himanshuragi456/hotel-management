@@ -18,6 +18,7 @@ use App\Http\Controllers\Owner\Hotel\RoomController;
 use App\Http\Controllers\Public\BrandingController as PublicBrandingController;
 use App\Http\Controllers\Public\FeedbackSubmissionController;
 use App\Http\Controllers\Public\LandingController;
+use App\Http\Controllers\Public\MagicTablesController;
 use App\Http\Controllers\Superadmin\BrandingController as SuperadminBrandingController;
 use App\Http\Controllers\Waiter\OrderController as WaiterOrderController;
 use App\Http\Controllers\Waiter\RoomServiceController;
@@ -289,11 +290,30 @@ Route::prefix('public')->group(function () {
     Route::get('menu/{tenantSlug}/{qrToken}', [CustomerMenuController::class, 'menu']);
     Route::post('menu/{tenantSlug}/{qrToken}/order', [CustomerMenuController::class, 'placeOrder']);
     Route::post('menu/{tenantSlug}/{qrToken}/request-bill', [CustomerMenuController::class, 'requestBill']);
+    Route::post('menu/{tenantSlug}/{qrToken}/call-waiter', [CustomerMenuController::class, 'callWaiter']);
     Route::get('orders/{orderNumber}/status', [CustomerMenuController::class, 'orderStatus']);
     // Feedback submission (public — no auth)
     Route::get('feedback/{token}', [FeedbackSubmissionController::class, 'show']);
     Route::post('feedback/{token}/submit', [FeedbackSubmissionController::class, 'submit']);
     Route::post('feedback/{token}/ai-suggestions', [FeedbackSubmissionController::class, 'aiSuggestions']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Magic Tables — public consumer-facing discovery API
+|--------------------------------------------------------------------------
+*/
+Route::prefix('magic-tables')->group(function () {
+    Route::get('cities', [MagicTablesController::class, 'cities']);
+    Route::get('restaurants', [MagicTablesController::class, 'restaurants']);
+    Route::get('restaurants/{slug}', [MagicTablesController::class, 'show']);
+    Route::get('restaurants/{slug}/tables', [MagicTablesController::class, 'tables']);
+    Route::get('restaurants/{slug}/menu', [MagicTablesController::class, 'menu']);
+    Route::post('restaurants/{slug}/orders', [MagicTablesController::class, 'createOrder']);
+    Route::post('restaurants/{slug}/orders/verify-payment', [MagicTablesController::class, 'verifyPayment']);
+    Route::get('restaurants/{slug}/my-orders', [MagicTablesController::class, 'myOrders']);
+    Route::post('restaurants/{slug}/call-waiter', [MagicTablesController::class, 'callWaiter']);
+    Route::post('restaurants/{slug}/request-bill', [MagicTablesController::class, 'requestBill']);
 });
 
 // Payment webhooks (no auth, verified by signature)

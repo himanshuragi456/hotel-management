@@ -21,23 +21,30 @@ class InvoiceController extends Controller
     public function tables(): JsonResponse
     {
         $tables = \App\Models\RestaurantTable::where('tenant_id', auth()->user()->tenant_id)
-            ->with('activeOrder.items')
+            ->with(['activeOrder.items'])
             ->orderBy('number')
             ->get()
             ->map(function ($t) {
-                $mins = $t->occupied_since ? (int) round(abs(now()->diffInRealMinutes($t->occupied_since))) : null;
+                $mins  = $t->occupied_since ? (int) round(abs(now()->diffInRealMinutes($t->occupied_since))) : null;
+                $order = $t->activeOrder;
+                $mtCustomer = ($order && $order->source === 'magic_tables') ? [
+                    'customer_name'  => $order->customer_name,
+                    'customer_phone' => $order->customer_phone,
+                ] : null;
                 return [
-                    'id'             => $t->id,
-                    'number'         => $t->number,
-                    'section'        => $t->section,
-                    'capacity'       => $t->capacity,
-                    'status'         => $t->status,
-                    'occupied_since' => $t->occupied_since,
-                    'occupied_minutes' => $mins,
-                    'occupied_label' => $mins !== null ? ($mins >= 60 ? floor($mins / 60) . 'hr ' . ($mins % 60) . 'm' : $mins . 'm') : null,
-                    'active_order'      => $t->activeOrder,
-                    'active_order_id'  => $t->activeOrder?->id,
-                    'bill_requested_at'=> $t->bill_requested_at,
+                    'id'                  => $t->id,
+                    'number'              => $t->number,
+                    'section'             => $t->section,
+                    'capacity'            => $t->capacity,
+                    'status'              => $t->status,
+                    'occupied_since'      => $t->occupied_since,
+                    'occupied_minutes'    => $mins,
+                    'occupied_label'      => $mins !== null ? ($mins >= 60 ? floor($mins / 60) . 'hr ' . ($mins % 60) . 'm' : $mins . 'm') : null,
+                    'active_order'        => $order,
+                    'active_order_id'     => $order?->id,
+                    'bill_requested_at'   => $t->bill_requested_at,
+                    'waiter_called_at'    => $t->waiter_called_at,
+                    'magic_tables_customer' => $mtCustomer,
                 ];
             });
         return $this->success($tables);
@@ -338,12 +345,49 @@ class InvoiceController extends Controller
     public function closeTable(Request $request, int $tableId): JsonResponse
     {
         $tenantId = auth()->user()->tenant_id;
-        $table = \App\Models\RestaurantTable::where('id', $tableId)->where('tenant_id', $tenantId)->firstOrFail();
+        $tenant   = auth()->user()->tenant;
+        $table    = \App\Models\RestaurantTable::where('id', $tableId)->where('tenant_id', $tenantId)->firstOrFail();
+
         // Mark all open orders as served
         Order::where('tenant_id', $tenantId)
             ->where('restaurant_table_id', $tableId)
             ->whereNotIn('status', ['served', 'cancelled'])
             ->update(['status' => 'served']);
+
+        // Auto-create paid invoices for Magic Tables orders that don't have one
+        $mtOrders = Order::where('tenant_id', $tenantId)
+            ->where('restaurant_table_id', $tableId)
+            ->where('source', 'magic_tables')
+            ->where('payment_status', 'paid')
+            ->whereDoesntHave('invoice')
+            ->with('items')
+            ->get();
+
+        $gstRate = $tenant->gst_rate ?? 5;
+        foreach ($mtOrders as $order) {
+            $subtotal  = $order->subtotal;
+            $gstAmount = round($subtotal * ($gstRate / 100), 2);
+            $total     = $subtotal + $gstAmount;
+            Invoice::create([
+                'tenant_id'       => $tenantId,
+                'order_id'        => $order->id,
+                'customer_name'   => $order->customer_name,
+                'customer_phone'  => $order->customer_phone,
+                'subtotal'        => $subtotal,
+                'gst_rate'        => $gstRate,
+                'gst_amount'      => $gstAmount,
+                'discount_type'   => 0,
+                'discount_value'  => 0,
+                'discount_amount' => 0,
+                'total'           => $total,
+                'payment_method'  => 'upi',
+                'amount_paid'     => $total,
+                'amount_due'      => 0,
+                'status'          => 'paid',
+                'created_by'      => auth()->id(),
+            ]);
+        }
+
         $table->free();
         return $this->success(null, 'Table closed');
     }

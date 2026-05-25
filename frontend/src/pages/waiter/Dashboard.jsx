@@ -87,24 +87,30 @@ function TableGrid({ onSelect }) {
                 onClick={() => onSelect(t)}
                 className={`relative rounded-xl border-l-4 bg-white p-3 text-center transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-95 shadow-sm ${
                   t.bill_requested_at ? 'border-l-purple-400' :
+                  t.waiter_called_at  ? 'border-l-amber-400' :
                   t.status === 'occupied' ? 'border-l-orange-400' : 'border-l-green-400'
                 }`}
               >
                 {t.bill_requested_at && (
                   <span className="absolute -top-1.5 -right-1.5 bg-purple-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">BILL</span>
                 )}
+                {!t.bill_requested_at && t.waiter_called_at && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">CALL</span>
+                )}
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                     t.bill_requested_at ? 'bg-purple-500 animate-pulse' :
+                    t.waiter_called_at  ? 'bg-amber-500 animate-pulse' :
                     t.status === 'free' ? 'bg-green-500' : 'bg-orange-500'
                   }`} />
                 </div>
                 <div className="text-base font-bold text-gray-900">{t.number}</div>
                 <div className={`text-xs font-medium mt-0.5 ${
                   t.bill_requested_at ? 'text-purple-600' :
+                  t.waiter_called_at  ? 'text-amber-600' :
                   t.status === 'free' ? 'text-green-600' : 'text-orange-600'
                 }`}>
-                  {t.bill_requested_at ? '🧾 Bill' : t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
+                  {t.bill_requested_at ? '🧾 Bill' : t.waiter_called_at ? '🔔 Called' : t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
                 </div>
               </button>
             ))}

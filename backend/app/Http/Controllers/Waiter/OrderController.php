@@ -40,6 +40,7 @@ class OrderController extends Controller
                     })() : null,
                     'active_order_id'   => $t->activeOrder?->id,
                     'bill_requested_at' => $t->bill_requested_at,
+                    'waiter_called_at'  => $t->waiter_called_at,
                 ];
             });
         return $this->success($tables);

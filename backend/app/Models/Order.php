@@ -9,7 +9,8 @@ class Order extends Model
 {
     protected $fillable = [
         'tenant_id', 'restaurant_table_id', 'room_id', 'booking_id', 'waiter_id',
-        'order_number', 'type', 'status', 'preparing_at', 'notes',
+        'order_number', 'type', 'source', 'payment_status', 'razorpay_order_id', 'razorpay_payment_id',
+        'status', 'preparing_at', 'notes',
         'subtotal', 'tax', 'discount', 'total',
         'customer_name', 'customer_phone',
     ];

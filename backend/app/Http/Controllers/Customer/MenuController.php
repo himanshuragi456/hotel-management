@@ -58,7 +58,7 @@ class MenuController extends Controller
         // Only return orders if the table is currently occupied and we know when
         // that session started — prevents past sessions leaking onto a free table.
         $activeOrderNumbers = null;
-        if ($table->status === 'occupied' && $table->occupied_since) {
+        if (in_array($table->status, ['occupied', 'reserved']) && $table->occupied_since) {
             $activeOrderNumbers = Order::where('tenant_id', $tenant->id)
                 ->where('restaurant_table_id', $table->id)
                 ->whereNotIn('status', ['cancelled'])
@@ -71,7 +71,7 @@ class MenuController extends Controller
             'tenant_id'            => $tenant->id,
             'tenant'               => $tenant->only(['name', 'logo', 'currency', 'gst_rate', 'qr_ordering_enabled', 'customer_bill_request_enabled']),
             'table'                => array_merge(
-                $table->only(['id', 'number', 'section', 'bill_requested_at']),
+                $table->only(['id', 'number', 'section', 'bill_requested_at', 'waiter_called_at']),
                 ['status' => $table->status]
             ),
             'active_order_numbers' => $activeOrderNumbers ?: null,
@@ -172,7 +172,7 @@ class MenuController extends Controller
                 $createdOrders[] = $rmOrder->fresh()->load('items', 'table');
             }
 
-            $table->occupy();
+            if ($table->status !== 'occupied') $table->occupy();
             DB::commit();
 
             foreach ($createdOrders as $o) {
@@ -213,6 +213,20 @@ class MenuController extends Controller
         return $this->success(null, 'Bill request sent. Staff will assist you shortly.');
     }
 
+    public function callWaiter(string $tenantSlug, string $qrToken): JsonResponse
+    {
+        $tenant = Tenant::where('slug', $tenantSlug)->where('status', 'active')->firstOrFail();
+        $table  = RestaurantTable::where('qr_token', $qrToken)->where('tenant_id', $tenant->id)->firstOrFail();
+
+        if ($table->status !== 'occupied') {
+            return $this->error('No active session on this table.', 422);
+        }
+
+        $table->callWaiter();
+
+        return $this->success(null, 'Waiter has been called. Someone will be with you shortly.');
+    }
+
     public function orderStatus(Request $request, string $orderNumber): JsonResponse
     {
         // Support comma-separated order numbers for batch tracking
@@ -226,16 +240,18 @@ class MenuController extends Controller
         $batches = $orders->map(function (Order $order) use ($tenantId) {
             $queuePosition = null;
             if ($order->status === 'pending') {
-                // Count pending kitchen orders placed before this one for the same tenant
                 $queuePosition = Order::where('tenant_id', $tenantId)
                     ->where('status', 'pending')
-                    ->where('id', '<', $order->id)
-                    ->count() + 1;
+                    ->orderBy('id')
+                    ->pluck('id')
+                    ->search($order->id) + 1;
             }
 
             return [
                 'order_number'   => $order->order_number,
                 'status'         => $order->status,
+                'payment_status' => $order->payment_status,
+                'source'         => $order->source,
                 'queue_position' => $queuePosition,
                 'is_ready_made'  => $order->status === 'ready' && $order->preparing_at === null,
                 'preparing_at'   => $order->preparing_at,
