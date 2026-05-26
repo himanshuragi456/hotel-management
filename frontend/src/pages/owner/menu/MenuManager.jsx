@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   PlusIcon, MagnifyingGlassIcon, TrashIcon, PencilSquareIcon,
-  TagIcon, PhotoIcon, BoltIcon,
+  TagIcon, PhotoIcon, BoltIcon, ClockIcon,
 } from '@heroicons/react/24/outline'
 import { getCategories, createCategory, updateCategory, deleteCategory, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, bulkToggleItems } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
@@ -87,12 +87,13 @@ function CategoryPanel() {
 function ItemForm({ item, categories, onSuccess }) {
   const isEdit = !!item
   const [form, setForm] = useState({
-    menu_category_id: item?.menu_category_id ?? '',
-    name:             item?.name        ?? '',
-    description:      item?.description ?? '',
-    price:            item?.price       ?? '',
-    type:             item?.type        ?? 'veg',
-    is_ready_made:    item?.is_ready_made ?? false,
+    menu_category_id:  item?.menu_category_id  ?? '',
+    name:              item?.name              ?? '',
+    description:       item?.description       ?? '',
+    price:             item?.price             ?? '',
+    type:              item?.type              ?? 'veg',
+    is_ready_made:     item?.is_ready_made     ?? false,
+    prep_time_minutes: item?.prep_time_minutes ?? '',
   })
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(item?.image_url ?? null)
@@ -209,6 +210,28 @@ function ItemForm({ item, categories, onSuccess }) {
             </div>
           </label>
         </div>
+        {!form.is_ready_made && (
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+              <ClockIcon className="w-3.5 h-3.5" />
+              Estimated Prep Time (minutes)
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min="1"
+                max="300"
+                step="1"
+                value={form.prep_time_minutes}
+                onChange={e => setField('prep_time_minutes', e.target.value)}
+                className={`${inp('prep_time_minutes')} pr-16`}
+                placeholder="e.g. 15"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">min</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Shown to customers before they place an order so they know when food will be ready.</p>
+          </div>
+        )}
         <div className="col-span-2">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Image</label>
           <label className="flex items-center gap-3 cursor-pointer border border-dashed border-gray-300 rounded-xl px-4 py-3 hover:border-orange-400 hover:bg-orange-50 transition-colors">
@@ -397,11 +420,15 @@ export default function MenuManager() {
                         <span className={`text-xs px-2.5 py-0.5 rounded-full w-fit font-medium ${item.is_available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                           {item.is_available ? 'Available' : 'Unavailable'}
                         </span>
-                        {item.is_ready_made && (
+                        {item.is_ready_made ? (
                           <span className="text-xs px-2.5 py-0.5 rounded-full w-fit bg-blue-100 text-blue-700 font-medium flex items-center gap-1">
                             <BoltIcon className="w-3 h-3" />Instant
                           </span>
-                        )}
+                        ) : item.prep_time_minutes ? (
+                          <span className="text-xs px-2.5 py-0.5 rounded-full w-fit bg-amber-100 text-amber-700 font-medium flex items-center gap-1">
+                            <ClockIcon className="w-3 h-3" />{item.prep_time_minutes} min
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-4 py-3.5">

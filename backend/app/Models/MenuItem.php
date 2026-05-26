@@ -9,14 +9,14 @@ class MenuItem extends Model
 {
     protected $fillable = [
         'tenant_id', 'menu_category_id', 'name', 'description',
-        'price', 'image', 'type', 'is_available', 'is_ready_made', 'sort_order',
+        'price', 'image', 'type', 'is_available', 'is_ready_made', 'prep_time_minutes', 'sort_order',
     ];
 
     protected $appends = ['image_url'];
 
     protected function casts(): array
     {
-        return ['is_available' => 'boolean', 'is_ready_made' => 'boolean', 'price' => 'float'];
+        return ['is_available' => 'boolean', 'is_ready_made' => 'boolean', 'price' => 'float', 'prep_time_minutes' => 'integer'];
     }
 
     public function getImageUrlAttribute(): ?string

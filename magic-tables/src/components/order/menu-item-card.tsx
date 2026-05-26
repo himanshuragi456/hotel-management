@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, Clock, Zap } from "lucide-react";
 import { useCartStore } from "@/store/cart";
 import { formatCurrency } from "@/lib/utils";
 import type { MenuItem, Tenant, Table } from "@/types";
@@ -52,6 +52,19 @@ export function MenuItemCard({ item, restaurant, table }: MenuItemCardProps) {
         {item.description && (
           <p className="text-xs text-stone-500 leading-relaxed line-clamp-2 mb-2">{item.description}</p>
         )}
+
+        {/* Prep time / instant badge */}
+        {item.is_ready_made ? (
+          <div className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full mb-2">
+            <Zap className="w-3 h-3" aria-hidden="true" />
+            Instant
+          </div>
+        ) : item.prep_time_minutes ? (
+          <div className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full mb-2">
+            <Clock className="w-3 h-3" aria-hidden="true" />
+            ~{item.prep_time_minutes} min
+          </div>
+        ) : null}
 
         <div className="flex items-center justify-between">
           <p className="font-semibold text-stone-900 text-sm">{formatCurrency(item.price)}</p>

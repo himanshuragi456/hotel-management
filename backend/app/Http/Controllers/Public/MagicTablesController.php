@@ -110,8 +110,9 @@ class MagicTablesController extends Controller
                     'price'        => (float) $item->price,
                     'image_url'    => $item->image_url,
                     'is_available' => $item->is_available,
-                    'is_veg'       => $item->type === 'veg',
-                    'is_ready_made'=> $item->is_ready_made,
+                    'is_veg'             => $item->type === 'veg',
+                    'is_ready_made'      => $item->is_ready_made,
+                    'prep_time_minutes'  => $item->is_ready_made ? null : $item->prep_time_minutes,
                 ]),
             ]);
 

@@ -81,9 +81,10 @@ class MenuController extends Controller
             'price'            => 'required|numeric|min:0',
             'description'      => 'nullable|string',
             'type'             => 'in:veg,non-veg,vegan',
-            'is_ready_made'    => 'boolean',
-            'image'            => 'nullable|image|max:2048',
-            'sort_order'       => 'integer|min:0',
+            'is_ready_made'       => 'boolean',
+            'prep_time_minutes'   => 'nullable|integer|min:1|max:300',
+            'image'               => 'nullable|image|max:2048',
+            'sort_order'          => 'integer|min:0',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
@@ -92,16 +93,18 @@ class MenuController extends Controller
             $imagePath = $request->file('image')->store('menu', 'public');
         }
 
+        $isReadyMade = $request->boolean('is_ready_made', false);
         $item = MenuItem::create([
-            'tenant_id'        => auth()->user()->tenant_id,
-            'menu_category_id' => $request->menu_category_id,
-            'name'             => $request->name,
-            'price'            => $request->price,
-            'description'      => $request->description,
-            'type'             => $request->type ?? 'veg',
-            'is_ready_made'    => $request->boolean('is_ready_made', false),
-            'image'            => $imagePath,
-            'sort_order'       => $request->sort_order ?? 0,
+            'tenant_id'           => auth()->user()->tenant_id,
+            'menu_category_id'    => $request->menu_category_id,
+            'name'                => $request->name,
+            'price'               => $request->price,
+            'description'         => $request->description,
+            'type'                => $request->type ?? 'veg',
+            'is_ready_made'       => $isReadyMade,
+            'prep_time_minutes'   => $isReadyMade ? null : $request->prep_time_minutes,
+            'image'               => $imagePath,
+            'sort_order'          => $request->sort_order ?? 0,
         ]);
         return $this->created($item->load('category'));
     }
@@ -114,11 +117,12 @@ class MenuController extends Controller
             'price'            => 'sometimes|numeric|min:0',
             'description'      => 'nullable|string',
             'type'             => 'in:veg,non-veg,vegan',
-            'is_available'     => 'boolean',
-            'is_ready_made'    => 'boolean',
-            'image'            => 'nullable|image|max:2048',
-            'sort_order'       => 'integer|min:0',
-            'menu_category_id' => 'exists:menu_categories,id',
+            'is_available'        => 'boolean',
+            'is_ready_made'       => 'boolean',
+            'prep_time_minutes'   => 'nullable|integer|min:1|max:300',
+            'image'               => 'nullable|image|max:2048',
+            'sort_order'          => 'integer|min:0',
+            'menu_category_id'    => 'exists:menu_categories,id',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
@@ -127,10 +131,19 @@ class MenuController extends Controller
             $menuItem->image = $request->file('image')->store('menu', 'public');
         }
 
-        $menuItem->update($request->only([
+        $updateData = $request->only([
             'name', 'price', 'description', 'type',
             'is_available', 'is_ready_made', 'sort_order', 'menu_category_id',
-        ]));
+        ]);
+        // Clear prep time when switching to ready-made
+        if ($request->has('is_ready_made')) {
+            $updateData['prep_time_minutes'] = $request->boolean('is_ready_made')
+                ? null
+                : ($request->has('prep_time_minutes') ? $request->prep_time_minutes : $menuItem->prep_time_minutes);
+        } elseif ($request->has('prep_time_minutes')) {
+            $updateData['prep_time_minutes'] = $request->prep_time_minutes;
+        }
+        $menuItem->update($updateData);
         return $this->success($menuItem->load('category'));
     }
 

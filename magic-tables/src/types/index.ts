@@ -49,6 +49,7 @@ export interface MenuItem {
   is_available: boolean;
   is_veg: boolean;
   is_ready_made: boolean;
+  prep_time_minutes: number | null;
 }
 
 export interface MenuPageData {

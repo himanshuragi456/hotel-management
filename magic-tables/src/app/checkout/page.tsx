@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Minus, Plus, Trash2, CreditCard,
-  ShoppingBag, User, AlertCircle, Lock, CheckCircle2, Smartphone,
+  ShoppingBag, User, AlertCircle, Lock, CheckCircle2, Smartphone, Clock,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCartStore } from "@/store/cart";
@@ -41,6 +41,12 @@ export default function CheckoutPage() {
   const sub = subtotal();
   const gst = Math.round(sub * (gstRate / 100));
   const grandTotal = sub + gst;
+
+  // Max prep time across cooked (non-ready-made) items in cart
+  const maxPrepTime = items.reduce((max, { menuItem }) => {
+    if (menuItem.is_ready_made || !menuItem.prep_time_minutes) return max;
+    return Math.max(max, menuItem.prep_time_minutes);
+  }, 0);
 
   function validate() {
     let valid = true;
@@ -195,6 +201,22 @@ export default function CheckoutPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Prep time warning */}
+        {maxPrepTime > 0 && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-4" role="alert">
+            <Clock className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900 mb-1">
+                Kitchen starts cooking immediately after you order
+              </p>
+              <p className="text-sm text-amber-800 leading-relaxed">
+                Your order will take up to <span className="font-bold">{maxPrepTime} minutes</span> to prepare.
+                Please only place this order if you can reach the restaurant within this time — otherwise your food may be cold when you arrive.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Cart items */}
         <section aria-labelledby="cart-items-heading" className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
           <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
