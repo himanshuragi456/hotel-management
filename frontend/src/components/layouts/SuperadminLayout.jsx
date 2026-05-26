@@ -6,6 +6,7 @@ import {
   RectangleGroupIcon,
   ClipboardDocumentListIcon,
   SwatchIcon,
+  MapPinIcon,
   Bars3Icon,
   ArrowRightOnRectangleIcon,
   ChevronLeftIcon,
@@ -17,6 +18,7 @@ import { logout } from '@/services/authService'
 const NAV = [
   { label: 'Overview',      path: '/superadmin',               Icon: ChartBarIcon },
   { label: 'Tenants',       path: '/superadmin/tenants',       Icon: BuildingOffice2Icon },
+  { label: 'Locations',     path: '/superadmin/locations',     Icon: MapPinIcon },
   { label: 'Plans',         path: '/superadmin/plans',         Icon: RectangleGroupIcon },
   { label: 'Audit Logs',    path: '/superadmin/audit-logs',    Icon: ClipboardDocumentListIcon },
   { label: 'Branding',      path: '/superadmin/branding',      Icon: SwatchIcon },

@@ -32,6 +32,7 @@ import TenantDetail from '@/pages/superadmin/tenants/TenantDetail'
 import PlanList from '@/pages/superadmin/plans/PlanList'
 import AuditLogs from '@/pages/superadmin/audit/AuditLogs'
 import BrandingSettings from '@/pages/superadmin/BrandingSettings'
+import LocationList from '@/pages/superadmin/locations/LocationList'
 
 // Owner
 import OwnerLayout from '@/components/layouts/OwnerLayout'
@@ -93,6 +94,7 @@ export default function App() {
             <Route index element={<Overview />} />
             <Route path="tenants" element={<TenantList />} />
             <Route path="tenants/:id" element={<TenantDetail />} />
+            <Route path="locations" element={<LocationList />} />
             <Route path="plans" element={<PlanList />} />
             <Route path="audit-logs" element={<AuditLogs />} />
             <Route path="branding" element={<BrandingSettings />} />

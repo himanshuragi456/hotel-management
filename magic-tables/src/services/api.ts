@@ -2,7 +2,7 @@ import { apiClient } from "@/lib/axios";
 import type { MenuCategory, MenuPageData, Table, Tenant } from "@/types";
 
 export const restaurantApi = {
-  list: (params?: { city?: string; search?: string }) =>
+  list: (params?: { location_id?: number; search?: string }) =>
     apiClient
       .get<{ status: boolean; data: Tenant[] }>("/magic-tables/restaurants", { params })
       .then((r) => r.data.data),
@@ -25,6 +25,11 @@ export const restaurantApi = {
   cities: () =>
     apiClient
       .get<{ status: boolean; data: string[] }>("/magic-tables/cities")
+      .then((r) => r.data.data),
+
+  locations: () =>
+    apiClient
+      .get<{ status: boolean; data: { id: number; name: string; city: string | null; state: string | null }[] }>("/magic-tables/locations")
       .then((r) => r.data.data),
 };
 

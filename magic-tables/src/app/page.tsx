@@ -6,17 +6,17 @@ import { RestaurantCard } from "@/components/restaurant/restaurant-card";
 import { RestaurantCardSkeleton } from "@/components/ui/skeleton";
 import { SearchBar } from "@/components/search/search-bar";
 import { CuisineFilterBar } from "@/components/search/cuisine-filter";
-import { useRestaurants, useCities } from "@/hooks/useRestaurants";
+import { useRestaurants, useLocations } from "@/hooks/useRestaurants";
 import type { CuisineFilter } from "@/types";
 
 export default function HomePage() {
   const [search, setSearch] = useState("");
-  const [selectedCity, setSelectedCity] = useState("All Cities");
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
   const [selectedCuisine, setSelectedCuisine] = useState<CuisineFilter>("All");
 
-  const { data: cities = [] } = useCities();
+  const { data: locations = [] } = useLocations();
   const { data: allRestaurants = [], isLoading, isError } = useRestaurants({
-    city: selectedCity === "All Cities" ? undefined : selectedCity,
+    location_id: selectedLocationId ?? undefined,
     search: search || undefined,
   });
 
@@ -59,13 +59,17 @@ export default function HomePage() {
               <div className="relative flex-shrink-0">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" aria-hidden="true" />
                 <select
-                  value={selectedCity}
-                  onChange={(e) => setSelectedCity(e.target.value)}
+                  value={selectedLocationId ?? ""}
+                  onChange={(e) => setSelectedLocationId(e.target.value ? Number(e.target.value) : null)}
                   className="h-14 pl-9 pr-4 rounded-2xl bg-white border border-stone-200 text-stone-800 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent appearance-none cursor-pointer"
-                  aria-label="Select city"
+                  aria-label="Select location"
                 >
-                  <option>All Cities</option>
-                  {cities.map((c) => <option key={c}>{c}</option>)}
+                  <option value="">All Locations</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}{loc.city ? ` · ${loc.city}` : ""}
+                    </option>
+                  ))}
                 </select>
               </div>
               <SearchBar value={search} onChange={setSearch} className="flex-1" />

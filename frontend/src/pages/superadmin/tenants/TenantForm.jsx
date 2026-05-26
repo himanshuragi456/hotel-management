@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { createTenant, updateTenant, assignPlan, getPlans } from '@/services/superadminService'
+import { createTenant, updateTenant, assignPlan, getPlans, getLocations } from '@/services/superadminService'
 import { validate, validateField, required, isEmail, isPhone, isGstin, isNonNeg, maxValue, atLeastOne } from '@/utils/validate'
-import { CalendarDaysIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
+import { CalendarDaysIcon, InformationCircleIcon, MapPinIcon } from '@heroicons/react/24/outline'
 
 const DETAIL_RULES = {
   name:     [required('Business name')],
@@ -60,7 +60,7 @@ function CredentialsModal({ email, password, onClose }) {
   )
 }
 
-function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit }) {
+function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLocations }) {
   const set = (field, value) => {
     setForm(f => ({ ...f, [field]: value }))
     const err = validateField(DETAIL_RULES, field, value, { ...form, [field]: value })
@@ -71,6 +71,12 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit }) {
     setForm(f => ({ ...f, modules: newModules }))
     const err = validateField(DETAIL_RULES, 'modules', newModules, form)
     setFieldErrors(f => ({ ...f, modules: err }))
+  }
+  const toggleLocation = (id) => {
+    const ids = form.location_ids.includes(id)
+      ? form.location_ids.filter(x => x !== id)
+      : [...form.location_ids, id]
+    setForm(f => ({ ...f, location_ids: ids }))
   }
   const blur = (field) => {
     const err = validateField(DETAIL_RULES, field, form[field], form)
@@ -133,6 +139,37 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit }) {
           </div>
         )}
       </div>
+
+      {/* Locations multi-select */}
+      {allLocations && allLocations.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
+            <MapPinIcon className="w-3.5 h-3.5" />
+            Locations
+          </p>
+          <p className="text-xs text-gray-400 mb-2">Select which Magic Tables locations this tenant appears in</p>
+          <div className="flex flex-wrap gap-2">
+            {allLocations.map(loc => {
+              const selected = form.location_ids.includes(loc.id)
+              return (
+                <button
+                  key={loc.id}
+                  type="button"
+                  onClick={() => toggleLocation(loc.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    selected
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                  }`}
+                >
+                  {loc.name}
+                  {loc.city ? ` · ${loc.city}` : ''}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div>
         <p className="text-xs font-medium text-gray-700 mb-1">Modules *</p>
@@ -303,6 +340,7 @@ export default function TenantForm({ tenant, onSuccess }) {
       hotel:      tenant?.modules?.hotel      ?? false,
       feedback:   tenant?.modules?.feedback   ?? false,
     },
+    location_ids: tenant?.locations?.map(l => l.id) ?? [],
   })
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -312,6 +350,11 @@ export default function TenantForm({ tenant, onSuccess }) {
     queryKey: ['plans'],
     queryFn: () => getPlans().then(r => r.data.data),
     enabled: isEdit,
+  })
+
+  const { data: allLocations = [] } = useQuery({
+    queryKey: ['locations'],
+    queryFn: () => getLocations().then(r => r.data.data),
   })
 
   const mutation = useMutation({
@@ -364,7 +407,7 @@ export default function TenantForm({ tenant, onSuccess }) {
       {tab === 'details' && (
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">{error}</div>}
-          <DetailsTab form={form} setForm={setForm} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} isEdit={isEdit} />
+          <DetailsTab form={form} setForm={setForm} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} isEdit={isEdit} allLocations={allLocations} />
           <div className="flex justify-end gap-3 pt-2">
             <button type="submit" disabled={mutation.isPending}
               className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">

@@ -9,6 +9,7 @@ use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RestaurantTable;
+use App\Models\Location;
 use App\Models\Tenant;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -32,8 +33,8 @@ class MagicTablesController extends Controller
             ->whereHas('modules', fn($q) => $q->where('restaurant', true))
             ->with('modules');
 
-        if ($city = $request->query('city')) {
-            $query->where('city', $city);
+        if ($locationId = $request->query('location_id')) {
+            $query->whereHas('locations', fn($q) => $q->where('locations.id', $locationId));
         }
 
         if ($search = $request->query('search')) {
@@ -46,6 +47,12 @@ class MagicTablesController extends Controller
 
         $data = $query->orderBy('name')->get()->map(fn($t) => $this->formatTenant($t));
         return $this->success($data);
+    }
+
+    public function locations(): JsonResponse
+    {
+        $locations = Location::where('is_active', true)->orderBy('name')->get();
+        return $this->success($locations);
     }
 
     public function show(string $slug): JsonResponse

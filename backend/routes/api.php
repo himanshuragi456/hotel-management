@@ -29,6 +29,7 @@ use App\Http\Controllers\Superadmin\DatabaseStatsController;
 use App\Http\Controllers\Superadmin\PaymentGatewayController;
 use App\Http\Controllers\Superadmin\SubscriptionController;
 use App\Http\Controllers\Superadmin\SubscriptionPlanController;
+use App\Http\Controllers\Superadmin\LocationController;
 use App\Http\Controllers\Superadmin\TenantController;
 use Illuminate\Support\Facades\Route;
 
@@ -104,6 +105,12 @@ Route::middleware(['auth:api'])->group(function () {
         // Branding / sales config
         Route::get('branding', [SuperadminBrandingController::class, 'show']);
         Route::post('branding', [SuperadminBrandingController::class, 'update']);
+
+        // Locations
+        Route::get('locations', [LocationController::class, 'index']);
+        Route::post('locations', [LocationController::class, 'store']);
+        Route::put('locations/{location}', [LocationController::class, 'update']);
+        Route::delete('locations/{location}', [LocationController::class, 'destroy']);
     });
 
     /*
@@ -335,6 +342,7 @@ Route::prefix('public')->group(function () {
 */
 Route::prefix('magic-tables')->group(function () {
     Route::get('cities', [MagicTablesController::class, 'cities']);
+    Route::get('locations', [MagicTablesController::class, 'locations']);
     Route::get('restaurants', [MagicTablesController::class, 'restaurants']);
     Route::get('restaurants/{slug}', [MagicTablesController::class, 'show']);
     Route::get('restaurants/{slug}/tables', [MagicTablesController::class, 'tables']);

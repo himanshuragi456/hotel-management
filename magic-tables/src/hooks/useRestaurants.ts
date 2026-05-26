@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { restaurantApi, orderApi } from "@/services/api";
 
-export function useRestaurants(params?: { city?: string; search?: string }) {
+export function useRestaurants(params?: { location_id?: number; search?: string }) {
   return useQuery({
     queryKey: ["restaurants", params],
     queryFn: () => restaurantApi.list(params),
@@ -41,6 +41,14 @@ export function useCities() {
   return useQuery({
     queryKey: ["cities"],
     queryFn: () => restaurantApi.cities(),
+    staleTime: 10 * 60_000,
+  });
+}
+
+export function useLocations() {
+  return useQuery({
+    queryKey: ["locations"],
+    queryFn: () => restaurantApi.locations(),
     staleTime: 10 * 60_000,
   });
 }

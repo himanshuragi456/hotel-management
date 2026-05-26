@@ -22,7 +22,7 @@ class TenantController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Tenant::with(['modules', 'subscription.plan'])
+        $query = Tenant::with(['modules', 'subscription.plan', 'locations'])
             ->withCount('users');
 
         if ($request->search) {
@@ -56,6 +56,8 @@ class TenantController extends Controller
             'modules.restaurant' => 'boolean',
             'modules.hotel'      => 'boolean',
             'modules.feedback'   => 'boolean',
+            'location_ids'       => 'nullable|array',
+            'location_ids.*'     => 'integer|exists:locations,id',
         ]);
 
         if ($validator->fails()) {
@@ -95,6 +97,10 @@ class TenantController extends Controller
                 'is_active' => true,
             ]);
 
+            if ($request->filled('location_ids')) {
+                $tenant->locations()->sync($request->location_ids);
+            }
+
             AuditLog::record('tenant.created', $tenant, [], $tenant->toArray());
 
             // Seed default tables, menu, rooms & feedback QR for new tenant
@@ -114,7 +120,7 @@ class TenantController extends Controller
 
     public function show(Tenant $tenant): JsonResponse
     {
-        $tenant->load(['modules', 'subscription.plan', 'users' => fn($q) => $q->select('id', 'name', 'email', 'role', 'is_active', 'tenant_id')]);
+        $tenant->load(['modules', 'subscription.plan', 'locations', 'users' => fn($q) => $q->select('id', 'name', 'email', 'role', 'is_active', 'tenant_id')]);
         $tenant->loadCount('users');
 
         // Reset usage counter display if it's a new month
@@ -164,6 +170,8 @@ class TenantController extends Controller
             'status'   => 'sometimes|in:trial,suspended',
             'google_place_id'   => 'nullable|string',
             'google_review_url' => 'nullable|url',
+            'location_ids'      => 'nullable|array',
+            'location_ids.*'    => 'integer|exists:locations,id',
         ]);
 
         if ($validator->fails()) {
@@ -181,9 +189,13 @@ class TenantController extends Controller
             'gstin', 'gst_rate', 'status', 'google_place_id', 'google_review_url',
         ]));
 
+        if ($request->has('location_ids')) {
+            $tenant->locations()->sync($request->location_ids ?? []);
+        }
+
         AuditLog::record('tenant.updated', $tenant, $old, $tenant->fresh()->toArray());
 
-        return $this->success($tenant->load('modules'));
+        return $this->success($tenant->load(['modules', 'locations']));
     }
 
     public function destroy(Tenant $tenant): JsonResponse

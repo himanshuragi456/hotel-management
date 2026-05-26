@@ -33,6 +33,12 @@ export const getDbOverview = () => api.get('/superadmin/db/overview')
 export const getAuditLogs = (params) => api.get('/superadmin/audit-logs', { params })
 export const purgeAuditLogs = (data) => api.delete('/superadmin/audit-logs/purge', { data })
 
+// Locations
+export const getLocations = () => api.get('/superadmin/locations')
+export const createLocation = (data) => api.post('/superadmin/locations', data)
+export const updateLocation = (id, data) => api.put(`/superadmin/locations/${id}`, data)
+export const deleteLocation = (id) => api.delete(`/superadmin/locations/${id}`)
+
 // Branding
 export const getBranding = () => api.get('/superadmin/branding')
 export const updateBranding = (formData) => api.post('/superadmin/branding', formData, {
