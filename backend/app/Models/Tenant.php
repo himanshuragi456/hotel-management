@@ -14,6 +14,7 @@ class Tenant extends Model
         'country', 'gstin', 'gst_rate', 'logo', 'currency', 'timezone',
         'status', 'is_open', 'qr_ordering_enabled', 'customer_bill_request_enabled',
         'kot_enabled', 'kot_auto_print', 'kot_printer', 'bill_auto_print', 'feedback_on_bill', 'upi_id',
+        'contact_phones', 'active_contact_phone',
         'google_place_id', 'google_review_url',
         'gmb_account_id', 'gmb_location_id', 'gmb_access_token', 'gmb_refresh_token',
         'gmb_token_expires_at', 'gmb_location_name', 'gmb_auto_reply_enabled',
@@ -24,6 +25,7 @@ class Tenant extends Model
 
     protected $casts = [
         'review_suggestions'     => 'array',
+        'contact_phones'         => 'array',
         'is_open'                           => 'boolean',
         'qr_ordering_enabled'               => 'boolean',
         'customer_bill_request_enabled'     => 'boolean',

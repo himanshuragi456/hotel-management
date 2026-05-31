@@ -63,6 +63,12 @@ export const searchBillingGuests    = (q)        => api.get('/billing/hotel/gues
 export const createBillingGuest     = (data)     => api.post('/billing/hotel/guests', data)
 
 // Billing
+export const getPendingMtOrders     = ()                        => api.get('/billing/magic-tables/pending')
+export const confirmMtPayment       = (slug, orderId, data)     => api.post(`/billing/magic-tables/${slug}/orders/${orderId}/confirm-payment`, data)
+export const discardMtOrder         = (slug, orderId)           => api.post(`/billing/magic-tables/${slug}/orders/${orderId}/discard`)
+export const getBillPaidTables      = ()                        => api.get('/billing/magic-tables/bill-paid')
+export const confirmBillPaid        = (tableId)                 => api.post(`/billing/magic-tables/tables/${tableId}/confirm-bill-paid`)
+export const rejectBillPaid         = (tableId)                 => api.post(`/billing/magic-tables/tables/${tableId}/reject-bill-paid`)
 export const getReadyOrders      = ()              => api.get('/billing/orders/ready')
 export const getActiveOrders     = ()              => api.get('/billing/orders/active')
 export const getAllBillingOrders  = (params)        => api.get('/billing/orders', { params })
@@ -165,8 +171,9 @@ export const getPublicMenu = (slug, token) => api.get(`/public/menu/${slug}/${to
 export const placePublicOrder = (slug, token, data) => api.post(`/public/menu/${slug}/${token}/order`, data)
 export const getCustomerMenu = (slug, token) => api.get(`/public/menu/${slug}/${token}`)
 export const customerPlaceOrder = (slug, token, data) => api.post(`/public/menu/${slug}/${token}/order`, data)
-export const customerRequestBill = (slug, token) => api.post(`/public/menu/${slug}/${token}/request-bill`)
-export const customerCallWaiter  = (slug, token) => api.post(`/public/menu/${slug}/${token}/call-waiter`)
+export const customerRequestBill    = (slug, token) => api.post(`/public/menu/${slug}/${token}/request-bill`)
+export const customerCallWaiter     = (slug, token) => api.post(`/public/menu/${slug}/${token}/call-waiter`)
+export const customerNotifyBillPaid = (slug, token) => api.post(`/public/menu/${slug}/${token}/notify-bill-paid`)
 export const getOrderStatus = (orderNumber) => api.get(`/public/orders/${orderNumber}/status`)
 
 // Owner — Staff
@@ -185,4 +192,5 @@ export const toggleStaffActive = (id)       => api.post(`/owner/staff/${id}/togg
 export const getOwnerSettings    = ()     => api.get('/owner/settings')
 export const updateOwnerSettings = (data) => api.put('/owner/settings', data)
 export const getTenantSettings   = ()     => api.get('/tenant-settings')
+export const setActiveContactPhone = (phone) => api.put('/settings/active-phone', { active_contact_phone: phone })
 export const changeOwnPassword   = (data) => api.post('/owner/change-password', data)

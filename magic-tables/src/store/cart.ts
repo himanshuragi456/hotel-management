@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CartItem, MenuItem, Table, Tenant } from "@/types";
+import type { SubmitUpiOrderResponse } from "@/services/api";
 
 interface CartState {
   items: CartItem[];
   tenantId: number | null;
   tenantSlug: string | null;
   tenantName: string | null;
+  activeContactPhone: string | null;
   tableId: number | null;
   tableNumber: string | null;
   qrToken: string | null;
@@ -14,8 +16,16 @@ interface CartState {
   customerName: string;
   customerPhone: string;
   sessionStartedAt: number | null; // ms timestamp when session began (after first payment)
+  // Persisted so the UPI waiting screen survives a page refresh
+  pendingOrder: SubmitUpiOrderResponse | null;
+  // True while customer has notified counter and is waiting for billing to confirm
+  billAwaitingConfirm: boolean;
   _hasHydrated: boolean;
+  // true once an order is confirmed — table + restaurant are locked
+  isTableLocked: () => boolean;
   setCustomer: (name: string, phone: string) => void;
+  setPendingOrder: (order: SubmitUpiOrderResponse | null) => void;
+  setBillAwaitingConfirm: (val: boolean) => void;
   addItem: (item: MenuItem, restaurant: Tenant, table: Table) => void;
   removeItem: (menuItemId: number) => void;
   updateQuantity: (menuItemId: number, qty: number) => void;
@@ -32,6 +42,7 @@ export const useCartStore = create<CartState>()(
       tenantId: null,
       tenantSlug: null,
       tenantName: null,
+      activeContactPhone: null,
       tableId: null,
       tableNumber: null,
       qrToken: null,
@@ -39,20 +50,33 @@ export const useCartStore = create<CartState>()(
       customerName: "",
       customerPhone: "",
       sessionStartedAt: null,
+      pendingOrder: null,
+      billAwaitingConfirm: false,
       _hasHydrated: false,
 
+      // Locked once the customer has confirmed an order (sessionStartedAt is set)
+      isTableLocked: () => !!get().sessionStartedAt,
+
       setCustomer: (name, phone) => set({ customerName: name, customerPhone: phone, sessionStartedAt: Date.now() }),
+      setPendingOrder: (order) => set({ pendingOrder: order }),
+      setBillAwaitingConfirm: (val) => set({ billAwaitingConfirm: val }),
 
       addItem: (menuItem, restaurant, table) => {
-        const { items, tenantId } = get();
+        const { items, tenantId, tableId: currentTableId } = get();
 
-        // Clear cart if switching restaurant
+        // Refuse silently if locked to a different restaurant or table
+        if (get().isTableLocked()) {
+          if (tenantId !== restaurant.id || currentTableId !== table.id) return;
+        }
+
+        // Clear cart if switching restaurant (only allowed when not locked)
         if (tenantId && tenantId !== restaurant.id) {
           set({
             items: [],
             tenantId: restaurant.id,
             tenantSlug: restaurant.slug,
             tenantName: restaurant.name,
+            activeContactPhone: restaurant.active_contact_phone ?? null,
             tableId: table.id,
             tableNumber: table.table_number,
             qrToken: table.qr_token,
@@ -63,6 +87,7 @@ export const useCartStore = create<CartState>()(
             tenantId: restaurant.id,
             tenantSlug: restaurant.slug,
             tenantName: restaurant.name,
+            activeContactPhone: restaurant.active_contact_phone ?? null,
             tableId: table.id,
             tableNumber: table.table_number,
             qrToken: table.qr_token,
@@ -107,6 +132,7 @@ export const useCartStore = create<CartState>()(
           tenantId: null,
           tenantSlug: null,
           tenantName: null,
+          activeContactPhone: null,
           tableId: null,
           tableNumber: null,
           qrToken: null,
@@ -114,6 +140,8 @@ export const useCartStore = create<CartState>()(
           customerName: "",
           customerPhone: "",
           sessionStartedAt: null,
+          pendingOrder: null,
+          billAwaitingConfirm: false,
         });
       },
 

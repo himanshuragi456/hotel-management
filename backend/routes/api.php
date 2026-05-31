@@ -223,6 +223,9 @@ Route::middleware(['auth:api'])->group(function () {
         // Shared read-only settings — accessible to all staff roles for KOT config etc.
         Route::middleware(['role:waiter,chef,billing,owner'])->get('tenant-settings', [SettingsController::class, 'show']);
 
+        // Billing counter: set active contact phone shown to Magic Tables customers
+        Route::middleware(['role:billing,owner'])->put('settings/active-phone', [SettingsController::class, 'setActivePhone']);
+
         // Waiter routes — restaurant module only
         Route::middleware(['role:waiter,owner', 'module:restaurant'])->prefix('waiter')->group(function () {
             Route::get('tables', [WaiterOrderController::class, 'tables']);
@@ -290,6 +293,16 @@ Route::middleware(['auth:api'])->group(function () {
             Route::middleware(['module:restaurant'])->group(function () {
                 Route::post('takeaway/orders', [InvoiceController::class, 'storeTakeaway']);
             });
+            // Magic Tables payment confirmation — restaurant module
+            Route::middleware(['module:restaurant'])->group(function () {
+                Route::get('magic-tables/pending', [InvoiceController::class, 'pendingMtOrders']);
+                Route::post('magic-tables/{slug}/orders/{orderId}/confirm-payment', [MagicTablesController::class, 'confirmPayment']);
+                Route::post('magic-tables/{slug}/orders/{orderId}/discard', [MagicTablesController::class, 'discardOrder']);
+                // Bill-paid confirmation — customer notified counter, billing confirms and closes
+                Route::get('magic-tables/bill-paid', [InvoiceController::class, 'billPaidTables']);
+                Route::post('magic-tables/tables/{tableId}/confirm-bill-paid', [InvoiceController::class, 'confirmBillPaid']);
+                Route::post('magic-tables/tables/{tableId}/reject-bill-paid', [InvoiceController::class, 'rejectBillPaid']);
+            });
             // Cross-module: invoices and active-order feed available if any module active
             Route::get('orders/ready', [InvoiceController::class, 'readyOrders']);
             Route::get('orders/active', [InvoiceController::class, 'activeOrders']);
@@ -322,6 +335,7 @@ Route::prefix('public')->group(function () {
     Route::post('menu/{tenantSlug}/{qrToken}/order', [CustomerMenuController::class, 'placeOrder']);
     Route::post('menu/{tenantSlug}/{qrToken}/request-bill', [CustomerMenuController::class, 'requestBill']);
     Route::post('menu/{tenantSlug}/{qrToken}/call-waiter', [CustomerMenuController::class, 'callWaiter']);
+    Route::post('menu/{tenantSlug}/{qrToken}/notify-bill-paid', [CustomerMenuController::class, 'notifyBillPaid']);
     Route::get('orders/{orderNumber}/status', [CustomerMenuController::class, 'orderStatus']);
     // Feedback submission (public — no auth)
     // Google OAuth callback (redirects to frontend after token exchange)
@@ -349,9 +363,12 @@ Route::prefix('magic-tables')->group(function () {
     Route::get('restaurants/{slug}/menu', [MagicTablesController::class, 'menu']);
     Route::post('restaurants/{slug}/orders', [MagicTablesController::class, 'createOrder']);
     Route::post('restaurants/{slug}/orders/verify-payment', [MagicTablesController::class, 'verifyPayment']);
+    Route::post('restaurants/{slug}/orders/submit-upi', [MagicTablesController::class, 'submitUpiOrder']);
     Route::get('restaurants/{slug}/my-orders', [MagicTablesController::class, 'myOrders']);
     Route::post('restaurants/{slug}/call-waiter', [MagicTablesController::class, 'callWaiter']);
     Route::post('restaurants/{slug}/request-bill', [MagicTablesController::class, 'requestBill']);
+    Route::post('restaurants/{slug}/orders/{orderId}/cancel', [MagicTablesController::class, 'cancelOrder']);
+    Route::post('restaurants/{slug}/tables/{tableId}/notify-paid', [MagicTablesController::class, 'notifyBillPaid']);
 });
 
 // Payment webhooks (no auth, verified by signature)

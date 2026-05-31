@@ -13,10 +13,10 @@ class SettingsController extends Controller
 {
     use ApiResponse;
 
-    public function show(): JsonResponse
+    private function tenantData(Tenant $tenant): array
     {
-        $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
-        return $this->success([
+        return [
+            'slug'                          => $tenant->slug,
             'is_open'                       => $tenant->is_open ?? true,
             'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
             'customer_bill_request_enabled' => $tenant->customer_bill_request_enabled,
@@ -26,7 +26,15 @@ class SettingsController extends Controller
             'bill_auto_print'               => $tenant->bill_auto_print ?? false,
             'feedback_on_bill'              => $tenant->feedback_on_bill ?? false,
             'upi_id'                        => $tenant->upi_id,
-        ]);
+            'contact_phones'                => $tenant->contact_phones ?? [],
+            'active_contact_phone'          => $tenant->active_contact_phone,
+        ];
+    }
+
+    public function show(): JsonResponse
+    {
+        $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
+        return $this->success($this->tenantData($tenant));
     }
 
     public function update(Request $request): JsonResponse
@@ -42,6 +50,9 @@ class SettingsController extends Controller
             'bill_auto_print'               => 'sometimes|boolean',
             'feedback_on_bill'              => 'sometimes|boolean',
             'upi_id'                        => 'sometimes|nullable|string|max:100',
+            'contact_phones'                => 'sometimes|array|max:5',
+            'contact_phones.*'              => 'string|regex:/^[6-9]\d{9}$/',
+            'active_contact_phone'          => 'sometimes|nullable|string|regex:/^[6-9]\d{9}$/',
         ]);
         $tenant->update($request->only([
             'is_open',
@@ -53,18 +64,29 @@ class SettingsController extends Controller
             'bill_auto_print',
             'feedback_on_bill',
             'upi_id',
+            'contact_phones',
+            'active_contact_phone',
         ]));
-        return $this->success([
-            'is_open'                       => $tenant->is_open ?? true,
-            'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
-            'customer_bill_request_enabled' => $tenant->customer_bill_request_enabled,
-            'kot_enabled'                   => $tenant->kot_enabled,
-            'kot_auto_print'                => $tenant->kot_auto_print,
-            'kot_printer'                   => $tenant->kot_printer ?? 'kitchen',
-            'bill_auto_print'               => $tenant->bill_auto_print ?? false,
-            'feedback_on_bill'              => $tenant->feedback_on_bill ?? false,
-            'upi_id'                        => $tenant->upi_id,
-        ], 'Settings updated');
+        return $this->success($this->tenantData($tenant), 'Settings updated');
+    }
+
+    /** Billing counter sets which phone number is currently active */
+    public function setActivePhone(Request $request): JsonResponse
+    {
+        $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
+        $request->validate([
+            'active_contact_phone' => 'required|nullable|string',
+        ]);
+
+        $phone = $request->active_contact_phone;
+        $phones = $tenant->contact_phones ?? [];
+
+        if ($phone !== null && !in_array($phone, $phones, true)) {
+            return $this->error('Phone number not in the configured list', 422);
+        }
+
+        $tenant->update(['active_contact_phone' => $phone]);
+        return $this->success(['active_contact_phone' => $tenant->active_contact_phone], 'Active phone updated');
     }
 
     public function changePassword(Request $request): JsonResponse
@@ -73,9 +95,9 @@ class SettingsController extends Controller
         $request->validate([
             'current_password' => 'required|string',
             'password'         => ['required', 'string', 'min:8', 'confirmed',
-                'regex:/[A-Z]/',      // at least one uppercase
-                'regex:/[0-9]/',      // at least one number
-                'regex:/[@$!%*#?&]/', // at least one special char
+                'regex:/[A-Z]/',
+                'regex:/[0-9]/',
+                'regex:/[@$!%*#?&]/',
             ],
         ], [
             'password.regex' => 'Password must contain at least one uppercase letter, one number, and one special character (@$!%*#?&).',

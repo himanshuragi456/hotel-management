@@ -3,6 +3,7 @@ import { Playfair_Display, Karla } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/layout/navbar";
+import { FooterBranding } from "@/components/layout/footer-branding";
 
 const playfair = Playfair_Display({
   variable: "--font-heading",
@@ -23,10 +24,18 @@ export const metadata: Metadata = {
   description:
     "Browse restaurants and cafes near you, check live table availability, and place your order before you arrive.",
   keywords: ["restaurant", "table booking", "order food", "cafe", "food delivery"],
+  icons: {
+    icon: [
+      { url: "/logo-icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/logo-icon.svg",
+  },
   openGraph: {
     title: "Magic Tables",
     description: "Find a table, order ahead.",
     type: "website",
+    images: [{ url: "/logo-icon.svg" }],
   },
 };
 
@@ -38,7 +47,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Navbar />
           <div className="flex-1">{children}</div>
           <footer suppressHydrationWarning className="border-t border-stone-100 bg-white py-6 text-center text-sm text-stone-400">
-            © {new Date().getFullYear()} Magic Tables · Powered by your favourite local spots
+            © {new Date().getFullYear()} Magic Tables
+            <FooterBranding />
           </footer>
         </Providers>
       </body>

@@ -6,7 +6,7 @@ import {
   ClockIcon, BoltIcon, FireIcon, SparklesIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 import Pusher from 'pusher-js'
-import { getCustomerMenu, customerPlaceOrder, getOrderStatus, customerRequestBill, customerCallWaiter } from '@/services/restaurantService'
+import { getCustomerMenu, customerPlaceOrder, getOrderStatus, customerRequestBill, customerCallWaiter, customerNotifyBillPaid } from '@/services/restaurantService'
 import PoweredByBanner from '@/components/shared/PoweredByBanner'
 import TenantSuspendedScreen from '@/components/shared/TenantSuspendedScreen'
 
@@ -106,6 +106,101 @@ function CartSheet({ cart, onClose, onUpdateQty, onPlaceOrder, placing }) {
           </button>
           <p className="text-xs text-gray-400 text-center mt-3">Your order will go directly to the kitchen</p>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Pay Bill sheet ────────────────────────────────────────────────────────────
+
+function PayBillSheet({ upiId, unpaidTotal, tableNumber, onNotify, notifying, notifyError, onClose }) {
+  const [copied, setCopied] = useState(false)
+  const upiLink   = `upi://pay?pa=${upiId}&am=${unpaidTotal}&cu=INR&tn=Table+${tableNumber ?? ''}`
+  const deepLinks = {
+    phonepe: upiLink.replace('upi://', 'phonepe://'),
+    gpay:    upiLink.replace('upi://pay', 'tez://upi/pay'),
+    paytm:   upiLink.replace('upi://', 'paytmmp://'),
+  }
+
+  const copy = () => {
+    navigator.clipboard.writeText(upiId).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white rounded-t-3xl px-5 pt-5 pb-10 shadow-2xl overflow-y-auto max-h-[95dvh]">
+        {/* Drag handle */}
+        <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">💳 Pay Your Bill</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Scan or tap an app to pay</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
+            <XMarkIcon className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Amount pill */}
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl px-5 py-3 flex items-center justify-between mb-4">
+          <span className="text-sm font-medium text-orange-700">Total to pay</span>
+          <span className="text-xl font-bold text-orange-600">₹{unpaidTotal.toFixed(0)}</span>
+        </div>
+
+        {/* Red reminder */}
+        <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-4">
+          <span className="text-base shrink-0">⚠️</span>
+          <p className="text-sm text-red-700 leading-snug">
+            After paying from any app, <span className="font-semibold">come back here and tap "Done — Notify Counter"</span> to close your table.
+          </p>
+        </div>
+
+        {/* QR */}
+        <div className="flex flex-col items-center bg-gray-50 border border-gray-100 rounded-2xl p-4 mb-4">
+          <p className="text-xs text-gray-400 font-semibold mb-3 uppercase tracking-wider">Scan to Pay</p>
+          <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm mb-3">
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(upiLink)}&size=176x176&margin=4`}
+              alt="UPI QR"
+              className="w-44 h-44 rounded"
+            />
+          </div>
+          <button onClick={copy}
+            className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm font-mono text-gray-600 hover:bg-gray-50 transition-colors">
+            {upiId}
+            <span className="text-base">{copied ? '✅' : '📋'}</span>
+          </button>
+        </div>
+
+        {/* UPI app buttons */}
+        <p className="text-xs text-gray-400 font-semibold text-center mb-2 uppercase tracking-wider">Pay with app</p>
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[
+            { href: deepLinks.phonepe, src: '/phonepelogo.png', label: 'PhonePe' },
+            { href: deepLinks.gpay,    src: '/gpaylogo.svg',    label: 'GPay'    },
+            { href: deepLinks.paytm,   src: '/paytmlogo.webp',  label: 'Paytm'   },
+          ].map(app => (
+            <a key={app.label} href={app.href}
+              className="flex flex-col items-center gap-2 bg-white border border-gray-200 rounded-2xl px-3 py-3 hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all shadow-sm">
+              <img src={app.src} alt={app.label} className="w-9 h-9 object-contain" />
+              <span className="text-xs font-semibold text-gray-700">{app.label}</span>
+            </a>
+          ))}
+        </div>
+
+        {notifyError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-3 text-sm text-red-700">
+            <span>⚠️</span> {notifyError}
+          </div>
+        )}
+
+        <button onClick={onNotify} disabled={notifying}
+          className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-4 rounded-2xl text-sm transition-colors shadow-lg shadow-orange-200">
+          {notifying ? 'Notifying counter…' : '✅ Done — Notify Counter'}
+        </button>
       </div>
     </div>
   )
@@ -212,11 +307,13 @@ function BatchCard({ batch, batchNum, totalBatches }) {
             <p className={`text-sm ${cfg.heroText} opacity-80`}>{cfg.sub}</p>
           </div>
           {isPaid ? (
-            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-500 text-white shadow-sm">
-              ✓ Paid
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full bg-white/95 text-emerald-700 shadow-sm ring-1 ring-emerald-200">
+              <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="6" fill="#10b981"/><path d="M3.5 6l1.8 1.8L8.5 4.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Paid
             </span>
           ) : (
-            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-rose-500 text-white shadow-sm">
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full bg-white/95 text-amber-700 shadow-sm ring-1 ring-amber-200">
+              <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="6" fill="#f59e0b"/><path d="M6 3.5v3M6 8v.5" stroke="white" strokeWidth="1.4" strokeLinecap="round"/></svg>
               Unpaid
             </span>
           )}
@@ -275,7 +372,7 @@ function BatchCard({ batch, batchNum, totalBatches }) {
   )
 }
 
-function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnabled, billRequested, billRequesting, onAllServedChange, onUnpaidTotalChange, tenantId, tableId, onCallWaiter, waiterCalled, waiterCalling }) {
+function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnabled, billRequested, billRequesting, onAllServedChange, onUnpaidTotalChange, tenantId, tableId, onCallWaiter, waiterCalled, waiterCalling, upiId, onPayBill }) {
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['order-tracker', sessionOrders],
     queryFn: () => getOrderStatus(sessionOrders).then(r => r.data.data),
@@ -413,14 +510,24 @@ function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnab
         </div>
       )}
 
-      {/* Request Bill — only once everything is served AND unpaid balance > 0 */}
+      {/* Pay Bill via UPI — primary CTA when all served and unpaid */}
+      {allDone && unpaidTotal > 0 && upiId && (
+        <div className="px-4 mb-3">
+          <button onClick={onPayBill}
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl text-sm transition-colors">
+            💳 Pay Bill — ₹{unpaidTotal.toFixed(0)}
+          </button>
+        </div>
+      )}
+
+      {/* Request Bill (cash/counter) — secondary option */}
       {billRequestEnabled && allDone && unpaidTotal > 0 && (
         <div className="px-4 mb-3">
           <button onClick={onRequestBill} disabled={billRequested || billRequesting}
             className={`w-full font-bold py-4 rounded-2xl text-sm transition-colors ${
               billRequested
                 ? 'bg-green-50 border-2 border-green-300 text-green-700'
-                : 'bg-gray-900 text-white hover:bg-gray-800'
+                : 'bg-white border-2 border-gray-200 text-gray-700 hover:bg-gray-50'
             }`}>
             {billRequested ? '✅ Bill requested — staff is on the way' : billRequesting ? 'Requesting…' : '🧾 Request Bill'}
           </button>
@@ -459,10 +566,15 @@ export default function CustomerMenuPage() {
   const [tableCleared, setTableCleared] = useState(false)
   const [allServed, setAllServed] = useState(false)
   const [unpaidTotal, setUnpaidTotal] = useState(0)
+  const [showPayBillSheet, setShowPayBillSheet] = useState(false)
+  const [billPaidAwaiting, setBillPaidAwaiting] = useState(false)
+  const [notifyError, setNotifyError] = useState('')
 
   const { data, isLoading, error, refetch: refetchMenu } = useQuery({
     queryKey: ['customer-menu', slug, token],
     queryFn: () => getCustomerMenu(slug, token).then(r => r.data.data),
+    refetchInterval: 8000,
+    staleTime: 0,
   })
 
   // Listen on the table channel to also detect table-cleared (billing closed)
@@ -491,7 +603,10 @@ export default function CustomerMenuPage() {
 
   useEffect(() => {
     if (!data) return
-    if (data.table?.status === 'free' && sessionOrders) {
+    const tableFreed = data.table?.status === 'free'
+    const noOrders   = !data.active_order_numbers
+
+    if ((tableFreed || noOrders) && sessionOrders) {
       // Table was closed by billing — show thank-you screen then reset
       setTableCleared(true)
       setBillRequested(false)
@@ -503,13 +618,31 @@ export default function CustomerMenuPage() {
         setAllServed(false)
       }, 4000)
     } else if (data.active_order_numbers) {
-      setSessionOrders(prev => {
-        if (!prev) return data.active_order_numbers
-        const merged = [...new Set([...prev.split(','), ...data.active_order_numbers.split(',')])]
-        return merged.join(',')
-      })
+      // API is authoritative — always replace with the current session's orders.
+      setSessionOrders(data.active_order_numbers)
     }
   }, [data])
+
+  // Sync bill_paid_at from server — billing clearing it means rejected (customer can retry)
+  useEffect(() => {
+    if (!data) return
+    const serverAwaiting = !!data.table?.bill_paid_at
+    setBillPaidAwaiting(serverAwaiting)
+  }, [data])
+
+  // Lock navigation while awaiting billing confirmation
+  useEffect(() => {
+    if (!billPaidAwaiting) return
+    window.history.pushState({ awaitingBill: true }, '')
+    const onPopState = () => window.history.pushState({ awaitingBill: true }, '')
+    const onBeforeUnload = (e) => { e.preventDefault() }
+    window.addEventListener('popstate', onPopState)
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      window.removeEventListener('beforeunload', onBeforeUnload)
+    }
+  }, [billPaidAwaiting])
 
   const placeOrder = useMutation({
     mutationFn: ({ slug, token, items }) => customerPlaceOrder(slug, token, { items }),
@@ -526,6 +659,16 @@ export default function CustomerMenuPage() {
   const requestBill = useMutation({
     mutationFn: () => customerRequestBill(slug, token),
     onSuccess: () => setBillRequested(true),
+  })
+
+  const notifyBillPaid = useMutation({
+    mutationFn: () => customerNotifyBillPaid(slug, token),
+    onSuccess: () => {
+      setShowPayBillSheet(false)
+      setBillPaidAwaiting(true)
+      setNotifyError('')
+    },
+    onError: (err) => setNotifyError(err?.response?.data?.message ?? 'Could not notify counter. Please call the waiter.'),
   })
 
   const callWaiter = useMutation({
@@ -583,6 +726,28 @@ export default function CustomerMenuPage() {
   const orderingEnabled = tenant?.qr_ordering_enabled !== false
   const billRequestEnabled = tenant?.customer_bill_request_enabled !== false
   const cartCount = cart.reduce((s, x) => s + x.quantity, 0)
+
+  if (billPaidAwaiting) return (
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center max-w-lg mx-auto px-6 text-center">
+      <div className="animate-pulse text-7xl mb-6">⏳</div>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Awaiting Payment Confirmation</h2>
+      <p className="text-gray-500 text-sm mb-8 max-w-xs leading-relaxed">
+        The billing counter is verifying your payment. Please wait — your table will be closed shortly.
+      </p>
+      <div className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 mb-4">
+        <p className="text-sm font-semibold text-gray-700">{tenant?.name}</p>
+        <p className="text-xs text-gray-400 mt-0.5">Table {table?.number}{table?.section ? ` · ${table.section}` : ''}</p>
+      </div>
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 w-full mb-6">
+        <p className="text-xs text-amber-700">🧾 Keep your UPI payment screenshot ready in case the counter asks.</p>
+      </div>
+      <p className="text-xs text-gray-400 flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+        Checking every 8 seconds…
+      </p>
+      <PoweredByBanner />
+    </div>
+  )
 
   if (tableCleared) return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center max-w-lg mx-auto px-6 text-center">
@@ -745,6 +910,8 @@ export default function CustomerMenuPage() {
             onCallWaiter={() => callWaiter.mutate()}
             waiterCalled={waiterCalled}
             waiterCalling={callWaiter.isPending}
+            upiId={tenant?.upi_id ?? null}
+            onPayBill={() => { setNotifyError(''); setShowPayBillSheet(true) }}
           />
         )}
       </div>
@@ -775,6 +942,18 @@ export default function CustomerMenuPage() {
           onUpdateQty={updateQty}
           placing={placeOrder.isPending}
           onPlaceOrder={() => placeOrder.mutate({ slug, token, items: cart.map(({ menu_item_id, quantity }) => ({ menu_item_id, quantity })) })}
+        />
+      )}
+
+      {showPayBillSheet && tenant?.upi_id && (
+        <PayBillSheet
+          upiId={tenant.upi_id}
+          unpaidTotal={unpaidTotal}
+          tableNumber={table?.number}
+          onNotify={() => notifyBillPaid.mutate()}
+          notifying={notifyBillPaid.isPending}
+          notifyError={notifyError}
+          onClose={() => setShowPayBillSheet(false)}
         />
       )}
 

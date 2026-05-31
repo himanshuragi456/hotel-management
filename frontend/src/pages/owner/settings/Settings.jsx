@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   KeyIcon, PrinterIcon, CheckCircleIcon, ExclamationCircleIcon,
-  QrCodeIcon, BellAlertIcon, CreditCardIcon,
+  QrCodeIcon, BellAlertIcon, CreditCardIcon, PhoneIcon, PlusIcon, TrashIcon,
 } from '@heroicons/react/24/outline'
 import { getOwnerSettings, updateOwnerSettings, changeOwnPassword, getFeedbackQrCodes } from '@/services/restaurantService'
 import { validate, validateField, required, isStrongPassword } from '@/utils/validate'
@@ -214,6 +214,106 @@ function UpiSettingsCard({ settings, onUpdate, isPending }) {
   )
 }
 
+function ContactPhonesCard({ settings, onUpdate, isPending }) {
+  const [phones, setPhones] = useState([])
+  const [input, setInput] = useState('')
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (settings?.contact_phones) setPhones(settings.contact_phones)
+  }, [settings?.contact_phones])
+
+  const addPhone = () => {
+    const cleaned = input.replace(/\D/g, '').slice(0, 10)
+    if (!/^[6-9]\d{9}$/.test(cleaned)) {
+      setError('Enter a valid 10-digit Indian mobile number')
+      return
+    }
+    if (phones.includes(cleaned)) {
+      setError('This number is already in the list')
+      return
+    }
+    if (phones.length >= 5) {
+      setError('Maximum 5 numbers allowed')
+      return
+    }
+    const updated = [...phones, cleaned]
+    setPhones(updated)
+    setInput('')
+    setError('')
+    onUpdate({ contact_phones: updated })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const removePhone = (phone) => {
+    const updated = phones.filter(p => p !== phone)
+    setPhones(updated)
+    const patch = { contact_phones: updated }
+    if (settings?.active_contact_phone === phone) patch.active_contact_phone = null
+    onUpdate(patch)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
+          <PhoneIcon className="w-4 h-4 text-rose-600" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-900 text-sm">Restaurant Contact Numbers</h3>
+          <p className="text-xs text-gray-400">Add up to 5 phone numbers. The billing counter selects which one is shown to customers on the payment screen.</p>
+        </div>
+      </div>
+
+      {phones.length > 0 && (
+        <ul className="space-y-2 mb-4">
+          {phones.map(phone => (
+            <li key={phone} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
+              <span className="text-sm font-mono text-gray-800">+91 {phone}</span>
+              <button
+                onClick={() => removePhone(phone)}
+                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                aria-label={`Remove ${phone}`}
+              >
+                <TrashIcon className="w-4 h-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {phones.length < 5 && (
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium pointer-events-none">+91</span>
+            <input
+              type="tel"
+              value={input}
+              onChange={e => { setInput(e.target.value.replace(/\D/g, '').slice(0, 10)); setError('') }}
+              onKeyDown={e => e.key === 'Enter' && addPhone()}
+              placeholder="98765 43210"
+              inputMode="numeric"
+              className="w-full border border-gray-200 rounded-xl pl-10 pr-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          <button
+            onClick={addPhone}
+            disabled={isPending}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${saved ? 'bg-green-500 text-white' : 'bg-orange-500 text-white hover:bg-orange-600'} disabled:opacity-50`}
+          >
+            <PlusIcon className="w-4 h-4" />
+            Add
+          </button>
+        </div>
+      )}
+      {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+      {phones.length === 0 && <p className="text-xs text-gray-400 mt-2">No numbers added yet. Customers won't see a call option.</p>}
+    </div>
+  )
+}
+
 const PWD_RULES = {
   current_password: [required('Current password')],
   password:         [required('New password'), isStrongPassword()],
@@ -368,6 +468,11 @@ export default function OwnerSettings() {
               feedbackReady={feedbackReady}
             />
             <UpiSettingsCard
+              settings={settings}
+              onUpdate={(patch) => updateMutation.mutate(patch)}
+              isPending={updateMutation.isPending}
+            />
+            <ContactPhonesCard
               settings={settings}
               onUpdate={(patch) => updateMutation.mutate(patch)}
               isPending={updateMutation.isPending}

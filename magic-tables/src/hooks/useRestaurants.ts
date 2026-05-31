@@ -18,12 +18,12 @@ export function useRestaurant(slug: string) {
   });
 }
 
-export function useTables(slug: string) {
+export function useTables(slug: string, refetchInterval = 30_000) {
   return useQuery({
     queryKey: ["tables", slug],
     queryFn: () => restaurantApi.tables(slug),
     enabled: !!slug,
-    refetchInterval: 30_000,
+    refetchInterval,
   });
 }
 
@@ -58,6 +58,7 @@ export function useMyOrders(slug: string, tableId: number | null, customerPhone:
     queryKey: ["my-orders", slug, tableId, customerPhone],
     queryFn: () => orderApi.myOrders(slug, tableId!, customerPhone),
     enabled: !!slug && !!tableId && !!customerPhone,
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
+    staleTime: 0,
   });
 }

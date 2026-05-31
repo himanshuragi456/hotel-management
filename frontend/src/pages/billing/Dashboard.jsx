@@ -1,4 +1,30 @@
 import { useState, useEffect, useRef } from 'react'
+
+const WAITER_CALL_WINDOW_MS  = 20_000
+const BILL_REQUEST_WINDOW_MS = 30_000
+
+function isWaiterCallActive(ts) {
+  if (!ts) return false
+  return Date.now() - new Date(ts).getTime() < WAITER_CALL_WINDOW_MS
+}
+
+function isBillRequestActive(ts) {
+  if (!ts) return false
+  return Date.now() - new Date(ts).getTime() < BILL_REQUEST_WINDOW_MS
+}
+
+// Ticks every second while any table has an active waiter call or bill request
+function useAlertTicker(tables) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const hasActive = tables.some(
+      t => isWaiterCallActive(t.waiter_called_at) || isBillRequestActive(t.bill_requested_at)
+    )
+    if (!hasActive) return
+    const id = setInterval(() => setTick(n => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [tables])
+}
 import SubscriptionAlert from '@/components/shared/SubscriptionAlert'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Pusher from 'pusher-js'
@@ -25,6 +51,9 @@ import {
   getOwnerSettings, updateOwnerSettings,
   getTenantSettings,
   billingPlaceTakeaway,
+  getPendingMtOrders, confirmMtPayment, discardMtOrder,
+  getBillPaidTables, confirmBillPaid, rejectBillPaid,
+  setActiveContactPhone,
 } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
@@ -394,8 +423,8 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
 
   const allServed      = orders?.length > 0 && orders.every(o => o.status === 'served')
   const hasOpenOrders  = orders?.some(o => !['served', 'cancelled'].includes(o.status))
-  // MT orders are pre-paid online — exclude them from billing queue
-  const unbilledOrders = orders?.filter(o => o.status !== 'cancelled' && !o.invoice && o.source !== 'magic_tables') ?? []
+  // Only exclude MT orders that are actually paid — unpaid MT orders need billing
+  const unbilledOrders = orders?.filter(o => o.status !== 'cancelled' && !o.invoice && !(o.source === 'magic_tables' && o.payment_status === 'paid')) ?? []
   const unbilledTotal  = unbilledOrders.reduce((s, o) => s + parseFloat(o.total ?? 0), 0)
   const [billAllForm, setBillAllForm] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -413,10 +442,10 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="font-bold text-gray-900">Table {table.number}</h2>
-              {table.bill_requested_at && (
+              {isBillRequestActive(table.bill_requested_at) && (
                 <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">🧾 Bill Requested</span>
               )}
-              {table.waiter_called_at && !table.bill_requested_at && (
+              {isWaiterCallActive(table.waiter_called_at) && !isBillRequestActive(table.bill_requested_at) && (
                 <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">🔔 Waiter Called</span>
               )}
               {table.magic_tables_customer && (
@@ -564,7 +593,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                   {order.status === 'pending' && (
                     <>
                       <button
-                        onClick={() => setAddingTo(order.id)}
+                        onClick={() => setAddingTo('new')}
                         className="flex-1 text-xs border border-orange-300 text-orange-600 py-1.5 rounded-lg font-medium hover:bg-orange-50"
                       >
                         + Add Items
@@ -596,7 +625,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                       Mark Served
                     </button>
                   )}
-                  {['ready', 'served'].includes(order.status) && !order.invoice && order.source !== 'magic_tables' && (
+                  {['ready', 'served'].includes(order.status) && !order.invoice && !(order.source === 'magic_tables' && order.payment_status === 'paid') && (
                     <button
                       onClick={() => setInvoiceOrder(order)}
                       className={`flex-1 text-xs py-1.5 rounded-lg font-semibold ${
@@ -608,7 +637,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                       {unbilledOrders.length > 1 ? 'Bill separately' : 'Bill'}
                     </button>
                   )}
-                  {order.source === 'magic_tables' && (
+                  {order.source === 'magic_tables' && order.payment_status === 'paid' && (
                     <span className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center bg-indigo-50 text-indigo-600 border border-indigo-200">
                       Paid Online
                     </span>
@@ -1300,6 +1329,352 @@ function TakeawayPanel({ onClose, onDone }) {
   )
 }
 
+// ─── Pending Magic Tables Orders Panel ────────────────────────────────────────
+function ActivePhoneSelector({ tenantSettings }) {
+  const qc = useQueryClient()
+  const phones = tenantSettings?.contact_phones ?? []
+  const active = tenantSettings?.active_contact_phone ?? ''
+
+  const mutation = useMutation({
+    mutationFn: (phone) => setActiveContactPhone(phone || null),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tenant-settings'] }),
+  })
+
+  if (phones.length === 0) return null
+
+  return (
+    <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 mb-4">
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+      </svg>
+      <label className="text-xs font-medium text-gray-600 shrink-0">Active call number:</label>
+      <select
+        value={active}
+        onChange={e => mutation.mutate(e.target.value)}
+        disabled={mutation.isPending}
+        className="flex-1 text-sm border-none bg-transparent focus:outline-none text-gray-900 font-mono"
+      >
+        <option value="">— None (hide call button) —</option>
+        {phones.map(p => (
+          <option key={p} value={p}>+91 {p}</option>
+        ))}
+      </select>
+      {mutation.isPending && <span className="text-xs text-gray-400">Saving…</span>}
+      {!mutation.isPending && active && <span className="text-xs text-green-600 font-semibold">Active</span>}
+    </div>
+  )
+}
+
+function PendingMtPanel({ tenantSlug, freeTables = [], tenantSettings }) {
+  const qc = useQueryClient()
+  const [confirmingOrder, setConfirmingOrder] = useState(null) // order object
+  const [discardingId, setDiscardingId] = useState(null)
+  const [selectedTableId, setSelectedTableId] = useState('')
+  const [confirmError, setConfirmError] = useState('')
+
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['pending-mt-orders'],
+    queryFn: () => getPendingMtOrders().then(r => r.data.data),
+    refetchInterval: 8000,
+  })
+
+  const confirm = useMutation({
+    mutationFn: ({ orderId, tableId }) =>
+      confirmMtPayment(tenantSlug, orderId, tableId ? { table_id: tableId } : {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pending-mt-orders'] })
+      qc.invalidateQueries({ queryKey: ['billing-tables'] })
+      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
+      setConfirmingOrder(null)
+      setSelectedTableId('')
+      setConfirmError('')
+    },
+    onError: (err) => setConfirmError(err.response?.data?.message ?? 'Error confirming payment'),
+  })
+
+  const discard = useMutation({
+    mutationFn: (orderId) => discardMtOrder(tenantSlug, orderId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pending-mt-orders'] })
+      setDiscardingId(null)
+    },
+  })
+
+  if (isLoading || orders.length === 0) return null
+
+  const tableOccupied = confirmingOrder?.table_status === 'occupied'
+
+  return (
+    <>
+      <div className="mb-6">
+        <ActivePhoneSelector tenantSettings={tenantSettings} />
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse inline-block" />
+          <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wide">
+            Magic Tables — Awaiting Payment Confirmation
+          </h3>
+          <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">{orders.length}</span>
+        </div>
+
+        <div className="space-y-3">
+          {orders.map(order => (
+            <div key={order.id} className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-sm font-bold text-gray-900">{order.order_number}</span>
+                    <span className="text-xs bg-amber-200 text-amber-800 font-semibold px-2 py-0.5 rounded-full">
+                      Table {order.table_number ?? '?'}
+                      {order.table_status === 'occupied' && (
+                        <span className="ml-1 text-red-600">⚠ occupied</span>
+                      )}
+                    </span>
+                    <span className="text-xs text-gray-400">{order.elapsed_label}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-700">
+                    <span className="font-medium">{order.customer_name}</span>
+                    <span className="text-gray-400">+91 {order.customer_phone}</span>
+                  </div>
+                </div>
+                <span className="text-lg font-bold text-gray-900 shrink-0">₹{order.total}</span>
+              </div>
+
+              <div className="text-xs text-gray-500 space-y-0.5 mb-3 bg-white rounded-xl px-3 py-2 border border-amber-100">
+                {order.items.map((item, i) => (
+                  <div key={i} className="flex justify-between">
+                    <span>{item.quantity}× {item.item_name}</span>
+                    <span>₹{item.subtotal}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setConfirmingOrder(order); setSelectedTableId(''); setConfirmError('') }}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
+                >
+                  ✓ Confirm Payment
+                </button>
+                <button
+                  onClick={() => setDiscardingId(order.id)}
+                  disabled={discard.isPending && discardingId === order.id}
+                  className="flex-1 bg-white border border-red-300 text-red-600 hover:bg-red-50 text-sm font-semibold py-2 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {discard.isPending && discardingId === order.id ? 'Discarding…' : '✕ Discard'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Discard confirmation dialog */}
+      {discardingId && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6 text-center">
+            <div className="text-4xl mb-3">🗑️</div>
+            <h3 className="font-bold text-gray-900 mb-2">Discard this order?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              No payment was received. The order will be cancelled and the customer will not be served.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDiscardingId(null)} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-50">
+                Keep
+              </button>
+              <button
+                onClick={() => discard.mutate(discardingId)}
+                disabled={discard.isPending}
+                className="flex-1 bg-red-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-red-700 disabled:opacity-50"
+              >
+                {discard.isPending ? 'Discarding…' : 'Yes, Discard'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm payment modal */}
+      {confirmingOrder && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="bg-green-600 px-5 py-4 text-white">
+              <h3 className="font-bold text-lg">Confirm Payment Received</h3>
+              <p className="text-green-100 text-sm">{confirmingOrder.order_number} · {confirmingOrder.customer_name}</p>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {confirmError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-xl">{confirmError}</div>
+              )}
+
+              <div className="bg-gray-50 rounded-xl p-3 text-sm">
+                <div className="flex justify-between font-bold text-gray-900">
+                  <span>Amount to confirm</span>
+                  <span>₹{confirmingOrder.total}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Customer: {confirmingOrder.customer_name} (+91 {confirmingOrder.customer_phone})
+                </p>
+              </div>
+
+              {tableOccupied ? (
+                <div className="space-y-2">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-sm text-amber-800">
+                    <p className="font-semibold mb-1">⚠ Table {confirmingOrder.table_number} is now occupied</p>
+                    <p className="text-xs">Select a free table to assign this customer to, or call them to coordinate.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to a free table</label>
+                    <select
+                      value={selectedTableId}
+                      onChange={e => setSelectedTableId(e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                    >
+                      <option value="">— Select a table —</option>
+                      {freeTables.filter(t => t.status === 'free').map(t => (
+                        <option key={t.id} value={t.id}>Table {t.number} ({t.section})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-sm text-green-800">
+                  <p className="font-semibold">✓ Table {confirmingOrder.table_number} is free</p>
+                  <p className="text-xs mt-0.5">Confirming will assign the customer to this table and send the order to the kitchen.</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setConfirmingOrder(null); setSelectedTableId(''); setConfirmError('') }}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => confirm.mutate({
+                    orderId: confirmingOrder.id,
+                    tableId: tableOccupied ? (selectedTableId || null) : null,
+                  })}
+                  disabled={confirm.isPending || (tableOccupied && !selectedTableId)}
+                  className="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-green-700 disabled:opacity-40"
+                >
+                  {confirm.isPending ? 'Confirming…' : 'Confirm & Send to Kitchen'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function BillPaidPanel() {
+  const qc = useQueryClient()
+  const [confirmingId, setConfirmingId] = useState(null)
+
+  const { data: tables = [] } = useQuery({
+    queryKey: ['bill-paid-tables'],
+    queryFn: () => getBillPaidTables().then(r => r.data.data),
+    refetchInterval: 8000,
+  })
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['bill-paid-tables'] })
+    qc.invalidateQueries({ queryKey: ['billing-tables'] })
+  }
+
+  const confirm = useMutation({
+    mutationFn: (tableId) => confirmBillPaid(tableId),
+    onSuccess: () => { invalidate(); setConfirmingId(null) },
+  })
+
+  const reject = useMutation({
+    mutationFn: (tableId) => rejectBillPaid(tableId),
+    onSuccess: () => { invalidate(); setConfirmingId(null) },
+  })
+
+  if (tables.length === 0) return null
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+        <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wide">
+          Customer Paid — Ready to Close
+        </h3>
+        <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">{tables.length}</span>
+      </div>
+
+      <div className="space-y-3">
+        {tables.map(table => (
+          <div key={table.table_id} className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-bold text-gray-900">Table {table.table_number}</span>
+                  {table.section && <span className="text-xs text-gray-400">{table.section}</span>}
+                  <span className="text-xs text-gray-400">{table.elapsed_label}</span>
+                </div>
+                <div className="text-sm text-gray-700">
+                  <span className="font-medium">{table.customer_name}</span>
+                  <span className="text-gray-400 ml-2">+91 {table.customer_phone}</span>
+                </div>
+                <p className="text-xs text-emerald-700 font-medium mt-1">Customer says they've paid via UPI</p>
+              </div>
+              <span className="text-lg font-bold text-gray-900 shrink-0">₹{table.total_amount}</span>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmingId(table.table_id)}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+              >
+                ✓ Confirm & Close
+              </button>
+              <button
+                onClick={() => reject.mutate(table.table_id)}
+                disabled={reject.isPending}
+                className="flex-1 bg-white border border-red-300 text-red-600 hover:bg-red-50 text-sm font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50"
+              >
+                ✕ Not Paid
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Confirm dialog */}
+      {confirmingId && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6 text-center">
+            <div className="text-4xl mb-3">✅</div>
+            <h3 className="font-bold text-gray-900 mb-2">Confirm & Close Table?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Verify the UPI receipt with the customer, then confirm to free the table.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmingId(null)}
+                className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirm.mutate(confirmingId)}
+                disabled={confirm.isPending}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {confirm.isPending ? 'Closing…' : 'Yes, Close Table'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function BillingDashboard({ embedded = false }) {
   const { user, logout: clearAuth } = useAuthStore()
   const modules = user?.modules
@@ -1320,7 +1695,8 @@ export default function BillingDashboard({ embedded = false }) {
     queryFn: () => getTenantSettings().then(r => r.data.data),
     staleTime: 60000,
   })
-  const tenantUpiId = tenantSettings?.upi_id ?? null
+  const tenantUpiId  = tenantSettings?.upi_id ?? null
+  const tenantSlug   = tenantSettings?.slug ?? null
   const isOpen = tenantSettings?.is_open ?? true
 
   const toggleOpen = useMutation({
@@ -1351,6 +1727,9 @@ export default function BillingDashboard({ embedded = false }) {
     refetchInterval: 10000,
     enabled: hasRestaurant,
   })
+
+  // Tick every second while any alert is active so badges expire client-side
+  useAlertTicker(tables ?? [])
 
   const billAutoPrint = tenantSettings?.bill_auto_print ?? false
 
@@ -1474,6 +1853,12 @@ export default function BillingDashboard({ embedded = false }) {
             <div className="text-gray-400 text-sm">Loading tables…</div>
           ) : (
             <div className="space-y-6">
+              {tenantSlug && (
+                <>
+                  <BillPaidPanel />
+                  <PendingMtPanel tenantSlug={tenantSlug} freeTables={tables ?? []} tenantSettings={tenantSettings} />
+                </>
+              )}
               {Object.entries(sections).map(([section, rows]) => (
                 <div key={section}>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{section}</h3>
@@ -1483,36 +1868,36 @@ export default function BillingDashboard({ embedded = false }) {
                         key={t.id}
                         onClick={() => openTable(t)}
                         className={`rounded-xl border-2 p-3 text-center transition-all hover:shadow-md active:scale-95 relative ${
-                          t.bill_requested_at ? 'border-purple-400 bg-purple-50' :
-                          t.waiter_called_at  ? 'border-amber-400 bg-amber-50' :
-                          t.magic_tables_customer ? 'border-indigo-400 bg-indigo-50' :
-                          t.status === 'occupied' ? 'border-orange-400 bg-orange-50' : 'border-green-300 bg-green-50'
+                          isBillRequestActive(t.bill_requested_at)  ? 'border-purple-400 bg-purple-50' :
+                          isWaiterCallActive(t.waiter_called_at)    ? 'border-amber-400 bg-amber-50' :
+                          t.magic_tables_customer                   ? 'border-indigo-400 bg-indigo-50' :
+                          t.status === 'occupied'                   ? 'border-orange-400 bg-orange-50' : 'border-green-300 bg-green-50'
                         }`}
                       >
-                        {t.bill_requested_at && (
+                        {isBillRequestActive(t.bill_requested_at) && (
                           <span className="absolute -top-1.5 -right-1.5 bg-purple-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">BILL</span>
                         )}
-                        {t.waiter_called_at && !t.bill_requested_at && (
+                        {isWaiterCallActive(t.waiter_called_at) && !isBillRequestActive(t.bill_requested_at) && (
                           <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">CALL</span>
                         )}
-                        {t.magic_tables_customer && !t.bill_requested_at && !t.waiter_called_at && (
+                        {t.magic_tables_customer && !isBillRequestActive(t.bill_requested_at) && !isWaiterCallActive(t.waiter_called_at) && (
                           <span className="absolute -top-1.5 -left-1.5 bg-indigo-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">MT</span>
                         )}
                         <div className="text-base font-bold text-gray-900">{t.number}</div>
                         <div className={`text-xs font-medium mt-0.5 ${
-                          t.bill_requested_at ? 'text-purple-600' :
-                          t.waiter_called_at  ? 'text-amber-600' :
-                          t.magic_tables_customer ? 'text-indigo-600' :
-                          t.status === 'free' ? 'text-green-600' : 'text-orange-600'
+                          isBillRequestActive(t.bill_requested_at)  ? 'text-purple-600' :
+                          isWaiterCallActive(t.waiter_called_at)    ? 'text-amber-600' :
+                          t.magic_tables_customer                   ? 'text-indigo-600' :
+                          t.status === 'free'                       ? 'text-green-600' : 'text-orange-600'
                         }`}>
-                          {t.bill_requested_at ? '🧾 Bill req.' : t.waiter_called_at ? '🔔 Called' : t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
+                          {isBillRequestActive(t.bill_requested_at) ? '🧾 Bill req.' : isWaiterCallActive(t.waiter_called_at) ? '🔔 Called' : t.status === 'free' ? 'Free' : (t.occupied_label ?? formatOccupied(t.occupied_minutes ?? 0))}
                         </div>
-                        {t.magic_tables_customer && !t.bill_requested_at && !t.waiter_called_at && (
+                        {t.magic_tables_customer && !isBillRequestActive(t.bill_requested_at) && !isWaiterCallActive(t.waiter_called_at) && (
                           <div className="text-[10px] text-indigo-500 mt-0.5 truncate leading-tight">
                             {t.magic_tables_customer.customer_name}
                           </div>
                         )}
-                        {t.active_order && !t.magic_tables_customer && !t.bill_requested_at && !t.waiter_called_at && (
+                        {t.active_order && !t.magic_tables_customer && !isBillRequestActive(t.bill_requested_at) && !isWaiterCallActive(t.waiter_called_at) && (
                           <div className={`text-xs mt-0.5 font-medium ${
                             t.active_order.status === 'ready' ? 'text-green-600' :
                             t.active_order.status === 'preparing' ? 'text-blue-500' : 'text-yellow-600'

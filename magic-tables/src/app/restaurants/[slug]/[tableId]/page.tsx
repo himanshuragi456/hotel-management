@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Tag, AlertCircle, Clock, CheckCircle2, ChefHat, Hash, Bell, Receipt } from "lucide-react";
+import { ArrowLeft, Tag, AlertCircle, Clock, CheckCircle2, ChefHat, Hash, Bell, Receipt, CreditCard, Copy, X, RefreshCw } from "lucide-react";
 import { MenuItemCard } from "@/components/order/menu-item-card";
 import { CartBar } from "@/components/order/cart-bar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,20 +12,51 @@ import { useCartStore } from "@/store/cart";
 import { tableApi } from "@/services/api";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { QRCodeSVG } from "qrcode.react";
 
 export default function MenuPage() {
   const { slug, tableId } = useParams<{ slug: string; tableId: string }>();
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
-  const [waiterCalled, setWaiterCalled] = useState(false);
   const [waiterCalling, setWaiterCalling] = useState(false);
-  const [billRequested, setBillRequested] = useState(false);
   const [billRequesting, setBillRequesting] = useState(false);
-  const { clearCart, _hasHydrated, tableId: cartTableId, customerPhone, sessionStartedAt } = useCartStore();
-  const { data: myOrders = [] } = useMyOrders(slug, cartTableId, customerPhone);
+  const [payBillStep, setPayBillStep] = useState<"closed" | "qr">("closed");
+  const [notifying, setNotifying] = useState(false);
+  const [notifyError, setNotifyError] = useState("");
+  const [upiCopied, setUpiCopied] = useState(false);
+  const {
+    clearCart, _hasHydrated, tableId: cartTableId, customerPhone, sessionStartedAt,
+    isTableLocked, tenantSlug: lockedSlug, setBillAwaitingConfirm,
+  } = useCartStore();
+  const locked = _hasHydrated && isTableLocked();
+  const { data: myOrders = [], isFetched: ordersFetched } = useMyOrders(slug, cartTableId, customerPhone);
+
+  // If locked to a different restaurant or different table, redirect immediately
+  useEffect(() => {
+    if (!_hasHydrated) return;
+    if (!isTableLocked()) return;
+    if (lockedSlug !== slug || cartTableId !== Number(tableId)) {
+      router.replace(`/restaurants/${lockedSlug}/${cartTableId}`);
+    }
+  }, [_hasHydrated, isTableLocked, lockedSlug, slug, cartTableId, tableId, router]);
 
   const { data: menuData, isLoading: loadingMenu, isError: menuError } = useMenu(slug);
-  const { data: tables = [], isLoading: loadingTables, dataUpdatedAt: tablesUpdatedAt } = useTables(slug);
+  // Poll tables faster when session is active so billing close is detected quickly
+  const { data: tables = [], isLoading: loadingTables, dataUpdatedAt: tablesUpdatedAt } = useTables(slug, locked ? 8_000 : 30_000);
+
+  // Detect session end: myOrders returns empty after having orders → billing closed table
+  const [hadOrders, setHadOrders] = useState(false);
+  useEffect(() => {
+    if (myOrders.length > 0) setHadOrders(true);
+  }, [myOrders.length]);
+
+  useEffect(() => {
+    if (!locked || !ordersFetched || !hadOrders) return;
+    if (myOrders.length === 0) {
+      clearCart();
+      router.replace("/goodbye");
+    }
+  }, [locked, ordersFetched, hadOrders, myOrders.length, clearCart, router]);
 
   const restaurant = menuData?.tenant ?? null;
   const categories = menuData?.categories ?? [];
@@ -40,13 +71,18 @@ export default function MenuPage() {
   const allServed = myOrders.length > 0 && myOrders.every((o) => o.status === "served" || o.status === "cancelled");
   const unpaidTotal = myOrders.filter((o) => o.payment_status !== "paid" && o.status !== "cancelled").reduce((s, o) => s + Number(o.total), 0);
 
+  // Derive active state from server timestamps — works across devices and page refreshes
+  const now = Date.now();
+  const waiterCalled      = !!table?.waiter_called_at  && (now - new Date(table.waiter_called_at).getTime())  < 20_000;
+  const billRequested     = !!table?.bill_requested_at && (now - new Date(table.bill_requested_at).getTime()) < 30_000;
+  // Customer notified counter — awaiting billing confirmation
+  const awaitingBillConfirm = !!table?.bill_paid_at;
+
   const handleCallWaiter = useCallback(async () => {
     if (!cartTableId || waiterCalled || waiterCalling) return;
     setWaiterCalling(true);
     try {
       await tableApi.callWaiter(slug, cartTableId);
-      setWaiterCalled(true);
-      setTimeout(() => setWaiterCalled(false), 60_000);
     } finally {
       setWaiterCalling(false);
     }
@@ -57,11 +93,28 @@ export default function MenuPage() {
     setBillRequesting(true);
     try {
       await tableApi.requestBill(slug, cartTableId);
-      setBillRequested(true);
     } finally {
       setBillRequesting(false);
     }
   }, [slug, cartTableId, billRequested, billRequesting]);
+
+  const handleNotifyPaid = useCallback(async () => {
+    if (!cartTableId || !customerPhone) return;
+    setNotifying(true);
+    setNotifyError("");
+    try {
+      await tableApi.notifyBillPaid(slug, cartTableId, customerPhone, unpaidTotal);
+      setPayBillStep("closed");
+      setBillAwaitingConfirm(true); // show lock screen immediately, don't wait for next poll
+    } catch (err: unknown) {
+      setNotifyError(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        "Could not notify counter. Please call the waiter."
+      );
+    } finally {
+      setNotifying(false);
+    }
+  }, [slug, cartTableId, customerPhone, unpaidTotal]);
 
   useEffect(() => {
     if (!_hasHydrated || loadingTables) return;
@@ -96,19 +149,65 @@ export default function MenuPage() {
     );
   }
 
+  // Keep store flag in sync so navbar + home page can guard navigation
+  useEffect(() => {
+    setBillAwaitingConfirm(awaitingBillConfirm);
+    return () => setBillAwaitingConfirm(false);
+  }, [awaitingBillConfirm, setBillAwaitingConfirm]);
+
+  // ── Awaiting billing confirmation lock screen ─────────────────────────────
+  useEffect(() => {
+    if (!awaitingBillConfirm) return;
+    window.history.pushState({ awaitingBill: true }, "");
+    const onPopState = () => window.history.pushState({ awaitingBill: true }, "");
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [awaitingBillConfirm]);
+
+  if (awaitingBillConfirm) {
+    return (
+      <main className="min-h-[80dvh] flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mb-6">
+          <Clock className="w-10 h-10 text-amber-500 animate-pulse" aria-hidden="true" />
+        </div>
+        <h1 className="text-2xl font-bold text-stone-900 mb-2">Awaiting Payment Confirmation</h1>
+        <p className="text-stone-500 text-sm mb-6 max-w-xs leading-relaxed">
+          The billing counter is verifying your payment. Please wait — your table will be closed shortly.
+        </p>
+
+        <div className="w-full max-w-xs bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 mb-8">
+          <p className="text-sm font-semibold text-amber-900 mb-1">Table {table?.table_number}</p>
+          <p className="text-xs text-amber-700">Keep your UPI payment screenshot ready if the counter asks.</p>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-stone-400">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+          Checking every 8 seconds…
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="pb-40">
       {/* Sticky header */}
       <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-stone-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4 py-3">
-            <button
-              onClick={() => router.back()}
-              className="p-2 rounded-xl hover:bg-stone-100 text-stone-500 hover:text-stone-800 transition-all duration-150 cursor-pointer"
-              aria-label="Go back"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+            {!(_hasHydrated && isTableLocked()) && (
+              <button
+                onClick={() => router.back()}
+                className="p-2 rounded-xl hover:bg-stone-100 text-stone-500 hover:text-stone-800 transition-all duration-150 cursor-pointer"
+                aria-label="Go back"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
             <div className="flex-1 min-w-0">
               {isLoading ? (
                 <Skeleton className="h-5 w-40" />
@@ -304,21 +403,45 @@ export default function MenuPage() {
                   {waiterCalled ? "Waiter called!" : waiterCalling ? "Calling…" : "Call Waiter"}
                 </button>
 
-                {/* Request Bill — only when all served AND unpaid balance > 0 */}
+                {/* Pay Bill + Request Bill — only when all served AND unpaid balance > 0 */}
                 {allServed && unpaidTotal > 0 && (
-                  <button
-                    onClick={handleRequestBill}
-                    disabled={billRequested || billRequesting}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition-all",
-                      billRequested
-                        ? "bg-emerald-50 border border-emerald-200 text-emerald-700 cursor-default"
-                        : "bg-stone-900 text-white hover:bg-stone-800"
+                  <>
+                    {/* Pay Bill via UPI — primary CTA */}
+                    {restaurant?.upi_id && (
+                      awaitingBillConfirm ? (
+                        <button
+                          disabled
+                          className="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold bg-amber-50 border border-amber-200 text-amber-700 cursor-default"
+                        >
+                          <Clock className="w-4 h-4 animate-pulse" />
+                          Awaiting confirmation…
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => { setPayBillStep("qr"); setNotifyError(""); }}
+                          className="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition-all"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          Pay Bill
+                        </button>
+                      )
                     )}
-                  >
-                    <Receipt className="w-4 h-4" />
-                    {billRequested ? "Bill requested!" : billRequesting ? "Requesting…" : "Request Bill"}
-                  </button>
+
+                    {/* Request Bill (cash/counter) */}
+                    <button
+                      onClick={handleRequestBill}
+                      disabled={billRequested || billRequesting}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition-all",
+                        billRequested
+                          ? "bg-emerald-50 border border-emerald-200 text-emerald-700 cursor-default"
+                          : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                      )}
+                    >
+                      <Receipt className="w-4 h-4" />
+                      {billRequested ? "Requested!" : billRequesting ? "Requesting…" : "Request Bill"}
+                    </button>
+                  </>
                 )}
               </div>
             </section>
@@ -373,6 +496,114 @@ export default function MenuPage() {
       </div>
 
       <CartBar isOpen={restaurant?.is_open ?? true} />
+
+      {/* ── Pay Bill bottom sheet ── */}
+      {payBillStep !== "closed" && restaurant?.upi_id && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPayBillStep("closed")} />
+
+          <div className="relative w-full max-w-md bg-white rounded-t-3xl px-6 pt-5 pb-10 shadow-2xl">
+            {/* Drag handle */}
+            <div className="w-10 h-1 rounded-full bg-stone-200 mx-auto mb-5" aria-hidden="true" />
+
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-stone-900">Pay Your Bill</h2>
+                <p className="text-xs text-stone-400 mt-0.5">Scan or open your UPI app to pay</p>
+              </div>
+              <button
+                onClick={() => setPayBillStep("closed")}
+                className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 hover:bg-stone-200"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Amount pill */}
+            <div className="bg-stone-50 border border-stone-200 rounded-2xl px-5 py-3 flex items-center justify-between mb-5">
+              <span className="text-sm text-stone-500">Amount to pay</span>
+              <span className="text-xl font-bold text-stone-900">{formatCurrency(unpaidTotal)}</span>
+            </div>
+
+            {/* Step 1 — QR */}
+            {payBillStep === "qr" && (() => {
+              const upiLink = `upi://pay?pa=${restaurant.upi_id}&am=${unpaidTotal}&cu=INR&tn=Table+${table?.table_number ?? ""}`;
+              const deepLinks = {
+                phonepe: upiLink.replace("upi://", "phonepe://"),
+                gpay:    upiLink.replace("upi://pay", "tez://upi/pay"),
+                paytm:   upiLink.replace("upi://", "paytmmp://"),
+              };
+              return (
+                <>
+                  {/* Important reminder */}
+                  <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-4">
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-700 leading-snug">
+                      After making payment from any app, <span className="font-semibold">please come back here and tap "Done — Notify Counter"</span> so we can close your table.
+                    </p>
+                  </div>
+
+                  {/* QR code */}
+                  <div className="flex flex-col items-center bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+                    <p className="text-xs text-stone-400 font-medium mb-3 uppercase tracking-wide">Scan to Pay · {restaurant.name}</p>
+                    <div className="p-3 rounded-xl border border-stone-100 shadow-sm mb-4">
+                      <QRCodeSVG value={upiLink} size={180} level="M" includeMargin={false} />
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(restaurant.upi_id!).then(() => {
+                          setUpiCopied(true);
+                          setTimeout(() => setUpiCopied(false), 2000);
+                        });
+                      }}
+                      className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm font-mono text-stone-700 hover:bg-stone-100 transition-colors"
+                    >
+                      {restaurant.upi_id}
+                      {upiCopied
+                        ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        : <Copy className="w-4 h-4 text-stone-400" />
+                      }
+                    </button>
+                  </div>
+
+                  {/* UPI app deeplinks */}
+                  <div className="grid grid-cols-3 gap-3 mb-5">
+                    <a href={deepLinks.phonepe} className="flex flex-col items-center gap-2 bg-white border border-stone-200 rounded-2xl px-3 py-3 hover:border-[#5f259f] hover:bg-purple-50 active:scale-95 transition-all shadow-sm">
+                      <img src="/phonepelogo.png" alt="PhonePe" className="w-9 h-9 object-contain" />
+                      <span className="text-xs font-semibold text-stone-700">PhonePe</span>
+                    </a>
+                    <a href={deepLinks.gpay} className="flex flex-col items-center gap-2 bg-white border border-stone-200 rounded-2xl px-3 py-3 hover:border-[#4285f4] hover:bg-blue-50 active:scale-95 transition-all shadow-sm">
+                      <img src="/gpaylogo.svg" alt="Google Pay" className="w-9 h-9 object-contain" />
+                      <span className="text-xs font-semibold text-stone-700">GPay</span>
+                    </a>
+                    <a href={deepLinks.paytm} className="flex flex-col items-center gap-2 bg-white border border-stone-200 rounded-2xl px-3 py-3 hover:border-[#00BAF2] hover:bg-sky-50 active:scale-95 transition-all shadow-sm">
+                      <img src="/paytmlogo.webp" alt="Paytm" className="w-9 h-9 object-contain" />
+                      <span className="text-xs font-semibold text-stone-700">Paytm</span>
+                    </a>
+                  </div>
+
+                  {notifyError && (
+                    <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-2xl px-4 py-3 mb-4 text-sm text-red-700">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      {notifyError}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleNotifyPaid}
+                    disabled={notifying}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl text-sm transition-colors"
+                  >
+                    {notifying ? "Notifying…" : "✓ Done — Notify Counter"}
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

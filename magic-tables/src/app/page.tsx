@@ -1,18 +1,34 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { MapPin, TrendingUp, Sparkles, AlertCircle } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { MapPin, TrendingUp, Sparkles, AlertCircle, Lock } from "lucide-react";
 import { RestaurantCard } from "@/components/restaurant/restaurant-card";
 import { RestaurantCardSkeleton } from "@/components/ui/skeleton";
 import { SearchBar } from "@/components/search/search-bar";
 import { CuisineFilterBar } from "@/components/search/cuisine-filter";
 import { useRestaurants, useLocations } from "@/hooks/useRestaurants";
+import { useCartStore } from "@/store/cart";
+import { Button } from "@/components/ui/button";
 import type { CuisineFilter } from "@/types";
 
 export default function HomePage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
   const [selectedCuisine, setSelectedCuisine] = useState<CuisineFilter>("All");
+
+  const { isTableLocked, tenantSlug, tableId, tenantName, tableNumber, clearCart, pendingOrder, billAwaitingConfirm, _hasHydrated } = useCartStore();
+  const locked = _hasHydrated && isTableLocked();
+
+  // Redirect back to the relevant waiting screen
+  useEffect(() => {
+    if (!_hasHydrated) return;
+    if (pendingOrder) { router.replace("/checkout"); return; }
+    if (billAwaitingConfirm && tenantSlug && tableId) {
+      router.replace(`/restaurants/${tenantSlug}/${tableId}`);
+    }
+  }, [_hasHydrated, pendingOrder, billAwaitingConfirm, tenantSlug, tableId, router]);
 
   const { data: locations = [] } = useLocations();
   const { data: allRestaurants = [], isLoading, isError } = useRestaurants({
@@ -33,6 +49,37 @@ export default function HomePage() {
   );
 
   const showFeatured = !search && selectedCuisine === "All" && featured.length > 0;
+
+  // If locked, show a focused screen — no browsing other restaurants
+  if (locked && tenantSlug && tableId) {
+    return (
+      <main className="min-h-[80dvh] flex flex-col items-center justify-center px-4 py-16 text-center">
+        <div className="w-16 h-16 rounded-full bg-rose-100 flex items-center justify-center mb-5">
+          <Lock className="w-7 h-7 text-rose-600" aria-hidden="true" />
+        </div>
+        <h1 className="text-2xl font-bold text-stone-900 mb-2">You&apos;re seated at {tenantName}</h1>
+        <p className="text-stone-500 mb-1">Table {tableNumber}</p>
+        <p className="text-sm text-stone-400 mb-8 max-w-xs">
+          Your session is active. You can order more items or check your order status.
+        </p>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={() => router.push(`/restaurants/${tenantSlug}/${tableId}`)}
+          >
+            Back to Menu &amp; Orders
+          </Button>
+          <button
+            onClick={() => { clearCart(); }}
+            className="text-xs text-stone-400 hover:text-red-500 transition-colors mt-2"
+          >
+            End session &amp; browse other restaurants
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main>

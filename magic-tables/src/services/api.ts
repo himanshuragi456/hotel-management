@@ -54,6 +54,16 @@ export interface CreateOrderResponse {
   prefill: { name: string; contact: string };
 }
 
+export interface SubmitUpiOrderResponse {
+  order_id: number;
+  order_number: string;
+  total: number;
+  upi_id: string | null;
+  upi_link: string | null;
+  tenant_name: string;
+  already_verified?: boolean;
+}
+
 export interface VerifyPaymentPayload {
   razorpay_order_id: string;
   razorpay_payment_id: string;
@@ -89,6 +99,22 @@ export const orderApi = {
       )
       .then((r) => r.data.data),
 
+  submitUpiOrder: (slug: string, payload: CreateOrderPayload) =>
+    apiClient
+      .post<{ status: boolean; data: SubmitUpiOrderResponse }>(
+        `/magic-tables/restaurants/${slug}/orders/submit-upi`,
+        payload
+      )
+      .then((r) => r.data.data),
+
+  pollPaymentStatus: (slug: string, tableId: number, customerPhone: string) =>
+    apiClient
+      .get<{ status: boolean; data: MyOrder[] }>(
+        `/magic-tables/restaurants/${slug}/my-orders`,
+        { params: { table_id: tableId, customer_phone: customerPhone } }
+      )
+      .then((r) => r.data.data),
+
   myOrders: (slug: string, tableId: number, customerPhone: string) =>
     apiClient
       .get<{ status: boolean; data: MyOrder[] }>(
@@ -96,6 +122,14 @@ export const orderApi = {
         { params: { table_id: tableId, customer_phone: customerPhone } }
       )
       .then((r) => r.data.data),
+
+  cancelOrder: (slug: string, orderId: number, customerPhone: string) =>
+    apiClient
+      .post<{ status: boolean; message: string }>(
+        `/magic-tables/restaurants/${slug}/orders/${orderId}/cancel`,
+        { customer_phone: customerPhone }
+      )
+      .then((r) => r.data),
 };
 
 export const tableApi = {
@@ -114,6 +148,14 @@ export const tableApi = {
         { table_id: tableId }
       )
       .then((r) => r.data),
+
+  notifyBillPaid: (slug: string, tableId: number, customerPhone: string, amount: number) =>
+    apiClient
+      .post<{ status: boolean; message: string }>(
+        `/magic-tables/restaurants/${slug}/tables/${tableId}/notify-paid`,
+        { customer_phone: customerPhone, amount }
+      )
+      .then((r) => r.data),
 };
 
 export interface MyOrder {
@@ -121,7 +163,7 @@ export interface MyOrder {
   order_number: string;
   status: "pending" | "preparing" | "ready" | "served" | "cancelled";
   source: string;
-  payment_status: "not_applicable" | "paid";
+  payment_status: "not_applicable" | "pending_payment" | "paid";
   total: number;
   created_at: string;
   queue_position: number | null;

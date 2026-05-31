@@ -31,6 +31,13 @@ class InvoiceController extends Controller
                     'customer_name'  => $order->customer_name,
                     'customer_phone' => $order->customer_phone,
                 ] : null;
+
+                // Auto-clear alerts after their display window so badges disappear everywhere
+                $updates = [];
+                if ($t->waiter_called_at  && now()->diffInSeconds($t->waiter_called_at)  > 20) $updates['waiter_called_at']  = null;
+                if ($t->bill_requested_at && now()->diffInSeconds($t->bill_requested_at) > 30) $updates['bill_requested_at'] = null;
+                if ($updates) $t->update($updates);
+
                 return [
                     'id'                  => $t->id,
                     'number'              => $t->number,
@@ -44,6 +51,7 @@ class InvoiceController extends Controller
                     'active_order_id'     => $order?->id,
                     'bill_requested_at'   => $t->bill_requested_at,
                     'waiter_called_at'    => $t->waiter_called_at,
+                    'bill_paid_at'        => $t->bill_paid_at,
                     'magic_tables_customer' => $mtCustomer,
                 ];
             });
@@ -124,7 +132,7 @@ class InvoiceController extends Controller
         }
         $order->load('items');
         $order->recalculate();
-        broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
+        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) {}
         return $this->success($order->fresh()->load('items'), 'Items added');
     }
 
@@ -223,7 +231,7 @@ class InvoiceController extends Controller
             \Illuminate\Support\Facades\DB::commit();
 
             foreach ($createdOrders as $o) {
-                broadcast(new \App\Events\OrderStatusUpdated($o))->toOthers();
+                try { broadcast(new \App\Events\OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
             }
 
             return $this->created($createdOrders, 'Order added');
@@ -317,7 +325,7 @@ class InvoiceController extends Controller
             \Illuminate\Support\Facades\DB::commit();
 
             foreach ($createdOrders as $o) {
-                broadcast(new \App\Events\OrderStatusUpdated($o))->toOthers();
+                try { broadcast(new \App\Events\OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
                 AuditLog::record('order.placed', $o, [], [
                     'order_number' => $o->order_number,
                     'type'         => 'takeaway',
@@ -338,7 +346,7 @@ class InvoiceController extends Controller
         if ($order->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
         if ($order->status !== 'ready') return $this->error('Order must be ready before marking as served');
         $order->update(['status' => 'served']);
-        broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
+        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) {}
         return $this->success(null, 'Order marked as served');
     }
 
@@ -435,7 +443,7 @@ class InvoiceController extends Controller
         if ($order->type !== 'room-service') return $this->error('Not a room service order');
         if (!in_array($order->status, ['pending', 'preparing', 'ready'])) return $this->error('Order cannot be marked served');
         $order->update(['status' => 'served']);
-        broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'room')))->toOthers();
+        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'room')))->toOthers(); } catch (\Exception $e) {}
         return $this->success(null, 'Order marked as served');
     }
 
@@ -482,12 +490,55 @@ class InvoiceController extends Controller
         return $this->success($query->latest()->paginate(20));
     }
 
+    /**
+     * All Magic Tables orders still waiting for payment confirmation.
+     * These haven't reached the kitchen yet — billing must Accept or Discard each one.
+     */
+    public function pendingMtOrders(): JsonResponse
+    {
+        $tid = auth()->user()->tenant_id;
+
+        $orders = Order::where('tenant_id', $tid)
+            ->where('source', 'magic_tables')
+            ->where('payment_status', 'pending_payment')
+            ->where('status', '!=', 'cancelled')
+            ->with(['items', 'table'])
+            ->oldest()
+            ->get()
+            ->map(function ($order) {
+                $mins = (int) round(abs(now()->diffInRealMinutes($order->created_at)));
+                return [
+                    'id'             => $order->id,
+                    'order_number'   => $order->order_number,
+                    'customer_name'  => $order->customer_name,
+                    'customer_phone' => $order->customer_phone,
+                    'total'          => $order->total,
+                    'subtotal'       => $order->subtotal,
+                    'tax'            => $order->tax,
+                    'table_id'       => $order->restaurant_table_id,
+                    'table_number'   => $order->table?->number,
+                    'table_status'   => $order->table?->status,
+                    'elapsed_minutes' => $mins,
+                    'elapsed_label'  => $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm ago' : $mins . 'm ago',
+                    'items'          => $order->items->map(fn($i) => [
+                        'item_name'  => $i->item_name,
+                        'quantity'   => $i->quantity,
+                        'item_price' => $i->item_price,
+                        'subtotal'   => $i->subtotal,
+                    ]),
+                ];
+            });
+
+        return $this->success($orders);
+    }
+
     public function activeOrders(): JsonResponse
     {
         $tid = auth()->user()->tenant_id;
 
         $orders = Order::where('tenant_id', $tid)
             ->whereNotIn('status', ['served', 'cancelled'])
+            ->where('payment_status', '!=', 'pending_payment')
             ->whereDoesntHave('invoice')
             ->with(['items', 'table', 'booking.room', 'booking.guest'])
             ->oldest()
@@ -572,7 +623,7 @@ class InvoiceController extends Controller
 
         // Mark order as served now that it's invoiced
         $order->update(['status' => 'served']);
-        broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
+        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) {}
 
         // Free table only if no other unbilled orders remain
         if ($order->restaurant_table_id) {
@@ -835,5 +886,71 @@ class InvoiceController extends Controller
         ])->setPaper([0, 0, 226.77, 800], 'portrait');
 
         return $pdf->download('combined-invoice.pdf');
+    }
+
+    /** Tables where the customer tapped "Done — notify counter" after self-paying */
+    public function billPaidTables(): JsonResponse
+    {
+        $tid = auth()->user()->tenant_id;
+
+        $tables = RestaurantTable::where('tenant_id', $tid)
+            ->where('status', 'occupied')
+            ->whereNotNull('bill_paid_at')
+            ->with(['activeOrder'])
+            ->get()
+            ->map(function ($t) use ($tid) {
+                // Collect unpaid orders for this table in this session
+                $orders = Order::where('tenant_id', $tid)
+                    ->where('restaurant_table_id', $t->id)
+                    ->where('status', '!=', 'cancelled')
+                    ->when($t->occupied_since, fn($q) => $q->where('created_at', '>=', $t->occupied_since))
+                    ->get();
+
+                $totalAmount  = $orders->sum('total');
+                $customerName  = $orders->first()?->customer_name;
+                $customerPhone = $orders->first()?->customer_phone;
+                $mins = (int) round(abs(now()->diffInRealMinutes($t->bill_paid_at)));
+
+                return [
+                    'table_id'       => $t->id,
+                    'table_number'   => $t->number,
+                    'section'        => $t->section,
+                    'total_amount'   => $totalAmount,
+                    'customer_name'  => $customerName,
+                    'customer_phone' => $customerPhone,
+                    'bill_paid_at'   => $t->bill_paid_at->toIso8601String(),
+                    'elapsed_label'  => $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm ago' : $mins . 'm ago',
+                ];
+            });
+
+        return $this->success($tables);
+    }
+
+    /** Billing confirms customer paid and frees the table */
+    public function confirmBillPaid(int $tableId): JsonResponse
+    {
+        $table = RestaurantTable::where('id', $tableId)
+            ->where('tenant_id', auth()->user()->tenant_id)
+            ->where('status', 'occupied')
+            ->whereNotNull('bill_paid_at')
+            ->firstOrFail();
+
+        $table->free();
+
+        return $this->success(['table_number' => $table->number], 'Table cleared.');
+    }
+
+    /** Billing rejects the self-pay notification — clears bill_paid_at so the customer can retry */
+    public function rejectBillPaid(int $tableId): JsonResponse
+    {
+        $table = RestaurantTable::where('id', $tableId)
+            ->where('tenant_id', auth()->user()->tenant_id)
+            ->where('status', 'occupied')
+            ->whereNotNull('bill_paid_at')
+            ->firstOrFail();
+
+        $table->update(['bill_paid_at' => null]);
+
+        return $this->success(['table_number' => $table->number], 'Payment notification cleared.');
     }
 }

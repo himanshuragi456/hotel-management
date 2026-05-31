@@ -18,6 +18,8 @@ export interface Tenant {
   currency: string;
   gst_rate: number;
   qr_ordering_enabled: boolean;
+  upi_id: string | null;
+  active_contact_phone: string | null;
 }
 
 export interface Table {
@@ -31,6 +33,9 @@ export interface Table {
   // Present when status === 'reserved' (Magic Tables pre-reservation)
   reserved_by_name: string | null;
   reserved_by_phone: string | null;
+  waiter_called_at: string | null;
+  bill_requested_at: string | null;
+  bill_paid_at: string | null;
 }
 
 export interface MenuCategory {

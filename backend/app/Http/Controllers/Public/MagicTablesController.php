@@ -72,6 +72,13 @@ class MagicTablesController extends Controller
             ->get()
             ->map(function (RestaurantTable $t) {
                 $mtOrder = ($t->activeOrder && $t->activeOrder->source === 'magic_tables') ? $t->activeOrder : null;
+
+                // Auto-clear alerts after their display window so badges disappear everywhere
+                $updates = [];
+                if ($t->waiter_called_at  && now()->diffInSeconds($t->waiter_called_at)  > 20) $updates['waiter_called_at']  = null;
+                if ($t->bill_requested_at && now()->diffInSeconds($t->bill_requested_at) > 30) $updates['bill_requested_at'] = null;
+                if ($updates) $t->update($updates);
+
                 return [
                     'id'                => $t->id,
                     'table_number'      => $t->number,
@@ -82,6 +89,7 @@ class MagicTablesController extends Controller
                     'qr_token'          => $t->qr_token,
                     'bill_requested_at' => $t->bill_requested_at?->toIso8601String(),
                     'waiter_called_at'  => $t->waiter_called_at?->toIso8601String(),
+                    'bill_paid_at'      => $t->bill_paid_at?->toIso8601String(),
                     'reserved_by_name'  => $mtOrder?->customer_name,
                     'reserved_by_phone' => $mtOrder?->customer_phone,
                 ];
@@ -138,6 +146,198 @@ class MagicTablesController extends Controller
     // -------------------------------------------------------------------------
     // Order + Payment flow
     // -------------------------------------------------------------------------
+
+    /**
+     * Step 1 of the UPI flow: create the order in DB as pending_payment.
+     * Table is NOT occupied yet — it stays free for walk-ins.
+     * Kitchen does NOT see this order yet.
+     * Returns UPI id/link so the customer can pay via their app.
+     */
+    public function submitUpiOrder(Request $request, string $slug): JsonResponse
+    {
+        $tenant = $this->activeTenant($slug);
+
+        if (!($tenant->is_open ?? true)) {
+            return $this->error('This restaurant is currently closed.', 403);
+        }
+        if (!$tenant->qr_ordering_enabled) {
+            return $this->error('This restaurant is not accepting online orders right now.', 403);
+        }
+
+        $v = Validator::make($request->all(), [
+            'table_id'             => 'required|integer|exists:restaurant_tables,id',
+            'customer_name'        => 'required|string|max:100',
+            'customer_phone'       => 'required|string|max:20',
+            'items'                => 'required|array|min:1',
+            'items.*.menu_item_id' => 'required|integer|exists:menu_items,id',
+            'items.*.quantity'     => 'required|integer|min:1',
+            'items.*.notes'        => 'nullable|string|max:255',
+        ]);
+        if ($v->fails()) return $this->validationError($v->errors());
+
+        $table = RestaurantTable::where('id', $request->table_id)
+            ->where('tenant_id', $tenant->id)
+            ->firstOrFail();
+
+        // Verified = this customer has a confirmed paid MT order in the current session.
+        // occupied_since is set to the first order's created_at on confirm, so exact >= works.
+        $alreadyVerified = $table->occupied_since && Order::where('tenant_id', $tenant->id)
+            ->where('restaurant_table_id', $table->id)
+            ->where('source', 'magic_tables')
+            ->where('payment_status', 'paid')
+            ->where('customer_phone', $request->customer_phone)
+            ->where('created_at', '>=', $table->occupied_since)
+            ->exists();
+
+        $resolvedItems = collect($request->items)->map(function ($row) use ($tenant) {
+            return [
+                'item'     => MenuItem::where('id', $row['menu_item_id'])
+                                ->where('tenant_id', $tenant->id)
+                                ->where('is_available', true)
+                                ->firstOrFail(),
+                'quantity' => $row['quantity'],
+                'notes'    => $row['notes'] ?? null,
+            ];
+        });
+
+        $subtotal = $resolvedItems->sum(fn($r) => $r['item']->price * $r['quantity']);
+        $tax      = round($subtotal * ($tenant->gst_rate / 100), 2);
+        $total    = $subtotal + $tax;
+
+        DB::beginTransaction();
+        try {
+            $order = Order::create([
+                'tenant_id'           => $tenant->id,
+                'restaurant_table_id' => $table->id,
+                'type'                => 'dine-in',
+                'source'              => 'magic_tables',
+                'status'              => 'pending',
+                'payment_status'      => $alreadyVerified ? 'not_applicable' : 'pending_payment',
+                'customer_name'       => $request->customer_name,
+                'customer_phone'      => $request->customer_phone,
+                'subtotal'            => $subtotal,
+                'tax'                 => $tax,
+                'total'               => $total,
+            ]);
+
+            foreach ($resolvedItems as $r) {
+                OrderItem::create([
+                    'order_id'     => $order->id,
+                    'menu_item_id' => $r['item']->id,
+                    'item_name'    => $r['item']->name,
+                    'item_price'   => $r['item']->price,
+                    'quantity'     => $r['quantity'],
+                    'subtotal'     => $r['item']->price * $r['quantity'],
+                    'notes'        => $r['notes'],
+                ]);
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to submit order: ' . $e->getMessage(), 500);
+        }
+
+        // Verified customer — broadcast to kitchen immediately, no payment step needed
+        if ($alreadyVerified) {
+            $order->load('items', 'table');
+            try {
+                broadcast(new OrderStatusUpdated($order))->toOthers();
+            } catch (\Exception $e) {}
+
+            return $this->success([
+                'order_id'        => $order->id,
+                'order_number'    => $order->order_number,
+                'total'           => $total,
+                'already_verified' => true,
+            ], 'Order placed! Your food is on its way.');
+        }
+
+        $upiId   = $tenant->upi_id;
+        $upiLink = null;
+        if ($upiId) {
+            $note    = urlencode('Order ' . $order->order_number . ' at ' . $tenant->name);
+            $name    = urlencode($tenant->name);
+            $upiLink = "upi://pay?pa={$upiId}&pn={$name}&am={$total}&cu=INR&tn={$note}";
+        }
+
+        return $this->success([
+            'order_id'     => $order->id,
+            'order_number' => $order->order_number,
+            'total'        => $total,
+            'upi_id'       => $upiId,
+            'upi_link'     => $upiLink,
+            'tenant_name'  => $tenant->name,
+        ], 'Order submitted. Please complete UPI payment.');
+    }
+
+    /**
+     * Called by the billing operator after confirming they received the UPI payment.
+     * Occupies the table (or a reassigned table if the original is taken),
+     * marks the order paid, and broadcasts it to the kitchen.
+     * Optional body: { table_id } to reassign to a different free table.
+     */
+    public function confirmPayment(Request $request, string $slug, int $orderId): JsonResponse
+    {
+        $tenant = $this->activeTenant($slug);
+
+        $order = Order::where('id', $orderId)
+            ->where('tenant_id', $tenant->id)
+            ->where('source', 'magic_tables')
+            ->where('payment_status', 'pending_payment')
+            ->firstOrFail();
+
+        $table = RestaurantTable::where('id', $order->restaurant_table_id)
+            ->where('tenant_id', $tenant->id)
+            ->firstOrFail();
+
+        // If the original table is now occupied and a replacement was supplied, use it
+        if ($table->status === 'occupied' && $request->filled('table_id')) {
+            $newTable = RestaurantTable::where('id', $request->table_id)
+                ->where('tenant_id', $tenant->id)
+                ->where('status', 'free')
+                ->firstOrFail();
+            $order->update(['restaurant_table_id' => $newTable->id]);
+            $table = $newTable;
+        }
+
+        // Use the order's own created_at as occupied_since so it is always
+        // <= every order in this session — exact boundary, no time-buffer hacks needed.
+        $table->occupy($order->created_at);
+        $order->update(['payment_status' => 'paid']);
+
+        $order->load('items', 'table');
+        try {
+            broadcast(new OrderStatusUpdated($order))->toOthers();
+        } catch (\Exception $e) {
+            // Pusher unavailable locally — order is confirmed in DB regardless
+        }
+
+        return $this->success([
+            'order_number'   => $order->order_number,
+            'payment_status' => 'paid',
+            'table_number'   => $table->number,
+        ], 'Payment confirmed. Order sent to kitchen.');
+    }
+
+    /**
+     * Called by the billing operator to discard a pending_payment MT order
+     * (e.g. no payment received). Cancels the order; table is unaffected.
+     */
+    public function discardOrder(Request $request, string $slug, int $orderId): JsonResponse
+    {
+        $tenant = $this->activeTenant($slug);
+
+        $order = Order::where('id', $orderId)
+            ->where('tenant_id', $tenant->id)
+            ->where('source', 'magic_tables')
+            ->where('payment_status', 'pending_payment')
+            ->firstOrFail();
+
+        $order->update(['status' => 'cancelled']);
+
+        return $this->success(null, 'Order discarded.');
+    }
 
     /**
      * Validate the cart and table, compute the total, create a Razorpay order,
@@ -350,7 +550,11 @@ class MagicTablesController extends Controller
 
         // Broadcast to kitchen
         $order->load('items', 'table');
-        broadcast(new OrderStatusUpdated($order))->toOthers();
+        try {
+            broadcast(new OrderStatusUpdated($order))->toOthers();
+        } catch (\Exception $e) {
+            // Pusher unavailable locally — order is confirmed in DB regardless
+        }
 
         return $this->success([
             'order_number'  => $order->order_number,
@@ -378,13 +582,15 @@ class MagicTablesController extends Controller
             ->where('tenant_id', $tenant->id)
             ->firstOrFail();
 
-        // Fetch all orders for this table in the current session (bounded by
-        // occupied_since), not just MT orders — so billing-added orders also
-        // appear for the customer.
+        // Table is free — session is over, return nothing
+        if ($table->status === 'free' || !$table->occupied_since) {
+            return $this->success([]);
+        }
+
         $orders = Order::where('tenant_id', $tenant->id)
             ->where('restaurant_table_id', $table->id)
             ->whereNotIn('status', ['cancelled'])
-            ->when($table->occupied_since, fn($q) => $q->where('created_at', '>=', $table->occupied_since))
+            ->where('created_at', '>=', $table->occupied_since)
             ->with('items')
             ->oldest()
             ->get()
@@ -459,6 +665,80 @@ class MagicTablesController extends Controller
 
     // -------------------------------------------------------------------------
 
+    /**
+     * Customer has paid via UPI and wants to notify the billing counter.
+     * Sets bill_paid_at on the table so billing sees a "confirm & close" card.
+     */
+    public function notifyBillPaid(Request $request, string $slug, int $tableId): JsonResponse
+    {
+        $request->validate([
+            'customer_phone' => 'required|string',
+            'amount'         => 'required|numeric|min:0',
+        ]);
+
+        $tenant = $this->activeTenant($slug);
+
+        $table = RestaurantTable::where('id', $tableId)
+            ->where('tenant_id', $tenant->id)
+            ->where('status', 'occupied')
+            ->firstOrFail();
+
+        // Verify this customer owns an order on this table
+        $hasOrder = Order::where('tenant_id', $tenant->id)
+            ->where('restaurant_table_id', $tableId)
+            ->where('customer_phone', $request->customer_phone)
+            ->where('status', '!=', 'cancelled')
+            ->exists();
+
+        if (!$hasOrder) {
+            return $this->error('No active order found for this table.', 404);
+        }
+
+        $table->notifyBillPaid();
+
+        return $this->success([
+            'table_number' => $table->number,
+            'bill_paid_at' => $table->bill_paid_at->toIso8601String(),
+        ], 'Counter notified. They will confirm and close your table shortly.');
+    }
+
+    /**
+     * Customer-initiated cancel: only allowed while the order is still pending_payment.
+     * Validated by customer_phone so no auth token is required.
+     */
+    public function cancelOrder(Request $request, string $slug, int $orderId): JsonResponse
+    {
+        $request->validate([
+            'customer_phone' => 'required|string',
+        ]);
+
+        $tenant = $this->activeTenant($slug);
+
+        $order = Order::where('id', $orderId)
+            ->where('tenant_id', $tenant->id)
+            ->where('source', 'magic_tables')
+            ->where('payment_status', 'pending_payment')
+            ->where('customer_phone', $request->customer_phone)
+            ->first();
+
+        if (!$order) {
+            // Either already confirmed (don't let them cancel) or wrong phone
+            $exists = Order::where('id', $orderId)
+                ->where('tenant_id', $tenant->id)
+                ->where('source', 'magic_tables')
+                ->exists();
+
+            if ($exists) {
+                return $this->error('This order has already been confirmed and cannot be cancelled.', 422);
+            }
+            return $this->error('Order not found.', 404);
+        }
+
+        $order->update(['status' => 'cancelled']);
+
+        return $this->success(null, 'Order cancelled.');
+    }
+
     private function activeTenant(string $slug): Tenant
     {
         return Tenant::where('slug', $slug)
@@ -488,7 +768,9 @@ class MagicTablesController extends Controller
             'phone'               => $t->phone,
             'currency'            => $t->currency ?? 'INR',
             'gst_rate'            => (float) ($t->gst_rate ?? 5.0),
-            'qr_ordering_enabled' => (bool) $t->qr_ordering_enabled,
+            'qr_ordering_enabled'  => (bool) $t->qr_ordering_enabled,
+            'upi_id'               => $t->upi_id ?? null,
+            'active_contact_phone' => $t->active_contact_phone ?? null,
         ];
     }
 }

@@ -69,9 +69,9 @@ class MenuController extends Controller
 
         return $this->success([
             'tenant_id'            => $tenant->id,
-            'tenant'               => $tenant->only(['name', 'logo', 'currency', 'gst_rate', 'qr_ordering_enabled', 'customer_bill_request_enabled']),
+            'tenant'               => $tenant->only(['name', 'logo', 'currency', 'gst_rate', 'qr_ordering_enabled', 'customer_bill_request_enabled', 'upi_id']),
             'table'                => array_merge(
-                $table->only(['id', 'number', 'section', 'bill_requested_at', 'waiter_called_at']),
+                $table->only(['id', 'number', 'section', 'bill_requested_at', 'waiter_called_at', 'bill_paid_at']),
                 ['status' => $table->status]
             ),
             'active_order_numbers' => $activeOrderNumbers ?: null,
@@ -176,7 +176,7 @@ class MenuController extends Controller
             DB::commit();
 
             foreach ($createdOrders as $o) {
-                broadcast(new OrderStatusUpdated($o))->toOthers();
+                try { broadcast(new OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
             }
 
             $allNumbers = collect($createdOrders)->pluck('order_number')->implode(',');
@@ -269,5 +269,23 @@ class MenuController extends Controller
             'batches'     => $batches,
             'grand_total' => $batches->sum('total'),
         ]);
+    }
+
+    public function notifyBillPaid(Request $request, string $tenantSlug, string $qrToken): JsonResponse
+    {
+        $tenant = Tenant::where('slug', $tenantSlug)->first();
+        if (! $tenant) abort(404);
+
+        $table = RestaurantTable::where('qr_token', $qrToken)
+            ->where('tenant_id', $tenant->id)
+            ->where('status', 'occupied')
+            ->firstOrFail();
+
+        $table->notifyBillPaid();
+
+        return $this->success([
+            'table_number' => $table->number,
+            'bill_paid_at' => $table->bill_paid_at->toIso8601String(),
+        ], 'Counter notified.');
     }
 }

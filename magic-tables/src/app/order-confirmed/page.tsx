@@ -19,9 +19,9 @@ function OrderConfirmedContent() {
         <CheckCircle className="w-10 h-10 text-emerald-600" aria-hidden="true" />
       </div>
 
-      <h1 className="text-3xl font-bold text-stone-900 mb-2">Order Placed!</h1>
+      <h1 className="text-3xl font-bold text-stone-900 mb-2">Order Confirmed!</h1>
       <p className="text-stone-500 text-lg mb-4 max-w-sm">
-        Payment confirmed. Your order has been sent to the kitchen.
+        Payment confirmed by the restaurant. Your order is now with the kitchen.
       </p>
 
       {orderList.length > 0 && (

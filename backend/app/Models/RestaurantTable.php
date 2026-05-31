@@ -9,7 +9,7 @@ class RestaurantTable extends Model
 {
     protected $fillable = [
         'tenant_id', 'number', 'capacity', 'section',
-        'status', 'occupied_since', 'bill_requested_at', 'waiter_called_at', 'qr_token',
+        'status', 'occupied_since', 'bill_requested_at', 'waiter_called_at', 'bill_paid_at', 'qr_token',
     ];
 
     protected function casts(): array
@@ -18,6 +18,7 @@ class RestaurantTable extends Model
             'occupied_since'    => 'datetime',
             'bill_requested_at' => 'datetime',
             'waiter_called_at'  => 'datetime',
+            'bill_paid_at'      => 'datetime',
         ];
     }
 
@@ -31,13 +32,14 @@ class RestaurantTable extends Model
     public function tenant()      { return $this->belongsTo(Tenant::class); }
     public function activeOrder() {
         return $this->hasOne(Order::class, 'restaurant_table_id')
-            ->whereNotIn('status', ['served', 'cancelled']);
+            ->whereNotIn('status', ['served', 'cancelled'])
+            ->where('payment_status', '!=', 'pending_payment');
     }
 
-    public function occupy(): void
+    public function occupy($since = null): void
     {
         if ($this->status !== 'occupied') {
-            $this->update(['status' => 'occupied', 'occupied_since' => now()]);
+            $this->update(['status' => 'occupied', 'occupied_since' => $since ?? now()]);
         }
     }
 
@@ -61,8 +63,19 @@ class RestaurantTable extends Model
         $this->update(['waiter_called_at' => null]);
     }
 
+    public function notifyBillPaid(): void
+    {
+        $this->update(['bill_paid_at' => now()]);
+    }
+
     public function free(): void
     {
-        $this->update(['status' => 'free', 'occupied_since' => null, 'bill_requested_at' => null, 'waiter_called_at' => null]);
+        $this->update([
+            'status'            => 'free',
+            'occupied_since'    => null,
+            'bill_requested_at' => null,
+            'waiter_called_at'  => null,
+            'bill_paid_at'      => null,
+        ]);
     }
 }

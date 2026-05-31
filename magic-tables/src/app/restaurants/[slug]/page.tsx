@@ -18,13 +18,34 @@ export default function RestaurantPage() {
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-  const customerPhone = useCartStore((s) => s._hasHydrated ? s.customerPhone : "");
+  const {
+    _hasHydrated, customerPhone, isTableLocked,
+    tenantSlug: lockedSlug, tableId: lockedTableId, tableNumber: lockedTableNumber,
+    tenantName: lockedTenantName,
+  } = useCartStore();
+  const locked = _hasHydrated && isTableLocked();
 
   const { data: restaurant, isLoading: loadingRestaurant, isError: restaurantError } = useRestaurant(slug);
   const { data: tables = [], isLoading: loadingTables, isError: tablesError, refetch: refetchTables, isFetching } = useTables(slug);
 
   const freeTables = tables.filter((t) => t.status === "free").length;
   const isLoading = loadingRestaurant || loadingTables;
+
+  // Locked to a different restaurant entirely — block browsing
+  if (locked && lockedSlug && lockedSlug !== slug) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center">
+        <div className="text-5xl mb-4" aria-hidden="true">🔒</div>
+        <h1 className="text-xl font-bold text-stone-900 mb-2">Session active at {lockedTenantName}</h1>
+        <p className="text-stone-500 text-sm mb-6">
+          You have an active table session at another restaurant. Please finish your visit there first.
+        </p>
+        <Button onClick={() => router.push(`/restaurants/${lockedSlug}/${lockedTableId}`)}>
+          Go back to my table
+        </Button>
+      </div>
+    );
+  }
 
   if (!isLoading && restaurantError) {
     return (
@@ -139,54 +160,72 @@ export default function RestaurantPage() {
         {/* Table availability */}
         {restaurant?.qr_ordering_enabled && (
           <section aria-labelledby="tables-heading">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-rose-500" aria-hidden="true" />
-                  <h2 id="tables-heading" className="text-xl font-bold text-stone-900">Table Availability</h2>
-                </div>
-                {!loadingTables && (
-                  <p className="text-sm text-stone-500 mt-0.5">
-                    {freeTables} of {tables.length} tables free · refreshes every 30s
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => refetchTables()}
-                disabled={isFetching}
-                className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-stone-800 transition-colors duration-150 cursor-pointer disabled:opacity-50"
-                aria-label="Refresh table availability"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
-                Refresh
-              </button>
-            </div>
-
-            {tablesError && (
-              <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-700 mb-4">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                Could not load table data. Please refresh.
-              </div>
-            )}
-
-            {loadingTables ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44" />)}
+            {/* Locked to a specific table at this restaurant */}
+            {locked && lockedSlug === slug ? (
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center">
+                <div className="text-3xl mb-3" aria-hidden="true">🔒</div>
+                <h2 className="text-lg font-bold text-stone-900 mb-1">
+                  You&apos;re locked to Table {lockedTableNumber}
+                </h2>
+                <p className="text-sm text-stone-500 mb-5">
+                  You have an active session at this table. You cannot select a different table.
+                </p>
+                <Button onClick={() => router.push(`/restaurants/${slug}/${lockedTableId}`)}>
+                  Go to my table
+                </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {tables.map((table) => (
-                  <TableCard
-                    key={table.id}
-                    table={table}
-                    customerPhone={customerPhone}
-                    onSelect={(t) => {
-                      setSelectedTable(t);
-                      router.push(`/restaurants/${slug}/${t.id}`);
-                    }}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-rose-500" aria-hidden="true" />
+                      <h2 id="tables-heading" className="text-xl font-bold text-stone-900">Table Availability</h2>
+                    </div>
+                    {!loadingTables && (
+                      <p className="text-sm text-stone-500 mt-0.5">
+                        {freeTables} of {tables.length} tables free · refreshes every 30s
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => refetchTables()}
+                    disabled={isFetching}
+                    className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-stone-800 transition-colors duration-150 cursor-pointer disabled:opacity-50"
+                    aria-label="Refresh table availability"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
+                    Refresh
+                  </button>
+                </div>
+
+                {tablesError && (
+                  <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-700 mb-4">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    Could not load table data. Please refresh.
+                  </div>
+                )}
+
+                {loadingTables ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44" />)}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {tables.map((table) => (
+                      <TableCard
+                        key={table.id}
+                        table={table}
+                        customerPhone={customerPhone}
+                        onSelect={(t) => {
+                          setSelectedTable(t);
+                          router.push(`/restaurants/${slug}/${t.id}`);
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </section>
         )}
