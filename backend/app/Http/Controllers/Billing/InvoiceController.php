@@ -12,7 +12,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use App\Services\QrService;
 
 class InvoiceController extends Controller
 {
@@ -113,27 +113,16 @@ class InvoiceController extends Controller
             'items'                => 'required|array|min:1',
             'items.*.menu_item_id' => 'required|exists:menu_items,id',
             'items.*.quantity'     => 'required|integer|min:1',
+            'items.*.variant_id'   => 'nullable|integer',
+            'items.*.addon_ids'    => 'nullable|array',
+            'items.*.addon_ids.*'  => 'integer',
             'items.*.notes'        => 'nullable|string',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
-        foreach ($request->items as $row) {
-            $menuItem = \App\Models\MenuItem::where('id', $row['menu_item_id'])
-                ->where('tenant_id', auth()->user()->tenant_id)->firstOrFail();
-            \App\Models\OrderItem::create([
-                'order_id'     => $order->id,
-                'menu_item_id' => $menuItem->id,
-                'item_name'    => $menuItem->name,
-                'item_price'   => $menuItem->price,
-                'quantity'     => $row['quantity'],
-                'subtotal'     => $menuItem->price * $row['quantity'],
-                'notes'        => $row['notes'] ?? null,
-            ]);
-        }
-        $order->load('items');
-        $order->recalculate();
-        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) {}
-        return $this->success($order->fresh()->load('items'), 'Items added');
+        $fresh = app(\App\Services\OrderService::class)->addLinesToOrder($order, $request->items);
+        try { broadcast(new \App\Events\OrderStatusUpdated($fresh))->toOthers(); } catch (\Exception $e) {}
+        return $this->success($fresh, 'Items added');
     }
 
     public function waiters(): JsonResponse
@@ -154,89 +143,37 @@ class InvoiceController extends Controller
             'items'               => 'required|array|min:1',
             'items.*.menu_item_id'=> 'required|exists:menu_items,id',
             'items.*.quantity'    => 'required|integer|min:1',
+            'items.*.variant_id'  => 'nullable|integer',
+            'items.*.addon_ids'   => 'nullable|array',
+            'items.*.addon_ids.*' => 'integer',
             'items.*.notes'       => 'nullable|string',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
         $tenantId = auth()->user()->tenant_id;
+        $tenant   = auth()->user()->tenant;
         $table = \App\Models\RestaurantTable::where('id', $request->restaurant_table_id)
             ->where('tenant_id', $tenantId)->firstOrFail();
 
         // Use provided waiter_id if given, otherwise fall back to the billing user themselves
         $waiterId = $request->waiter_id ?? auth()->id();
 
-        $resolvedItems = collect($request->items)->map(function ($row) use ($tenantId) {
-            $menuItem = \App\Models\MenuItem::where('id', $row['menu_item_id'])->where('tenant_id', $tenantId)->firstOrFail();
-            return array_merge($row, ['menu_item' => $menuItem]);
-        });
-
-        $kitchenItems   = $resolvedItems->filter(fn($r) => ! $r['menu_item']->is_ready_made);
-        $readyMadeItems = $resolvedItems->filter(fn($r) =>   $r['menu_item']->is_ready_made);
-
-        \Illuminate\Support\Facades\DB::beginTransaction();
         try {
-            $createdOrders = [];
-
-            if ($kitchenItems->isNotEmpty()) {
-                $order = Order::create([
-                    'tenant_id'           => $tenantId,
-                    'restaurant_table_id' => $table->id,
-                    'waiter_id'           => $waiterId,
-                    'type'                => 'dine-in',
-                    'status'              => 'pending',
-                ]);
-                foreach ($kitchenItems as $row) {
-                    $m = $row['menu_item'];
-                    \App\Models\OrderItem::create([
-                        'order_id'     => $order->id,
-                        'menu_item_id' => $m->id,
-                        'item_name'    => $m->name,
-                        'item_price'   => $m->price,
-                        'quantity'     => $row['quantity'],
-                        'subtotal'     => $m->price * $row['quantity'],
-                        'notes'        => $row['notes'] ?? null,
-                    ]);
-                }
-                $order->load('items');
-                $order->recalculate();
-                $createdOrders[] = $order->fresh()->load('items', 'table');
-            }
-
-            if ($readyMadeItems->isNotEmpty()) {
-                $rmOrder = Order::create([
-                    'tenant_id'           => $tenantId,
-                    'restaurant_table_id' => $table->id,
-                    'waiter_id'           => $waiterId,
-                    'type'                => 'dine-in',
-                    'status'              => 'ready',
-                ]);
-                foreach ($readyMadeItems as $row) {
-                    $m = $row['menu_item'];
-                    \App\Models\OrderItem::create([
-                        'order_id'     => $rmOrder->id,
-                        'menu_item_id' => $m->id,
-                        'item_name'    => $m->name,
-                        'item_price'   => $m->price,
-                        'quantity'     => $row['quantity'],
-                        'subtotal'     => $m->price * $row['quantity'],
-                        'notes'        => $row['notes'] ?? null,
-                    ]);
-                }
-                $rmOrder->load('items');
-                $rmOrder->recalculate();
-                $createdOrders[] = $rmOrder->fresh()->load('items', 'table');
-            }
+            $createdOrders = app(\App\Services\OrderService::class)->createOrders($tenantId, $tenant, $request->items, [
+                'restaurant_table_id' => $table->id,
+                'waiter_id'           => $waiterId,
+                'type'                => 'dine-in',
+                'source'              => 'pos',
+            ]);
 
             if ($table->status === 'free') $table->occupy();
-            \Illuminate\Support\Facades\DB::commit();
 
             foreach ($createdOrders as $o) {
                 try { broadcast(new \App\Events\OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
             }
 
             return $this->created($createdOrders, 'Order added');
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\DB::rollBack();
+        } catch (\Throwable $e) {
             return $this->error('Failed: ' . $e->getMessage(), 500);
         }
     }
@@ -255,88 +192,83 @@ class InvoiceController extends Controller
         if ($v->fails()) return $this->validationError($v->errors());
 
         $tenantId = auth()->user()->tenant_id;
+        $tenant   = auth()->user()->tenant;
 
-        $resolvedItems = collect($request->items)->map(function ($row) use ($tenantId) {
-            $menuItem = \App\Models\MenuItem::where('id', $row['menu_item_id'])->where('tenant_id', $tenantId)->firstOrFail();
-            return array_merge($row, ['menu_item' => $menuItem]);
-        });
-
-        $kitchenItems   = $resolvedItems->filter(fn($r) => ! $r['menu_item']->is_ready_made);
-        $readyMadeItems = $resolvedItems->filter(fn($r) =>   $r['menu_item']->is_ready_made);
-
-        \Illuminate\Support\Facades\DB::beginTransaction();
         try {
-            $createdOrders = [];
-
-            if ($kitchenItems->isNotEmpty()) {
-                $order = Order::create([
-                    'tenant_id'      => $tenantId,
-                    'waiter_id'      => auth()->id(),
-                    'type'           => 'takeaway',
-                    'status'         => 'pending',
-                    'customer_name'  => $request->customer_name,
-                    'customer_phone' => $request->customer_phone,
-                    'notes'          => $request->notes,
-                ]);
-                foreach ($kitchenItems as $row) {
-                    $m = $row['menu_item'];
-                    \App\Models\OrderItem::create([
-                        'order_id'     => $order->id,
-                        'menu_item_id' => $m->id,
-                        'item_name'    => $m->name,
-                        'item_price'   => $m->price,
-                        'quantity'     => $row['quantity'],
-                        'subtotal'     => $m->price * $row['quantity'],
-                        'notes'        => $row['notes'] ?? null,
-                    ]);
-                }
-                $order->load('items');
-                $order->recalculate();
-                $createdOrders[] = $order->fresh()->load('items');
-            }
-
-            if ($readyMadeItems->isNotEmpty()) {
-                $rmOrder = Order::create([
-                    'tenant_id'      => $tenantId,
-                    'waiter_id'      => auth()->id(),
-                    'type'           => 'takeaway',
-                    'status'         => 'ready',
-                    'customer_name'  => $request->customer_name,
-                    'customer_phone' => $request->customer_phone,
-                    'notes'          => $request->notes,
-                ]);
-                foreach ($readyMadeItems as $row) {
-                    $m = $row['menu_item'];
-                    \App\Models\OrderItem::create([
-                        'order_id'     => $rmOrder->id,
-                        'menu_item_id' => $m->id,
-                        'item_name'    => $m->name,
-                        'item_price'   => $m->price,
-                        'quantity'     => $row['quantity'],
-                        'subtotal'     => $m->price * $row['quantity'],
-                        'notes'        => $row['notes'] ?? null,
-                    ]);
-                }
-                $rmOrder->load('items');
-                $rmOrder->recalculate();
-                $createdOrders[] = $rmOrder->fresh()->load('items');
-            }
-
-            \Illuminate\Support\Facades\DB::commit();
+            $svc = app(\App\Services\OrderService::class);
+            $createdOrders = $svc->createOrders($tenantId, $tenant, $request->items, [
+                'waiter_id'      => auth()->id(),
+                'type'           => 'takeaway',
+                'source'         => 'pos',
+                'customer_name'  => $request->customer_name,
+                'customer_phone' => $request->customer_phone,
+                'notes'          => $request->notes,
+            ]);
 
             foreach ($createdOrders as $o) {
-                try { broadcast(new \App\Events\OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
-                AuditLog::record('order.placed', $o, [], [
-                    'order_number' => $o->order_number,
-                    'type'         => 'takeaway',
-                    'customer'     => $request->customer_name ?? 'Walk-in',
-                    'items'        => $o->items->map(fn($i) => $i->quantity . '× ' . $i->item_name)->implode(', '),
+                $svc->announce($o, 'order.placed', [
+                    'type'     => 'takeaway',
+                    'customer' => $request->customer_name ?? 'Walk-in',
                 ]);
             }
 
             return $this->created($createdOrders, 'Takeaway order placed');
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\DB::rollBack();
+        } catch (\Throwable $e) {
+            return $this->error('Failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Manual entry of a Zomato/Swiggy aggregator order (pre-API phase).
+     * Same pipeline as takeaway but tagged with platform + external order id so the
+     * eventual Zomato API just creates the same shape, and reporting can split by channel.
+     */
+    public function storeAggregator(Request $request): JsonResponse
+    {
+        $v = Validator::make($request->all(), [
+            'platform'            => 'required|in:zomato,swiggy,other',
+            'external_order_id'   => 'nullable|string|max:100',
+            'items'               => 'required|array|min:1',
+            'items.*.menu_item_id'=> 'required|exists:menu_items,id',
+            'items.*.quantity'    => 'required|integer|min:1',
+            'items.*.variant_id'  => 'nullable|integer',
+            'items.*.addon_ids'   => 'nullable|array',
+            'items.*.addon_ids.*' => 'integer',
+            'items.*.notes'       => 'nullable|string',
+            'customer_name'       => 'nullable|string|max:100',
+            'customer_phone'      => 'nullable|string|max:20',
+            'notes'               => 'nullable|string',
+            'no_cutlery'          => 'boolean',
+        ]);
+        if ($v->fails()) return $this->validationError($v->errors());
+
+        $tenantId = auth()->user()->tenant_id;
+        $tenant   = auth()->user()->tenant;
+
+        try {
+            $svc = app(\App\Services\OrderService::class);
+            $createdOrders = $svc->createOrders($tenantId, $tenant, $request->items, [
+                'waiter_id'         => auth()->id(),
+                'type'              => 'takeaway',
+                'source'            => 'aggregator',
+                'platform'          => $request->platform,
+                'external_order_id' => $request->external_order_id,
+                'aggregator_status' => 'placed',
+                'no_cutlery'        => $request->boolean('no_cutlery', false),
+                'customer_name'     => $request->customer_name ?: ucfirst($request->platform) . ' order',
+                'customer_phone'    => $request->customer_phone,
+                'notes'             => $request->notes,
+            ]);
+
+            foreach ($createdOrders as $o) {
+                $svc->announce($o, 'order.placed', [
+                    'type'     => $request->platform,
+                    'external' => $request->external_order_id ?? '—',
+                ]);
+            }
+
+            return $this->created($createdOrders, ucfirst($request->platform) . ' order placed');
+        } catch (\Throwable $e) {
             return $this->error('Failed: ' . $e->getMessage(), 500);
         }
     }
@@ -371,11 +303,16 @@ class InvoiceController extends Controller
             ->with('items')
             ->get();
 
-        $gstRate = $tenant->gst_rate ?? 5;
+        $mtInclusive = (bool) ($tenant->gst_inclusive ?? false);
         foreach ($mtOrders as $order) {
             $subtotal  = $order->subtotal;
-            $gstAmount = round($subtotal * ($gstRate / 100), 2);
-            $total     = $subtotal + $gstAmount;
+            $gstAmount = $order->tax > 0 ? (float) $order->tax : (
+                $mtInclusive
+                    ? round($subtotal - $subtotal / (1 + ($tenant->gst_rate ?? 5) / 100), 2)
+                    : round($subtotal * (($tenant->gst_rate ?? 5) / 100), 2)
+            );
+            $gstRate   = $subtotal > 0 ? round($gstAmount / $subtotal * 100, 4) : ($tenant->gst_rate ?? 5);
+            $total     = $mtInclusive ? $subtotal : $subtotal + $gstAmount;
             Invoice::create([
                 'tenant_id'       => $tenantId,
                 'order_id'        => $order->id,
@@ -402,12 +339,7 @@ class InvoiceController extends Controller
 
     public function getBillingMenu(): JsonResponse
     {
-        $tenantId = auth()->user()->tenant_id;
-        $cats = \App\Models\MenuCategory::where('tenant_id', $tenantId)
-            ->where('is_active', true)
-            ->with(['items' => fn($q) => $q->where('is_available', true)->orderBy('sort_order')])
-            ->orderBy('sort_order')
-            ->get();
+        $cats = \App\Models\MenuCategory::orderableMenu(auth()->user()->tenant_id);
         return $this->success($cats);
     }
 
@@ -576,9 +508,15 @@ class InvoiceController extends Controller
         if ($order->invoice) return $this->error('Invoice already exists for this order');
 
         $tenant       = auth()->user()->tenant;
+        $inclusive    = (bool) ($tenant->gst_inclusive ?? false);
         $subtotal     = $order->subtotal;
-        $gstRate      = $tenant->gst_rate ?? 5;
-        $gstAmount    = round($subtotal * ($gstRate / 100), 2);
+        // Use already-computed per-item GST from Order::recalculate(). Fall back to tenant rate.
+        $gstAmount = $order->tax > 0 ? (float) $order->tax : (
+            $inclusive
+                ? round($subtotal - $subtotal / (1 + ($tenant->gst_rate ?? 5) / 100), 2)
+                : round($subtotal * (($tenant->gst_rate ?? 5) / 100), 2)
+        );
+        $gstRate   = $subtotal > 0 ? round($gstAmount / $subtotal * 100, 4) : ($tenant->gst_rate ?? 5);
 
         $discountType   = (int)($request->discount_type ?? 0);
         $discountValue  = (float)($request->discount_value ?? 0);
@@ -588,7 +526,11 @@ class InvoiceController extends Controller
             default => 0,
         };
 
-        $total     = $subtotal + $gstAmount - $discountAmount;
+        // Inclusive: tax is inside subtotal, so total = subtotal - discount.
+        // Exclusive: total = subtotal + tax - discount.
+        $total = $inclusive
+            ? $subtotal - $discountAmount
+            : $subtotal + $gstAmount - $discountAmount;
         $amtPaid   = (float)$request->amount_paid;
         $amtDue    = max(0, $total - $amtPaid);
         $status    = $amtDue <= 0 ? 'paid' : ($amtPaid > 0 ? 'partial' : 'unpaid');
@@ -664,19 +606,24 @@ class InvoiceController extends Controller
 
         if ($orders->isEmpty()) return $this->error('No unbilled orders on this table');
 
-        $gstRate    = $tenant->gst_rate ?? 5;
         $amtPaid    = (float)$request->amount_paid;
         $invoices   = [];
 
         \Illuminate\Support\Facades\DB::beginTransaction();
         try {
             // Distribute paid amount proportionally across orders
+            $inclusive     = (bool) ($tenant->gst_inclusive ?? false);
             $grandSubtotal = $orders->sum('subtotal');
 
             foreach ($orders as $order) {
-                $subtotal      = $order->subtotal;
-                $gstAmount     = round($subtotal * ($gstRate / 100), 2);
-                $total         = $subtotal + $gstAmount;
+                $subtotal  = $order->subtotal;
+                $gstAmount = $order->tax > 0 ? (float) $order->tax : (
+                    $inclusive
+                        ? round($subtotal - $subtotal / (1 + ($tenant->gst_rate ?? 5) / 100), 2)
+                        : round($subtotal * (($tenant->gst_rate ?? 5) / 100), 2)
+                );
+                $gstRate   = $subtotal > 0 ? round($gstAmount / $subtotal * 100, 4) : ($tenant->gst_rate ?? 5);
+                $total         = $inclusive ? $subtotal : $subtotal + $gstAmount;
                 $proportion    = $grandSubtotal > 0 ? $subtotal / $grandSubtotal : 1 / $orders->count();
                 $paid          = round($amtPaid * $proportion, 2);
                 $due           = max(0, $total - $paid);
@@ -819,8 +766,7 @@ class InvoiceController extends Controller
         if ($invoice->payment_method === 'upi' && $upiIdParam) {
             $amount      = $invoice->amount_due > 0 ? $invoice->amount_due : $invoice->total;
             $upiUrl      = "upi://pay?pa={$upiIdParam}&pn=" . urlencode($invoice->tenant->name) . "&am={$amount}&cu=INR";
-            $pngData     = QrCode::format('png')->size(120)->generate($upiUrl);
-            $upiQrBase64 = 'data:image/png;base64,' . base64_encode($pngData);
+            $upiQrBase64 = QrService::svgDataUri($upiUrl, 120);
         }
 
         $tenant = $invoice->tenant;
@@ -831,8 +777,7 @@ class InvoiceController extends Controller
                 ->first();
             if ($feedbackQr) {
                 $feedbackUrl      = url("/feedback/{$feedbackQr->qr_token}");
-                $pngData          = QrCode::format('png')->size(600)->generate($feedbackUrl);
-                $feedbackQrBase64 = 'data:image/png;base64,' . base64_encode($pngData);
+                $feedbackQrBase64 = QrService::svgDataUri($feedbackUrl, 600);
             }
         }
 
@@ -875,8 +820,7 @@ class InvoiceController extends Controller
         if ($allUpi && $tenant->upi_id) {
             $amount      = $totals['due'] > 0 ? $totals['due'] : $totals['total'];
             $upiUrl      = "upi://pay?pa={$tenant->upi_id}&pn=" . urlencode($tenant->name) . "&am={$amount}&cu=INR";
-            $pngData     = QrCode::format('png')->size(120)->generate($upiUrl);
-            $upiQrBase64 = 'data:image/png;base64,' . base64_encode($pngData);
+            $upiQrBase64 = QrService::svgDataUri($upiUrl, 120);
         }
 
         $pdf = Pdf::loadView('invoices.combined', [

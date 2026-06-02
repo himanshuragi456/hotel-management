@@ -107,7 +107,7 @@ class RoomServiceController extends Controller
             DB::commit();
 
             foreach ($createdOrders as $o) {
-                broadcast(new OrderStatusUpdated($o))->toOthers();
+                try { broadcast(new OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
                 AuditLog::record('order.room_service_placed', $o, [], [
                     'order_number' => $o->order_number,
                     'room'         => 'Room ' . $booking->room?->number,

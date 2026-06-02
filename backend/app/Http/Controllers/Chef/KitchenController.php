@@ -18,6 +18,7 @@ class KitchenController extends Controller
     {
         $orders = Order::where('tenant_id', auth()->user()->tenant_id)
             ->whereIn('status', ['pending', 'preparing', 'ready'])
+            ->where('payment_status', '!=', 'pending_payment')
             ->with(['items', 'table', 'room'])
             ->oldest()
             ->get()
@@ -69,7 +70,7 @@ class KitchenController extends Controller
             'status'       => $next,
             'preparing_at' => $next === 'preparing' ? now() : $order->preparing_at,
         ]);
-        broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers();
+        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Exception $e) {}
         AuditLog::record('order.status_changed', $order, ['status' => $prev], ['status' => $next, 'order_number' => $order->order_number]);
 
         return $this->success(['status' => $order->fresh()->status], 'Status updated');

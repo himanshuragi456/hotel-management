@@ -15,10 +15,13 @@ return new class extends Migration {
             $table->string('razorpay_payment_id')->nullable()->after('razorpay_order_id');
         });
 
-        // Extend table status enum (kept for compatibility; 'reserved' is not actively used)
-        \Illuminate\Support\Facades\DB::statement(
-            "ALTER TABLE restaurant_tables MODIFY COLUMN status ENUM('free','occupied','reserved') NOT NULL DEFAULT 'free'"
-        );
+        // Extend table status enum (kept for compatibility; 'reserved' is not actively used).
+        // MySQL-only: sqlite stores enums as TEXT so the new value works without altering.
+        if (\Illuminate\Support\Facades\DB::getDriverName() === 'mysql') {
+            \Illuminate\Support\Facades\DB::statement(
+                "ALTER TABLE restaurant_tables MODIFY COLUMN status ENUM('free','occupied','reserved') NOT NULL DEFAULT 'free'"
+            );
+        }
     }
 
     public function down(): void
@@ -26,8 +29,10 @@ return new class extends Migration {
         Schema::table('orders', function (Blueprint $table) {
             $table->dropColumn(['source', 'payment_status', 'razorpay_order_id', 'razorpay_payment_id']);
         });
-        \Illuminate\Support\Facades\DB::statement(
-            "ALTER TABLE restaurant_tables MODIFY COLUMN status ENUM('free','occupied') NOT NULL DEFAULT 'free'"
-        );
+        if (\Illuminate\Support\Facades\DB::getDriverName() === 'mysql') {
+            \Illuminate\Support\Facades\DB::statement(
+                "ALTER TABLE restaurant_tables MODIFY COLUMN status ENUM('free','occupied') NOT NULL DEFAULT 'free'"
+            );
+        }
     }
 };

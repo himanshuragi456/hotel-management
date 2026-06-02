@@ -12,6 +12,22 @@ export const updateMenuItem = (id, data) => api.post(`/owner/menu/items/${id}?_m
 export const deleteMenuItem = (id) => api.delete(`/owner/menu/items/${id}`)
 export const bulkToggleItems = (ids, is_available) => api.post('/owner/menu/items/bulk-toggle', { ids, is_available })
 
+// Owner — Menu: category day/time schedule
+export const setCategorySchedules = (categoryId, schedules) => api.put(`/owner/menu/categories/${categoryId}/schedules`, { schedules })
+
+// Owner — Menu: variants
+export const createVariant = (itemId, data) => api.post(`/owner/menu/items/${itemId}/variants`, data)
+export const updateVariant = (variantId, data) => api.put(`/owner/menu/variants/${variantId}`, data)
+export const deleteVariant = (variantId) => api.delete(`/owner/menu/variants/${variantId}`)
+
+// Owner — Menu: add-on groups & add-ons
+export const createAddonGroup = (itemId, data) => api.post(`/owner/menu/items/${itemId}/addon-groups`, data)
+export const updateAddonGroup = (groupId, data) => api.put(`/owner/menu/addon-groups/${groupId}`, data)
+export const deleteAddonGroup = (groupId) => api.delete(`/owner/menu/addon-groups/${groupId}`)
+export const createAddon = (groupId, data) => api.post(`/owner/menu/addon-groups/${groupId}/addons`, data)
+export const updateAddon = (addonId, data) => api.put(`/owner/menu/addons/${addonId}`, data)
+export const deleteAddon = (addonId) => api.delete(`/owner/menu/addons/${addonId}`)
+
 // Waiter — tables & menu (separate from owner routes)
 export const getWaiterTables      = ()         => api.get('/waiter/tables')
 export const getWaiterMenu        = ()         => api.get('/waiter/menu')
@@ -47,6 +63,12 @@ export const getMyOrders     = ()                => api.get('/waiter/orders/my')
 export const getKitchenOrders = () => api.get('/chef/orders')
 export const updateOrderStatus = (id, status) => api.put(`/chef/orders/${id}/status`, { status })
 
+// Order actions — reject (with reason), cancel, mark OOS (chef/billing/owner)
+export const getRejectionReasons = () => api.get('/order-actions/rejection-reasons')
+export const rejectOrder = (id, data) => api.post(`/order-actions/${id}/reject`, data)
+export const cancelOrder = (id, data) => api.post(`/order-actions/${id}/cancel`, data)
+export const markOos = (data) => api.post('/order-actions/mark-oos', data)
+
 // Billing — Hotel (billing role has access to these)
 export const getBillingRoomStatus   = ()         => api.get('/billing/hotel/rooms/status')
 export const getBillingRooms        = ()         => api.get('/billing/hotel/rooms')
@@ -80,6 +102,7 @@ export const billAllOrders       = (tableId, data) => api.post(`/billing/tables/
 export const billingNewOrder      = (data)          => api.post('/billing/orders', data)
 export const billingAddItems      = (orderId, data) => api.post(`/billing/orders/${orderId}/items`, data)
 export const billingPlaceTakeaway = (data)          => api.post('/billing/takeaway/orders', data)
+export const billingPlaceAggregator = (data)        => api.post('/billing/aggregator/orders', data)
 export const billingMarkServed      = (orderId)         => api.post(`/billing/orders/${orderId}/mark-served`)
 export const billingUpdateStatus    = (orderId, status) => api.put(`/billing/orders/${orderId}/status`, { status })
 export const getBillingMenu      = ()              => api.get('/billing/menu')
@@ -191,6 +214,11 @@ export const toggleStaffActive = (id)       => api.post(`/owner/staff/${id}/togg
 // Owner — Settings
 export const getOwnerSettings    = ()     => api.get('/owner/settings')
 export const updateOwnerSettings = (data) => api.put('/owner/settings', data)
+
+// Owner — outlet management (operational hours, per-channel on/off, offline reason)
+export const getOutlet           = ()       => api.get('/owner/outlet')
+export const toggleOutletChannel = (data)   => api.post('/owner/outlet/toggle-channel', data)
+export const setOutletHours      = (data)   => api.put('/owner/outlet/hours', data)
 export const getTenantSettings   = ()     => api.get('/tenant-settings')
 export const setActiveContactPhone = (phone) => api.put('/settings/active-phone', { active_contact_phone: phone })
 export const changeOwnPassword   = (data) => api.post('/owner/change-password', data)

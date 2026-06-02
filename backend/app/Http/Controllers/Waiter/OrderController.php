@@ -5,14 +5,11 @@ namespace App\Http\Controllers\Waiter;
 use App\Events\OrderStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
-use App\Models\MenuItem;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\RestaurantTable;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
@@ -48,12 +45,7 @@ class OrderController extends Controller
 
     public function menu(): JsonResponse
     {
-        $tenantId = auth()->user()->tenant_id;
-        $cats = \App\Models\MenuCategory::where('tenant_id', $tenantId)
-            ->where('is_active', true)
-            ->with(['items' => fn($q) => $q->where('is_available', true)->orderBy('sort_order')])
-            ->orderBy('sort_order')
-            ->get();
+        $cats = \App\Models\MenuCategory::orderableMenu(auth()->user()->tenant_id);
         return $this->success($cats);
     }
 
@@ -64,6 +56,9 @@ class OrderController extends Controller
             'items'               => 'required|array|min:1',
             'items.*.menu_item_id'=> 'required|exists:menu_items,id',
             'items.*.quantity'    => 'required|integer|min:1',
+            'items.*.variant_id'  => 'nullable|integer',
+            'items.*.addon_ids'   => 'nullable|array',
+            'items.*.addon_ids.*' => 'integer',
             'items.*.notes'       => 'nullable|string',
             'notes'               => 'nullable|string',
             'type'                => 'in:dine-in,room-service,takeaway',
@@ -71,92 +66,28 @@ class OrderController extends Controller
         if ($v->fails()) return $this->validationError($v->errors());
 
         $tenantId = auth()->user()->tenant_id;
+        $tenant   = auth()->user()->tenant;
         $table = RestaurantTable::where('id', $request->restaurant_table_id)
             ->where('tenant_id', $tenantId)->firstOrFail();
 
-        // Resolve menu items and split into ready-made vs kitchen
-        $resolvedItems = collect($request->items)->map(function ($row) use ($tenantId) {
-            $menuItem = MenuItem::where('id', $row['menu_item_id'])
-                ->where('tenant_id', $tenantId)->firstOrFail();
-            return array_merge($row, ['menu_item' => $menuItem]);
-        });
-
-        $kitchenItems   = $resolvedItems->filter(fn($r) => ! $r['menu_item']->is_ready_made);
-        $readyMadeItems = $resolvedItems->filter(fn($r) =>   $r['menu_item']->is_ready_made);
-
-        DB::beginTransaction();
+        $svc = app(\App\Services\OrderService::class);
         try {
-            $createdOrders = [];
-
-            // Kitchen order (pending → goes through chef flow)
-            if ($kitchenItems->isNotEmpty()) {
-                $order = Order::create([
-                    'tenant_id'           => $tenantId,
-                    'restaurant_table_id' => $table->id,
-                    'waiter_id'           => auth()->id(),
-                    'type'                => $request->type ?? 'dine-in',
-                    'notes'               => $request->notes,
-                    'status'              => 'pending',
-                ]);
-                foreach ($kitchenItems as $row) {
-                    $m = $row['menu_item'];
-                    OrderItem::create([
-                        'order_id'     => $order->id,
-                        'menu_item_id' => $m->id,
-                        'item_name'    => $m->name,
-                        'item_price'   => $m->price,
-                        'quantity'     => $row['quantity'],
-                        'subtotal'     => $m->price * $row['quantity'],
-                        'notes'        => $row['notes'] ?? null,
-                    ]);
-                }
-                $order->load('items');
-                $order->recalculate();
-                $createdOrders[] = $order->fresh()->load('items', 'table');
-            }
-
-            // Ready-made order (skip kitchen — instantly ready)
-            if ($readyMadeItems->isNotEmpty()) {
-                $rmOrder = Order::create([
-                    'tenant_id'           => $tenantId,
-                    'restaurant_table_id' => $table->id,
-                    'waiter_id'           => auth()->id(),
-                    'type'                => $request->type ?? 'dine-in',
-                    'status'              => 'ready',
-                ]);
-                foreach ($readyMadeItems as $row) {
-                    $m = $row['menu_item'];
-                    OrderItem::create([
-                        'order_id'     => $rmOrder->id,
-                        'menu_item_id' => $m->id,
-                        'item_name'    => $m->name,
-                        'item_price'   => $m->price,
-                        'quantity'     => $row['quantity'],
-                        'subtotal'     => $m->price * $row['quantity'],
-                        'notes'        => $row['notes'] ?? null,
-                    ]);
-                }
-                $rmOrder->load('items');
-                $rmOrder->recalculate();
-                $createdOrders[] = $rmOrder->fresh()->load('items', 'table');
-            }
+            $createdOrders = $svc->createOrders($tenantId, $tenant, $request->items, [
+                'restaurant_table_id' => $table->id,
+                'waiter_id'           => auth()->id(),
+                'type'                => $request->type ?? 'dine-in',
+                'source'              => 'pos',
+                'notes'               => $request->notes,
+            ]);
 
             $table->occupy();
-            DB::commit();
 
             foreach ($createdOrders as $o) {
-                broadcast(new OrderStatusUpdated($o))->toOthers();
-                AuditLog::record('order.placed', $o, [], [
-                    'order_number' => $o->order_number,
-                    'table'        => $table->number,
-                    'items'        => $o->items->map(fn($i) => $i->quantity . '× ' . $i->item_name)->implode(', '),
-                    'total'        => $o->total,
-                ]);
+                $svc->announce($o, 'order.placed', ['table' => $table->number]);
             }
 
             return $this->created($createdOrders, 'Order placed');
-        } catch (\Exception $e) {
-            DB::rollBack();
+        } catch (\Throwable $e) {
             return $this->error('Failed to place order: ' . $e->getMessage(), 500);
         }
     }
@@ -210,7 +141,7 @@ class OrderController extends Controller
         if ($order->status !== 'served') {
             $order->update(['status' => 'ready']);
         }
-        broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
+        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) {}
         return $this->success($order->fresh(), 'Bill requested — billing counter notified');
     }
 
@@ -245,7 +176,7 @@ class OrderController extends Controller
         if ($order->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
         if ($order->status !== 'ready') return $this->error('Order must be ready before marking as served');
         $order->update(['status' => 'served']);
-        broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers();
+        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Exception $e) {}
         AuditLog::record('order.served', $order, ['status' => 'ready'], ['status' => 'served', 'order_number' => $order->order_number]);
         return $this->success(null, 'Order marked as served');
     }
@@ -259,27 +190,16 @@ class OrderController extends Controller
             'items'                => 'required|array|min:1',
             'items.*.menu_item_id' => 'required|exists:menu_items,id',
             'items.*.quantity'     => 'required|integer|min:1',
+            'items.*.variant_id'   => 'nullable|integer',
+            'items.*.addon_ids'    => 'nullable|array',
+            'items.*.addon_ids.*'  => 'integer',
             'items.*.notes'        => 'nullable|string',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
-        foreach ($request->items as $row) {
-            $menuItem = MenuItem::findOrFail($row['menu_item_id']);
-            OrderItem::create([
-                'order_id'     => $order->id,
-                'menu_item_id' => $menuItem->id,
-                'item_name'    => $menuItem->name,
-                'item_price'   => $menuItem->price,
-                'quantity'     => $row['quantity'],
-                'subtotal'     => $menuItem->price * $row['quantity'],
-                'notes'        => $row['notes'] ?? null,
-            ]);
-        }
+        $fresh = app(\App\Services\OrderService::class)->addLinesToOrder($order, $request->items);
+        try { broadcast(new OrderStatusUpdated($fresh))->toOthers(); } catch (\Exception $e) {}
 
-        $order->load('items');
-        $order->recalculate();
-        broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
-
-        return $this->success($order->fresh()->load('items'), 'Items added');
+        return $this->success($fresh, 'Items added');
     }
 }

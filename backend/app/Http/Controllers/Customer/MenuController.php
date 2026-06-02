@@ -47,11 +47,7 @@ class MenuController extends Controller
 
         $table  = RestaurantTable::where('qr_token', $qrToken)->where('tenant_id', $tenant->id)->firstOrFail();
 
-        $categories = MenuCategory::where('tenant_id', $tenant->id)
-            ->where('is_active', true)
-            ->with(['items' => fn($q) => $q->where('is_available', true)->orderBy('sort_order')])
-            ->orderBy('sort_order')
-            ->get();
+        $categories = MenuCategory::orderableMenu($tenant->id);
 
         // Recover active order numbers for this table session so the customer
         // can see their orders after a page refresh.
@@ -69,7 +65,7 @@ class MenuController extends Controller
 
         return $this->success([
             'tenant_id'            => $tenant->id,
-            'tenant'               => $tenant->only(['name', 'logo', 'currency', 'gst_rate', 'qr_ordering_enabled', 'customer_bill_request_enabled', 'upi_id']),
+            'tenant'               => $tenant->only(['name', 'logo', 'currency', 'gst_rate', 'gst_inclusive', 'qr_ordering_enabled', 'customer_bill_request_enabled', 'upi_id']),
             'table'                => array_merge(
                 $table->only(['id', 'number', 'section', 'bill_requested_at', 'waiter_called_at', 'bill_paid_at']),
                 ['status' => $table->status]
@@ -92,88 +88,40 @@ class MenuController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'items'                => 'required|array|min:1',
-            'items.*.menu_item_id' => 'required|exists:menu_items,id',
-            'items.*.quantity'     => 'required|integer|min:1',
-            'items.*.notes'        => 'nullable|string',
-            'customer_name'        => 'nullable|string|max:100',
-            'customer_phone'       => 'nullable|string|max:20',
-            'notes'                => 'nullable|string',
+            'items'                  => 'required|array|min:1',
+            'items.*.menu_item_id'   => 'required|exists:menu_items,id',
+            'items.*.quantity'       => 'required|integer|min:1',
+            'items.*.variant_id'     => 'nullable|integer',
+            'items.*.addon_ids'      => 'nullable|array',
+            'items.*.addon_ids.*'    => 'integer',
+            'items.*.notes'          => 'nullable|string',
+            'customer_name'          => 'nullable|string|max:100',
+            'customer_phone'         => 'nullable|string|max:20',
+            'notes'                  => 'nullable|string',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
-        // Resolve items and split into kitchen vs ready-made (same logic as waiter)
-        $resolvedItems = collect($request->items)->map(function ($row) use ($tenant) {
-            $item = MenuItem::where('id', $row['menu_item_id'])
-                ->where('tenant_id', $tenant->id)
-                ->where('is_available', true)
-                ->firstOrFail();
-            return array_merge($row, ['menu_item' => $item]);
-        });
+        // Guard: every ordered item must be available (and its category orderable now).
+        if ($err = $this->assertItemsOrderable($tenant->id, $request->items)) {
+            return $this->error($err, 422);
+        }
 
-        $kitchenItems   = $resolvedItems->filter(fn($r) => ! $r['menu_item']->is_ready_made);
-        $readyMadeItems = $resolvedItems->filter(fn($r) =>   $r['menu_item']->is_ready_made);
-
-        DB::beginTransaction();
         try {
-            $createdOrders = [];
-
-            if ($kitchenItems->isNotEmpty()) {
-                $order = Order::create([
-                    'tenant_id'           => $tenant->id,
+            $createdOrders = app(\App\Services\OrderService::class)->createOrders(
+                $tenant->id,
+                $tenant,
+                $request->items,
+                [
                     'restaurant_table_id' => $table->id,
                     'type'                => 'dine-in',
-                    'status'              => 'pending',
+                    'source'              => 'qr',
                     'notes'               => $request->notes,
                     'customer_name'       => $request->customer_name,
                     'customer_phone'      => $request->customer_phone,
-                ]);
-                foreach ($kitchenItems as $row) {
-                    $m = $row['menu_item'];
-                    OrderItem::create([
-                        'order_id'     => $order->id,
-                        'menu_item_id' => $m->id,
-                        'item_name'    => $m->name,
-                        'item_price'   => $m->price,
-                        'quantity'     => $row['quantity'],
-                        'subtotal'     => $m->price * $row['quantity'],
-                        'notes'        => $row['notes'] ?? null,
-                    ]);
-                }
-                $order->load('items');
-                $order->recalculate();
-                $createdOrders[] = $order->fresh()->load('items', 'table');
-            }
-
-            // Ready-made: status immediately set to 'ready', skips kitchen
-            if ($readyMadeItems->isNotEmpty()) {
-                $rmOrder = Order::create([
-                    'tenant_id'           => $tenant->id,
-                    'restaurant_table_id' => $table->id,
-                    'type'                => 'dine-in',
-                    'status'              => 'ready',
-                    'customer_name'       => $request->customer_name,
-                    'customer_phone'      => $request->customer_phone,
-                ]);
-                foreach ($readyMadeItems as $row) {
-                    $m = $row['menu_item'];
-                    OrderItem::create([
-                        'order_id'     => $rmOrder->id,
-                        'menu_item_id' => $m->id,
-                        'item_name'    => $m->name,
-                        'item_price'   => $m->price,
-                        'quantity'     => $row['quantity'],
-                        'subtotal'     => $m->price * $row['quantity'],
-                        'notes'        => $row['notes'] ?? null,
-                    ]);
-                }
-                $rmOrder->load('items');
-                $rmOrder->recalculate();
-                $createdOrders[] = $rmOrder->fresh()->load('items', 'table');
-            }
+                ],
+            );
 
             if ($table->status !== 'occupied') $table->occupy();
-            DB::commit();
 
             foreach ($createdOrders as $o) {
                 try { broadcast(new OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
@@ -188,10 +136,31 @@ class MenuController extends Controller
                 'total'         => collect($createdOrders)->sum('total'),
                 'status'        => $primary->status,
             ], 'Order placed successfully');
-        } catch (\Exception $e) {
-            DB::rollBack();
+        } catch (\Throwable $e) {
             return $this->error('Failed to place order: ' . $e->getMessage(), 500);
         }
+    }
+
+    /**
+     * Validate that each requested item is available and its category is orderable now
+     * (respects item is_available, category is_active/is_oos, parent OOS and day/time schedule).
+     * Returns an error message string, or null if all good.
+     */
+    private function assertItemsOrderable(int $tenantId, array $items): ?string
+    {
+        foreach ($items as $row) {
+            $item = MenuItem::where('id', $row['menu_item_id'] ?? 0)
+                ->where('tenant_id', $tenantId)
+                ->with('category.parent', 'category.schedules')
+                ->first();
+            if (! $item || ! $item->is_available) {
+                return 'Sorry, "' . ($item->name ?? 'an item') . '" is no longer available.';
+            }
+            if ($item->category && ! $item->category->isAvailableNow()) {
+                return 'Sorry, "' . $item->category->name . '" is not available right now.';
+            }
+        }
+        return null;
     }
 
     public function requestBill(string $tenantSlug, string $qrToken): JsonResponse

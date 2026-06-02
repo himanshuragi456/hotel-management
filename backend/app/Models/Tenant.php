@@ -11,8 +11,9 @@ class Tenant extends Model
 {
     protected $fillable = [
         'name', 'slug', 'email', 'phone', 'address', 'city', 'state',
-        'country', 'gstin', 'gst_rate', 'logo', 'currency', 'timezone',
-        'status', 'is_open', 'qr_ordering_enabled', 'customer_bill_request_enabled',
+        'country', 'gstin', 'gst_rate', 'gst_inclusive', 'logo', 'currency', 'timezone',
+        'status', 'is_open', 'zomato_online', 'swiggy_online', 'offline_reason', 'offline_until',
+        'qr_ordering_enabled', 'customer_bill_request_enabled',
         'kot_enabled', 'kot_auto_print', 'kot_printer', 'bill_auto_print', 'feedback_on_bill', 'upi_id',
         'contact_phones', 'active_contact_phone',
         'google_place_id', 'google_review_url',
@@ -26,7 +27,11 @@ class Tenant extends Model
     protected $casts = [
         'review_suggestions'     => 'array',
         'contact_phones'         => 'array',
+        'gst_inclusive'                     => 'boolean',
         'is_open'                           => 'boolean',
+        'zomato_online'                     => 'boolean',
+        'swiggy_online'                     => 'boolean',
+        'offline_until'                     => 'datetime',
         'qr_ordering_enabled'               => 'boolean',
         'customer_bill_request_enabled'     => 'boolean',
         'kot_enabled'                       => 'boolean',
@@ -60,5 +65,10 @@ class Tenant extends Model
     public function locations(): BelongsToMany
     {
         return $this->belongsToMany(Location::class, 'tenant_locations');
+    }
+
+    public function outletHours(): HasMany
+    {
+        return $this->hasMany(OutletHour::class);
     }
 }

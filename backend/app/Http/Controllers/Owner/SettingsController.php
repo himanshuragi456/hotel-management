@@ -17,6 +17,8 @@ class SettingsController extends Controller
     {
         return [
             'slug'                          => $tenant->slug,
+            'gst_rate'                      => (float) ($tenant->gst_rate ?? 5),
+            'gst_inclusive'                 => (bool)  ($tenant->gst_inclusive ?? false),
             'is_open'                       => $tenant->is_open ?? true,
             'qr_ordering_enabled'           => $tenant->qr_ordering_enabled,
             'customer_bill_request_enabled' => $tenant->customer_bill_request_enabled,
@@ -41,6 +43,8 @@ class SettingsController extends Controller
     {
         $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
         $request->validate([
+            'gst_rate'                      => 'sometimes|numeric|min:0|max:100',
+            'gst_inclusive'                 => 'sometimes|boolean',
             'is_open'                       => 'sometimes|boolean',
             'qr_ordering_enabled'           => 'sometimes|boolean',
             'customer_bill_request_enabled' => 'sometimes|boolean',
@@ -55,6 +59,8 @@ class SettingsController extends Controller
             'active_contact_phone'          => 'sometimes|nullable|string|regex:/^[6-9]\d{9}$/',
         ]);
         $tenant->update($request->only([
+            'gst_rate',
+            'gst_inclusive',
             'is_open',
             'qr_ordering_enabled',
             'customer_bill_request_enabled',

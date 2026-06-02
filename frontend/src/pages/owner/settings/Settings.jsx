@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   KeyIcon, PrinterIcon, CheckCircleIcon, ExclamationCircleIcon,
   QrCodeIcon, BellAlertIcon, CreditCardIcon, PhoneIcon, PlusIcon, TrashIcon,
+  PowerIcon, ClockIcon, QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
-import { getOwnerSettings, updateOwnerSettings, changeOwnPassword, getFeedbackQrCodes } from '@/services/restaurantService'
+import { getOwnerSettings, updateOwnerSettings, changeOwnPassword, getFeedbackQrCodes, getOutlet, toggleOutletChannel, setOutletHours } from '@/services/restaurantService'
 import { validate, validateField, required, isStrongPassword } from '@/utils/validate'
 import useAuthStore from '@/store/authStore'
 
@@ -159,6 +160,81 @@ function KotSettingsCard({ settings, onUpdate, isPending, hasFeedback, feedbackR
             </div>
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+function GstSettingsCard({ settings, onUpdate, isPending }) {
+  const [rate, setRate]         = useState('')
+  const [saved, setSaved]       = useState(false)
+  const inclusive               = settings?.gst_inclusive ?? false
+
+  useEffect(() => {
+    if (settings?.gst_rate != null) setRate(String(settings.gst_rate))
+  }, [settings?.gst_rate])
+
+  const handleSave = () => {
+    const parsed = parseFloat(rate)
+    if (isNaN(parsed) || parsed < 0 || parsed > 100) return
+    onUpdate({ gst_rate: parsed })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+          <span className="text-violet-500 font-bold text-sm">%</span>
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-900 text-sm">GST / Tax Settings</h3>
+          <p className="text-xs text-gray-400">Configure how GST is applied to your menu prices</p>
+        </div>
+      </div>
+
+      {/* Inclusive toggle */}
+      <div className="flex items-center justify-between py-3 border-b border-gray-50 mb-3">
+        <div className="flex-1 min-w-0 pr-4">
+          <p className="text-sm font-medium text-gray-800">Prices include GST</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {inclusive
+              ? 'Menu prices already include tax. Bills show "incl. GST" and extract the tax component.'
+              : 'GST is added on top of menu prices at checkout. Bills show subtotal + GST = total.'}
+          </p>
+        </div>
+        <button type="button" role="switch" aria-checked={inclusive} disabled={isPending}
+          onClick={() => onUpdate({ gst_inclusive: !inclusive })}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none disabled:opacity-40 ${inclusive ? 'bg-orange-500' : 'bg-gray-200'}`}>
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${inclusive ? 'translate-x-6' : 'translate-x-1'}`}/>
+        </button>
+      </div>
+
+      {/* Rate input */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">Default GST Rate (%)</label>
+        <div className="flex gap-2">
+          <input type="number" min="0" max="100" step="0.5" value={rate}
+            onChange={e => { setRate(e.target.value); setSaved(false) }}
+            placeholder="e.g. 5"
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400"/>
+          <button onClick={handleSave} disabled={isPending}
+            className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${saved ? 'bg-green-500 text-white' : 'bg-orange-500 text-white hover:bg-orange-600'} disabled:opacity-50`}>
+            {saved ? 'Saved!' : 'Save'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-1.5">
+          Individual items can override this rate in the menu editor (Advanced section).
+        </p>
+      </div>
+
+      {/* GST mode explanation */}
+      <div className={`mt-3 rounded-xl px-4 py-3 text-xs ${inclusive ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
+        {inclusive
+          ? <>📌 <strong>Inclusive mode:</strong> ₹100 item with 5% GST → customer pays ₹100. Tax collected = ₹4.76 (extracted from price).</>
+          : <>📌 <strong>Exclusive mode:</strong> ₹100 item with 5% GST → customer pays ₹105. Tax collected = ₹5 (added on top).</>
+        }
       </div>
     </div>
   )
@@ -419,6 +495,137 @@ function ChangePasswordCard() {
   )
 }
 
+const ZOMATO_HELP_URL = 'https://www.zomato.com/partners/onlineordering/help/'
+const OUTLET_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function ChannelToggle({ label, online, onToggle, reasons, busy }) {
+  const [showReason, setShowReason] = useState(false)
+  const [reason, setReason] = useState('')
+
+  if (showReason && online) {
+    // about to go offline — ask for a reason
+    return (
+      <div className="py-3 border-t border-gray-50 first:border-0">
+        <p className="text-sm font-medium text-gray-800 mb-2">Turn off {label} — why?</p>
+        <select value={reason} onChange={e => setReason(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 mb-2 focus:outline-none focus:ring-2 focus:ring-orange-400">
+          <option value="">Select a reason…</option>
+          {reasons?.map(r => <option key={r.code} value={r.code}>{r.label}</option>)}
+        </select>
+        <div className="flex gap-2">
+          <button disabled={busy} onClick={() => { onToggle(false, reason || undefined); setShowReason(false); setReason('') }}
+            className="px-4 py-1.5 text-sm font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl disabled:opacity-50">Turn Off</button>
+          <button onClick={() => setShowReason(false)} className="px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">Cancel</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between py-3 border-t border-gray-50 first:border-0">
+      <div className="flex items-center gap-2">
+        <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-red-500'}`} />
+        <span className="text-sm font-medium text-gray-800">{label}</span>
+        <span className={`text-xs ${online ? 'text-emerald-600' : 'text-red-500'}`}>{online ? 'Online' : 'Offline'}</span>
+      </div>
+      <button type="button" role="switch" aria-checked={online} disabled={busy}
+        onClick={() => online ? setShowReason(true) : onToggle(true)}
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors disabled:opacity-40 ${online ? 'bg-orange-500' : 'bg-gray-200'}`}>
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${online ? 'translate-x-6' : 'translate-x-1'}`} />
+      </button>
+    </div>
+  )
+}
+
+function OutletHoursEditor({ outlet, busy, onSave }) {
+  const allHours = (outlet?.hours ?? []).filter(h => h.channel === 'all')
+  const [rows, setRows] = useState(
+    allHours.map(h => ({ day_of_week: h.day_of_week, open_time: h.open_time?.slice(0, 5) ?? '10:00', close_time: h.close_time?.slice(0, 5) ?? '23:00' }))
+  )
+  const addRow = () => setRows(r => [...r, { day_of_week: 1, open_time: '10:00', close_time: '23:00' }])
+  const upd = (i, k, v) => setRows(r => r.map((row, idx) => idx === i ? { ...row, [k]: v } : row))
+  const remove = (i) => setRows(r => r.filter((_, idx) => idx !== i))
+
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-50">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+        <ClockIcon className="w-3.5 h-3.5" /> Operational Hours
+      </p>
+      <div className="space-y-2 mb-2">
+        {rows.map((row, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <select value={row.day_of_week} onChange={e => upd(i, 'day_of_week', Number(e.target.value))}
+              className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50">
+              {OUTLET_DAYS.map((d, idx) => <option key={idx} value={idx}>{d}</option>)}
+            </select>
+            <input type="time" value={row.open_time} onChange={e => upd(i, 'open_time', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50" />
+            <span className="text-gray-400 text-sm">to</span>
+            <input type="time" value={row.close_time} onChange={e => upd(i, 'close_time', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50" />
+            <button onClick={() => remove(i)} className="text-red-400 hover:text-red-600"><TrashIcon className="w-4 h-4" /></button>
+          </div>
+        ))}
+        {!rows.length && <p className="text-xs text-gray-400">Open 24/7 (no hours set).</p>}
+      </div>
+      <div className="flex items-center justify-between">
+        <button onClick={addRow} className="text-sm text-orange-600 font-medium hover:text-orange-700 flex items-center gap-1">
+          <PlusIcon className="w-4 h-4" /> Add slot
+        </button>
+        <button disabled={busy} onClick={() => onSave({ channel: 'all', hours: rows })}
+          className="px-4 py-1.5 text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-xl disabled:opacity-50">
+          Save Hours
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function OutletCard() {
+  const qc = useQueryClient()
+  const { data: outlet } = useQuery({ queryKey: ['owner-outlet'], queryFn: () => getOutlet().then(r => r.data.data) })
+
+  const toggle = useMutation({
+    mutationFn: toggleOutletChannel,
+    onSuccess: (res) => qc.setQueryData(['owner-outlet'], res.data.data),
+  })
+  const saveHours = useMutation({
+    mutationFn: setOutletHours,
+    onSuccess: (res) => qc.setQueryData(['owner-outlet'], res.data.data),
+  })
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <PowerIcon className="w-5 h-5 text-orange-500" />
+        <h3 className="font-semibold text-gray-900">Outlet Status</h3>
+      </div>
+      <p className="text-xs text-gray-400 mb-3">Turn ordering channels on or off and set operational hours.</p>
+
+      <ChannelToggle label="Dine-in / QR" online={outlet?.is_open ?? true} busy={toggle.isPending}
+        reasons={outlet?.offline_reasons}
+        onToggle={(online, offline_reason) => toggle.mutate({ channel: 'dine_in', online, offline_reason })} />
+      <ChannelToggle label="Zomato" online={outlet?.zomato_online ?? true} busy={toggle.isPending}
+        reasons={outlet?.offline_reasons}
+        onToggle={(online, offline_reason) => toggle.mutate({ channel: 'zomato', online, offline_reason })} />
+      <ChannelToggle label="Swiggy" online={outlet?.swiggy_online ?? true} busy={toggle.isPending}
+        reasons={outlet?.offline_reasons}
+        onToggle={(online, offline_reason) => toggle.mutate({ channel: 'swiggy', online, offline_reason })} />
+
+      {outlet?.offline_reason && (
+        <p className="text-xs text-red-500 mt-2">
+          Currently offline: {outlet.offline_reasons?.find(r => r.code === outlet.offline_reason)?.label ?? outlet.offline_reason}
+        </p>
+      )}
+
+      <OutletHoursEditor outlet={outlet} busy={saveHours.isPending} onSave={(d) => saveHours.mutate(d)} />
+
+      <a href={ZOMATO_HELP_URL} target="_blank" rel="noopener noreferrer"
+        className="mt-4 inline-flex items-center gap-1.5 text-sm text-[#e23744] hover:underline font-medium">
+        <QuestionMarkCircleIcon className="w-4 h-4" /> Zomato Help Centre
+      </a>
+    </div>
+  )
+}
+
 export default function OwnerSettings() {
   const { user } = useAuthStore()
   const qc = useQueryClient()
@@ -455,6 +662,12 @@ export default function OwnerSettings() {
       <div className="space-y-4">
         {hasRestaurant && (
           <>
+            <OutletCard />
+            <GstSettingsCard
+              settings={settings}
+              onUpdate={(patch) => updateMutation.mutate(patch)}
+              isPending={updateMutation.isPending}
+            />
             <CustomerOrderingCard
               settings={settings}
               onUpdate={(patch) => updateMutation.mutate(patch)}

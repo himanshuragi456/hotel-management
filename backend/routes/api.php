@@ -133,6 +133,19 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::put('menu/items/{menuItem}', [OwnerMenuController::class, 'updateItem']);
                 Route::delete('menu/items/{menuItem}', [OwnerMenuController::class, 'destroyItem']);
                 Route::post('menu/items/bulk-toggle', [OwnerMenuController::class, 'bulkToggle']);
+                // Variants
+                Route::post('menu/items/{menuItem}/variants', [OwnerMenuController::class, 'storeVariant']);
+                Route::put('menu/variants/{variant}', [OwnerMenuController::class, 'updateVariant']);
+                Route::delete('menu/variants/{variant}', [OwnerMenuController::class, 'destroyVariant']);
+                // Add-on groups & add-ons
+                Route::post('menu/items/{menuItem}/addon-groups', [OwnerMenuController::class, 'storeAddonGroup']);
+                Route::put('menu/addon-groups/{addonGroup}', [OwnerMenuController::class, 'updateAddonGroup']);
+                Route::delete('menu/addon-groups/{addonGroup}', [OwnerMenuController::class, 'destroyAddonGroup']);
+                Route::post('menu/addon-groups/{addonGroup}/addons', [OwnerMenuController::class, 'storeAddon']);
+                Route::put('menu/addons/{addon}', [OwnerMenuController::class, 'updateAddon']);
+                Route::delete('menu/addons/{addon}', [OwnerMenuController::class, 'destroyAddon']);
+                // Category day/time schedule
+                Route::put('menu/categories/{menuCategory}/schedules', [OwnerMenuController::class, 'setCategorySchedules']);
                 Route::get('tables', [TableController::class, 'index']);
                 Route::post('tables', [TableController::class, 'store']);
                 Route::put('tables/{restaurantTable}', [TableController::class, 'update']);
@@ -140,6 +153,10 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::get('tables/{restaurantTable}/qr', [TableController::class, 'qrCode']);
                 Route::get('orders/report', [RevenueController::class, 'ordersReport']);
                 Route::get('orders/export/pdf', [RevenueController::class, 'exportPdf']);
+                // Outlet management — hours, per-channel on/off, offline reason
+                Route::get('outlet', [\App\Http\Controllers\Owner\OutletController::class, 'show']);
+                Route::post('outlet/toggle-channel', [\App\Http\Controllers\Owner\OutletController::class, 'toggleChannel']);
+                Route::put('outlet/hours', [\App\Http\Controllers\Owner\OutletController::class, 'setHours']);
             });
             // Expenses — available to all modules (hotel has salary, maintenance, etc.)
             Route::get('expenses', [RevenueController::class, 'expenses']);
@@ -223,6 +240,14 @@ Route::middleware(['auth:api'])->group(function () {
         // Shared read-only settings — accessible to all staff roles for KOT config etc.
         Route::middleware(['role:waiter,chef,billing,owner'])->get('tenant-settings', [SettingsController::class, 'show']);
 
+        // Order actions (reject / cancel / mark OOS) — chef, billing, owner; restaurant module
+        Route::middleware(['role:chef,billing,owner', 'module:restaurant'])->group(function () {
+            Route::get('order-actions/rejection-reasons', [\App\Http\Controllers\OrderActionController::class, 'rejectionReasons']);
+            Route::post('order-actions/{order}/reject', [\App\Http\Controllers\OrderActionController::class, 'reject']);
+            Route::post('order-actions/{order}/cancel', [\App\Http\Controllers\OrderActionController::class, 'cancel']);
+            Route::post('order-actions/mark-oos', [\App\Http\Controllers\OrderActionController::class, 'markOos']);
+        });
+
         // Billing counter: set active contact phone shown to Magic Tables customers
         Route::middleware(['role:billing,owner'])->put('settings/active-phone', [SettingsController::class, 'setActivePhone']);
 
@@ -292,6 +317,7 @@ Route::middleware(['auth:api'])->group(function () {
             // Takeaway orders — restaurant module
             Route::middleware(['module:restaurant'])->group(function () {
                 Route::post('takeaway/orders', [InvoiceController::class, 'storeTakeaway']);
+                Route::post('aggregator/orders', [InvoiceController::class, 'storeAggregator']);
             });
             // Magic Tables payment confirmation — restaurant module
             Route::middleware(['module:restaurant'])->group(function () {

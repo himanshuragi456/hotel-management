@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getKitchenOrders, updateOrderStatus, getTenantSettings } from '@/services/restaurantService'
+import { getKitchenOrders, updateOrderStatus, getTenantSettings, getRejectionReasons, rejectOrder } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
@@ -48,7 +48,12 @@ function StatusPill({ status }) {
   )
 }
 
-function OrderCard({ order, onStatusChange, showKotButton, onKotPrint }) {
+const PLATFORM_BADGE = {
+  zomato: 'bg-[#e23744]/20 text-[#ff8088] ring-1 ring-[#e23744]/40',
+  swiggy: 'bg-[#fc8019]/20 text-[#ffb072] ring-1 ring-[#fc8019]/40',
+}
+
+function OrderCard({ order, onStatusChange, showKotButton, onKotPrint, onReject }) {
   const next = STATUS_FLOW[order.status]
 
   return (
@@ -71,9 +76,18 @@ function OrderCard({ order, onStatusChange, showKotButton, onKotPrint }) {
                 Magic Tables
               </span>
             )}
-            {order.type === 'takeaway' && (
+            {order.source === 'aggregator' && order.platform ? (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize ${PLATFORM_BADGE[order.platform] ?? 'bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/40'}`}>
+                {order.platform}{order.external_order_id ? ` · ${order.external_order_id}` : ''}
+              </span>
+            ) : order.type === 'takeaway' && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/40">
                 Takeaway
+              </span>
+            )}
+            {order.no_cutlery && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-500/20 text-slate-300 ring-1 ring-slate-500/40">
+                No cutlery
               </span>
             )}
           </div>
@@ -108,6 +122,12 @@ function OrderCard({ order, onStatusChange, showKotButton, onKotPrint }) {
             </span>
             <div className="flex-1 min-w-0">
               <div className="text-white text-sm leading-snug">{item.item_name}</div>
+              {item.variant_name && (
+                <div className="text-slate-400 text-xs mt-0.5">↳ {item.variant_name}</div>
+              )}
+              {item.addons?.length > 0 && (
+                <div className="text-slate-400 text-xs mt-0.5">+ {item.addons.map(a => a.name).join(', ')}</div>
+              )}
               {item.notes && (
                 <div className="flex items-center gap-1 mt-1 px-2 py-1 rounded-md bg-amber-500/15 ring-1 ring-amber-500/30">
                   <ExclamationTriangleIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -129,6 +149,14 @@ function OrderCard({ order, onStatusChange, showKotButton, onKotPrint }) {
 
       {/* Buttons row */}
       <div className={`flex gap-2 ${next ? '' : 'justify-end'}`}>
+        {order.status !== 'ready' && onReject && (
+          <button
+            onClick={() => onReject(order)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-red-300 bg-red-500/15 hover:bg-red-500/25 ring-1 ring-red-500/30 transition-colors"
+          >
+            Reject
+          </button>
+        )}
         {showKotButton && (
           <button
             onClick={() => onKotPrint(order)}
@@ -157,6 +185,62 @@ function OrderCard({ order, onStatusChange, showKotButton, onKotPrint }) {
   )
 }
 
+function RejectModal({ order, reasons, onClose, onConfirm, pending }) {
+  const [code, setCode] = useState('')
+  const [note, setNote] = useState('')
+  const [itemIds, setItemIds] = useState([])
+  const reason = reasons?.find(r => r.code === code)
+  const needsItems = reason?.requires_item
+
+  const toggleItem = (id) => setItemIds(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+
+  const canSubmit = code && (!needsItems || itemIds.length > 0)
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-900 ring-1 ring-white/10 rounded-2xl w-full max-w-md p-5">
+        <h3 className="text-white font-bold mb-1">Reject order</h3>
+        <p className="text-slate-400 text-xs mb-4 font-mono">{order.order_number}</p>
+
+        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Reason</label>
+        <select value={code} onChange={e => { setCode(e.target.value); setItemIds([]) }}
+          className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-red-500">
+          <option value="">Select a reason…</option>
+          {reasons?.map(r => <option key={r.code} value={r.code}>{r.label}</option>)}
+        </select>
+
+        {needsItems && (
+          <div className="mb-3">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Out-of-stock item(s)</label>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {order.items?.map((it, i) => (
+                <label key={i} className="flex items-center gap-2 text-sm text-slate-200">
+                  <input type="checkbox" checked={itemIds.includes(it.menu_item_id)} onChange={() => toggleItem(it.menu_item_id)}
+                    className="rounded border-slate-600 text-red-500" />
+                  {it.quantity}× {it.item_name}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Note (optional)"
+          rows={2} className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" />
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-xl">Cancel</button>
+          <button
+            disabled={!canSubmit || pending}
+            onClick={() => onConfirm({ reason_code: code, note: note || undefined, rejected_item_ids: needsItems ? itemIds : undefined })}
+            className="px-5 py-2 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-40">
+            {pending ? 'Rejecting…' : 'Reject Order'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function EmptyColumn({ message }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 rounded-2xl border border-dashed border-slate-800 text-slate-600">
@@ -166,7 +250,7 @@ function EmptyColumn({ message }) {
   )
 }
 
-function Column({ title, colorClass, pillClass, count, orders, onStatusChange, emptyMessage, showKotButton, onKotPrint }) {
+function Column({ title, colorClass, pillClass, count, orders, onStatusChange, emptyMessage, showKotButton, onKotPrint, onReject }) {
   return (
     <div className="flex flex-col gap-3">
       {/* Column header */}
@@ -179,7 +263,7 @@ function Column({ title, colorClass, pillClass, count, orders, onStatusChange, e
 
       {/* Cards */}
       {orders.map(o => (
-        <OrderCard key={o.id} order={o} onStatusChange={onStatusChange} showKotButton={showKotButton} onKotPrint={onKotPrint} />
+        <OrderCard key={o.id} order={o} onStatusChange={onStatusChange} showKotButton={showKotButton} onKotPrint={onKotPrint} onReject={onReject} />
       ))}
       {!orders.length && <EmptyColumn message={emptyMessage} />}
     </div>
@@ -227,6 +311,17 @@ export default function ChefDashboard() {
   const updateStatus = useMutation({
     mutationFn: ({ id, status }) => updateOrderStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['kitchen-orders'] }),
+  })
+
+  const [rejectTarget, setRejectTarget] = useState(null)
+  const { data: rejectionReasons } = useQuery({
+    queryKey: ['rejection-reasons'],
+    queryFn: () => getRejectionReasons().then(r => r.data.data),
+    staleTime: 60 * 60 * 1000, // reference data — rarely changes
+  })
+  const reject = useMutation({
+    mutationFn: ({ id, data }) => rejectOrder(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['kitchen-orders'] }); setRejectTarget(null) },
   })
 
   // Pusher realtime
@@ -347,6 +442,7 @@ export default function ChefDashboard() {
             emptyMessage="No pending orders"
             showKotButton={showKotButton}
             onKotPrint={printKot}
+            onReject={setRejectTarget}
           />
 
           <Column
@@ -359,6 +455,7 @@ export default function ChefDashboard() {
             emptyMessage="Nothing being prepared"
             showKotButton={showKotButton}
             onKotPrint={printKot}
+            onReject={setRejectTarget}
           />
 
           <Column
@@ -371,8 +468,19 @@ export default function ChefDashboard() {
             emptyMessage="Nothing ready yet"
             showKotButton={showKotButton}
             onKotPrint={printKot}
+            onReject={setRejectTarget}
           />
         </div>
+      )}
+
+      {rejectTarget && (
+        <RejectModal
+          order={rejectTarget}
+          reasons={rejectionReasons}
+          pending={reject.isPending}
+          onClose={() => setRejectTarget(null)}
+          onConfirm={(data) => reject.mutate({ id: rejectTarget.id, data })}
+        />
       )}
     </div>
   )

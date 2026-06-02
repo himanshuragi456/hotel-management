@@ -5,6 +5,7 @@ import {
   placeOrder, markServed,
   getWaiterOrders, getActiveRooms, placeRoomService,
 } from '@/services/restaurantService'
+import ItemCustomizeSheet from '@/components/shared/ItemCustomizeSheet'
 import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
@@ -127,6 +128,7 @@ function TableOrderPanel({ table, onClose }) {
   const { getTenantId } = useAuthStore()
   const tenantId = getTenantId?.()
   const [cart, setCart] = useState([])
+  const [customizeItem, setCustomizeItem] = useState(null)
   const [activeCat, setActiveCat] = useState(null)
   const [showMenu, setShowMenu] = useState(false)
 
@@ -174,11 +176,23 @@ function TableOrderPanel({ table, onClose }) {
     queryFn: () => getWaiterMenu().then(r => r.data.data),
   })
   const cats = menu ?? []
+  const [activeSub, setActiveSub] = useState(null)
   const activeCatId = activeCat ?? cats[0]?.id
-  const allItems = cats.flatMap(c => c.items?.filter(i => i.is_available) ?? [])
+  const allItems = cats.flatMap(c => [
+    ...(c.items?.filter(i => i.is_available) ?? []),
+    ...(c.subcategories ?? []).flatMap(s => s.items?.filter(i => i.is_available) ?? []),
+  ])
+  const activeCatObj = cats.find(c => c.id === activeCatId)
+  const subcatsOfActive = activeCatObj?.subcategories ?? []
+  const activeCatItems = activeSub
+    ? (activeCatObj?.subcategories?.find(s => s.id === activeSub)?.items?.filter(i => i.is_available) ?? [])
+    : [
+        ...(activeCatObj?.items?.filter(i => i.is_available) ?? []),
+        ...(activeCatObj?.subcategories ?? []).flatMap(s => s.items?.filter(i => i.is_available) ?? []),
+      ]
   const visibleItems = debouncedMenuSearch.trim()
     ? allItems.filter(i => i.name.toLowerCase().includes(debouncedMenuSearch.toLowerCase()))
-    : (cats.find(c => c.id === activeCatId)?.items?.filter(i => i.is_available) ?? [])
+    : activeCatItems
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['waiter-table-orders', table.id] })
@@ -196,13 +210,27 @@ function TableOrderPanel({ table, onClose }) {
     onSuccess: invalidate,
   })
 
-  const addToCart = (item) => setCart(c => {
-    const ex = c.find(x => x.menu_item_id === item.id)
-    if (ex) return c.map(x => x.menu_item_id === item.id ? { ...x, quantity: x.quantity + 1 } : x)
-    return [...c, { menu_item_id: item.id, name: item.name, price: item.price, quantity: 1 }]
+  const cartKey = (itemId, variantId, addonIds) =>
+    `${itemId}:${variantId ?? ''}:${[...(addonIds ?? [])].sort().join(',')}`
+
+  const addToCart = (line) => {
+    const key = cartKey(line.menu_item_id, line.variant_id, line.addon_ids)
+    setCart(c => {
+      const idx = c.findIndex(x => x._key === key)
+      if (idx >= 0) return c.map((x, i) => i === idx ? { ...x, quantity: x.quantity + line.quantity } : x)
+      return [...c, { ...line, _key: key }]
+    })
+    setCustomizeItem(null)
+  }
+
+  const directAdd = (item) => addToCart({
+    menu_item_id: item.id, variant_id: null, addon_ids: [],
+    quantity: 1, name: item.name, variant_name: null, addon_labels: [],
+    price: item.price, type: item.type,
   })
-  const updateQty = (id, delta) =>
-    setCart(c => c.map(x => x.menu_item_id === id ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
+
+  const updateQty = (key, delta) =>
+    setCart(c => c.map(x => x._key === key ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
 
   const cartTotal = cart.reduce((s, x) => s + x.price * x.quantity, 0)
   const hasOpenOrders = orders.some(o => !['served', 'cancelled'].includes(o.status))
@@ -215,11 +243,17 @@ function TableOrderPanel({ table, onClose }) {
     if (!cart.length) return
     createOrder.mutate({
       restaurant_table_id: table.id,
-      items: cart.map(({ menu_item_id, quantity }) => ({ menu_item_id, quantity })),
+      items: cart.map(({ menu_item_id, variant_id, addon_ids, quantity }) => ({
+        menu_item_id,
+        ...(variant_id  ? { variant_id }  : {}),
+        ...(addon_ids?.length ? { addon_ids } : {}),
+        quantity,
+      })),
     })
   }
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white/95 backdrop-blur-sm w-full sm:rounded-2xl sm:max-w-2xl max-h-screen sm:max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
 
@@ -330,20 +364,20 @@ function TableOrderPanel({ table, onClose }) {
               </div>
               <div className="space-y-2 mb-4">
                 {cart.map(item => (
-                  <div key={item.menu_item_id} className="flex items-center justify-between gap-2">
-                    <span className="text-sm text-gray-700 flex-1 truncate">{item.name}</span>
+                  <div key={item._key} className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-gray-700 truncate block">{item.name}</span>
+                      {item.variant_name && <span className="text-xs text-gray-400">{item.variant_name}</span>}
+                      {item.addon_labels?.length > 0 && <span className="text-xs text-gray-400 block">{item.addon_labels.join(', ')}</span>}
+                    </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => updateQty(item.menu_item_id, -1)}
-                        className="w-6 h-6 rounded-full bg-white border border-gray-200 text-gray-600 flex items-center justify-center hover:bg-gray-50 transition-colors"
-                      >
+                      <button onClick={() => updateQty(item._key, -1)}
+                        className="w-6 h-6 rounded-full bg-white border border-gray-200 text-gray-600 flex items-center justify-center hover:bg-gray-50">
                         <MinusIcon className="w-3 h-3" />
                       </button>
                       <span className="text-sm w-5 text-center font-semibold text-gray-800">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQty(item.menu_item_id, 1)}
-                        className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center hover:bg-orange-200 transition-colors"
-                      >
+                      <button onClick={() => updateQty(item._key, 1)}
+                        className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center hover:bg-orange-200">
                         <PlusIcon className="w-3 h-3" />
                       </button>
                       <span className="text-sm text-gray-500 w-14 text-right font-medium">₹{(item.price * item.quantity).toFixed(0)}</span>
@@ -396,21 +430,37 @@ function TableOrderPanel({ table, onClose }) {
                   />
                 </div>
               </div>
-              {/* Category pill tabs — hidden when searching */}
+              {/* Category tabs + subcategory pills — hidden when searching */}
               {!debouncedMenuSearch.trim() && (
-              <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-gray-100 bg-gray-50/60 no-scrollbar">
-                {menuLoading
-                  ? [1,2,3].map(i => <div key={i} className="h-7 w-20 bg-gray-100 rounded-full animate-pulse shrink-0" />)
-                  : cats.map(c => (
-                  <button key={c.id} onClick={() => setActiveCat(c.id)}
-                    className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-                      activeCatId === c.id
-                        ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
-                        : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-200 hover:text-orange-600'
-                    }`}>
-                    {c.name}
-                  </button>
-                ))}
+              <div className="border-b border-gray-100 bg-gray-50/60">
+                <div className="flex gap-0 px-2 overflow-x-auto no-scrollbar">
+                  {menuLoading
+                    ? [1,2,3].map(i => <div key={i} className="h-8 w-20 bg-gray-100 rounded animate-pulse shrink-0 mx-1 my-2" />)
+                    : cats.map(c => (
+                    <button key={c.id} onClick={() => { setActiveCat(c.id); setActiveSub(null) }}
+                      className={`shrink-0 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors -mb-px ${
+                        activeCatId === c.id
+                          ? 'border-orange-500 text-orange-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}>
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+                {subcatsOfActive.length > 0 && (
+                  <div className="flex gap-2 px-3 py-2 overflow-x-auto no-scrollbar">
+                    <button onClick={() => setActiveSub(null)}
+                      className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSub === null ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      All
+                    </button>
+                    {subcatsOfActive.map(s => (
+                      <button key={s.id} onClick={() => setActiveSub(s.id)}
+                        className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSub === s.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               )}
 
@@ -435,42 +485,40 @@ function TableOrderPanel({ table, onClose }) {
                     <p className="text-sm">No available items in this category.</p>
                   </div>
                 ) : visibleItems.map(item => {
-                  const inCart = cart.find(x => x.menu_item_id === item.id)
+                  const hasCustom  = item.variants?.length > 0 || item.addon_groups?.length > 0
+                  const totalQty   = cart.filter(x => x.menu_item_id === item.id).reduce((s, x) => s + x.quantity, 0)
+                  const simpleCart = !hasCustom ? cart.find(x => x.menu_item_id === item.id && !x.variant_id && !x.addon_ids?.length) : null
+                  const displayPrice = item.variants?.length > 0
+                    ? `from ₹${Math.min(...item.variants.map(v => v.price))}`
+                    : `₹${item.price}`
                   return (
                     <div key={item.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/60 transition-colors">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <span className={`w-3 h-3 rounded-sm border-2 shrink-0 ${item.type === 'veg' ? 'border-green-500 bg-green-100' : 'border-red-500 bg-red-100'}`} />
                         <div className="min-w-0">
                           <div className="text-sm font-medium text-gray-900 truncate">{item.name}</div>
-                          <div className="text-xs text-gray-400 flex items-center gap-0.5 mt-0.5">
-                            <CurrencyRupeeIcon className="w-3 h-3" />
-                            {item.price}
-                          </div>
+                          <div className="text-xs text-gray-400 mt-0.5">{displayPrice}{hasCustom ? ' · customize' : ''}</div>
                         </div>
                       </div>
-                      {inCart ? (
+                      {!hasCustom && simpleCart ? (
                         <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => updateQty(item.id, -1)}
-                            className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 font-bold flex items-center justify-center hover:bg-orange-200 transition-colors"
-                          >
+                          <button onClick={() => updateQty(simpleCart._key, -1)}
+                            className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 font-bold flex items-center justify-center hover:bg-orange-200">
                             <MinusIcon className="w-3.5 h-3.5" />
                           </button>
-                          <span className="w-6 text-center font-bold text-sm text-gray-800">{inCart.quantity}</span>
-                          <button
-                            onClick={() => updateQty(item.id, 1)}
-                            className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors"
-                          >
+                          <span className="w-6 text-center font-bold text-sm text-gray-800">{simpleCart.quantity}</span>
+                          <button onClick={() => updateQty(simpleCart._key, 1)}
+                            className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600">
                             <PlusIcon className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ) : (
                         <button
-                          onClick={() => addToCart(item)}
-                          className="shrink-0 flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white text-xs px-3.5 py-1.5 rounded-full font-semibold transition-colors"
-                        >
-                          <PlusIcon className="w-3 h-3" />
-                          Add
+                          onClick={() => hasCustom ? setCustomizeItem(item) : directAdd(item)}
+                          className={`shrink-0 flex items-center gap-1 text-xs px-3.5 py-1.5 rounded-full font-semibold transition-colors ${
+                            totalQty > 0 ? 'bg-orange-100 text-orange-700' : 'bg-orange-500 hover:bg-orange-600 text-white'
+                          }`}>
+                          {totalQty > 0 ? `${totalQty} added` : hasCustom ? 'Customize' : <><PlusIcon className="w-3 h-3"/>Add</>}
                         </button>
                       )}
                     </div>
@@ -495,6 +543,15 @@ function TableOrderPanel({ table, onClose }) {
         )}
       </div>
     </div>
+
+    {customizeItem && (
+      <ItemCustomizeSheet
+        item={customizeItem}
+        onAdd={(line) => { addToCart(line); setShowMenu(true) }}
+        onClose={() => setCustomizeItem(null)}
+      />
+    )}
+  </>
   )
 }
 
@@ -506,26 +563,44 @@ function RoomServiceForm({ booking, onClose }) {
 
   const { data: menu } = useQuery({ queryKey: ['waiter-menu'], queryFn: () => getWaiterMenu().then(r => r.data.data) })
   const cats = menu ?? []
-  const allItems = cats.flatMap(c => c.items ?? [])
+  const [activeSubRS, setActiveSubRS] = useState(null)
   const activeCatId = activeCat ?? cats[0]?.id
-  const visibleItems = allItems.filter(i => i.is_available && i.menu_category_id === activeCatId)
+  const activeCatObj = cats.find(c => c.id === activeCatId)
+  const subcatsOfActiveRS = activeCatObj?.subcategories ?? []
+  const visibleItems = activeSubRS
+    ? (activeCatObj?.subcategories?.find(s => s.id === activeSubRS)?.items?.filter(i => i.is_available) ?? [])
+    : [
+        ...(activeCatObj?.items?.filter(i => i.is_available) ?? []),
+        ...(activeCatObj?.subcategories ?? []).flatMap(s => s.items?.filter(i => i.is_available) ?? []),
+      ]
+
+  const [customizeItemRS, setCustomizeItemRS] = useState(null)
 
   const create = useMutation({
     mutationFn: placeRoomService,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['waiter-orders'] }); onClose() },
   })
 
-  const addToCart = (item) => setCart(c => {
-    const ex = c.find(x => x.menu_item_id === item.id)
-    if (ex) return c.map(x => x.menu_item_id === item.id ? { ...x, quantity: x.quantity + 1 } : x)
-    return [...c, { menu_item_id: item.id, name: item.name, price: item.price, quantity: 1 }]
-  })
-  const updateQty = (id, delta) => setCart(c =>
-    c.map(x => x.menu_item_id === id ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0)
+  const cartKeyRS = (itemId, variantId, addonIds) =>
+    `${itemId}:${variantId ?? ''}:${[...(addonIds ?? [])].sort().join(',')}`
+
+  const addToCartRS = (line) => {
+    const key = cartKeyRS(line.menu_item_id, line.variant_id, line.addon_ids)
+    setCart(c => {
+      const idx = c.findIndex(x => x._key === key)
+      if (idx >= 0) return c.map((x, i) => i === idx ? { ...x, quantity: x.quantity + line.quantity } : x)
+      return [...c, { ...line, _key: key }]
+    })
+    setCustomizeItemRS(null)
+  }
+  const directAddRS = (item) => addToCartRS({ menu_item_id: item.id, variant_id: null, addon_ids: [], quantity: 1, name: item.name, variant_name: null, addon_labels: [], price: item.price })
+  const updateQtyRS = (key, delta) => setCart(c =>
+    c.map(x => x._key === key ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0)
   )
   const total = cart.reduce((s, x) => s + x.price * x.quantity, 0)
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white/95 backdrop-blur-sm w-full sm:rounded-2xl sm:max-w-xl max-h-screen sm:max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
 
@@ -548,18 +623,32 @@ function RoomServiceForm({ booking, onClose }) {
           </button>
         </div>
 
-        {/* Category pill tabs */}
-        <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-gray-100 bg-gray-50/60 no-scrollbar">
-          {cats.map(c => (
-            <button key={c.id} onClick={() => setActiveCat(c.id)}
-              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-                activeCatId === c.id
-                  ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-200 hover:text-orange-600'
-              }`}>
-              {c.name}
-            </button>
-          ))}
+        {/* Category tabs + subcategory pills */}
+        <div className="border-b border-gray-100 bg-gray-50/60">
+          <div className="flex gap-0 px-2 overflow-x-auto no-scrollbar">
+            {cats.map(c => (
+              <button key={c.id} onClick={() => { setActiveCat(c.id); setActiveSubRS(null) }}
+                className={`shrink-0 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors -mb-px ${
+                  activeCatId === c.id ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+          {subcatsOfActiveRS.length > 0 && (
+            <div className="flex gap-2 px-3 py-2 overflow-x-auto no-scrollbar">
+              <button onClick={() => setActiveSubRS(null)}
+                className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSubRS === null ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                All
+              </button>
+              {subcatsOfActiveRS.map(s => (
+                <button key={s.id} onClick={() => setActiveSubRS(s.id)}
+                  className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSubRS === s.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Items */}
@@ -570,41 +659,29 @@ function RoomServiceForm({ booking, onClose }) {
               <p className="text-sm">No available items in this category.</p>
             </div>
           ) : visibleItems.map(item => {
-            const inCart = cart.find(x => x.menu_item_id === item.id)
+            const hasCustom  = item.variants?.length > 0 || item.addon_groups?.length > 0
+            const totalQty   = cart.filter(x => x.menu_item_id === item.id).reduce((s, x) => s + x.quantity, 0)
+            const simpleCart = !hasCustom ? cart.find(x => x.menu_item_id === item.id && !x.variant_id && !x.addon_ids?.length) : null
+            const displayPrice = item.variants?.length > 0 ? `from ₹${Math.min(...item.variants.map(v => v.price))}` : `₹${item.price}`
             return (
               <div key={item.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/60 transition-colors">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <span className={`w-3 h-3 rounded-sm border-2 shrink-0 ${item.type === 'veg' ? 'border-green-500 bg-green-100' : 'border-red-500 bg-red-100'}`} />
                   <div>
                     <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                    <div className="text-xs text-gray-400 flex items-center gap-0.5 mt-0.5">
-                      <CurrencyRupeeIcon className="w-3 h-3" />{item.price}
-                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">{displayPrice}{hasCustom ? ' · customize' : ''}</div>
                   </div>
                 </div>
-                {inCart ? (
+                {!hasCustom && simpleCart ? (
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => updateQty(item.id, -1)}
-                      className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center hover:bg-orange-200 transition-colors"
-                    >
-                      <MinusIcon className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="w-6 text-center font-bold text-sm text-gray-800">{inCart.quantity}</span>
-                    <button
-                      onClick={() => updateQty(item.id, 1)}
-                      className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors"
-                    >
-                      <PlusIcon className="w-3.5 h-3.5" />
-                    </button>
+                    <button onClick={() => updateQtyRS(simpleCart._key, -1)} className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center hover:bg-orange-200"><MinusIcon className="w-3.5 h-3.5" /></button>
+                    <span className="w-6 text-center font-bold text-sm text-gray-800">{simpleCart.quantity}</span>
+                    <button onClick={() => updateQtyRS(simpleCart._key, 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600"><PlusIcon className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => addToCart(item)}
-                    className="flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white text-xs px-3.5 py-1.5 rounded-full font-semibold transition-colors"
-                  >
-                    <PlusIcon className="w-3 h-3" />
-                    Add
+                  <button onClick={() => hasCustom ? setCustomizeItemRS(item) : directAddRS(item)}
+                    className={`flex items-center gap-1 text-xs px-3.5 py-1.5 rounded-full font-semibold transition-colors ${totalQty > 0 ? 'bg-orange-100 text-orange-700' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}>
+                    {totalQty > 0 ? `${totalQty} added` : hasCustom ? 'Customize' : <><PlusIcon className="w-3 h-3"/>Add</>}
                   </button>
                 )}
               </div>
@@ -617,12 +694,15 @@ function RoomServiceForm({ booking, onClose }) {
           <div className="border-t border-gray-100 px-5 py-4 bg-gray-50">
             <div className="space-y-1.5 mb-4">
               {cart.map(item => (
-                <div key={item.menu_item_id} className="flex justify-between text-sm">
-                  <span className="text-gray-700">
-                    <span className="inline-flex items-center justify-center w-5 h-5 bg-gray-200 text-gray-600 rounded text-xs font-bold mr-1.5">{item.quantity}</span>
-                    {item.name}
-                  </span>
-                  <span className="text-gray-700 font-medium">₹{(item.price * item.quantity).toFixed(0)}</span>
+                <div key={item._key} className="mb-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-700">
+                      <span className="inline-flex items-center justify-center w-5 h-5 bg-gray-200 text-gray-600 rounded text-xs font-bold mr-1.5">{item.quantity}</span>
+                      {item.name}{item.variant_name ? ` (${item.variant_name})` : ''}
+                    </span>
+                    <span className="text-gray-700 font-medium">₹{(item.price * item.quantity).toFixed(0)}</span>
+                  </div>
+                  {item.addon_labels?.length > 0 && <div className="text-xs text-gray-400 ml-7">{item.addon_labels.join(', ')}</div>}
                 </div>
               ))}
             </div>
@@ -632,7 +712,7 @@ function RoomServiceForm({ booking, onClose }) {
                 {total.toFixed(0)}
               </span>
               <button
-                onClick={() => create.mutate({ booking_id: booking.id, items: cart.map(({ menu_item_id, quantity }) => ({ menu_item_id, quantity })) })}
+                onClick={() => create.mutate({ booking_id: booking.id, items: cart.map(({ menu_item_id, variant_id, addon_ids, quantity }) => ({ menu_item_id, ...(variant_id ? { variant_id } : {}), ...(addon_ids?.length ? { addon_ids } : {}), quantity })) })}
                 disabled={create.isPending}
                 className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 shadow-sm shadow-orange-200 transition-all"
               >
@@ -644,6 +724,10 @@ function RoomServiceForm({ booking, onClose }) {
         )}
       </div>
     </div>
+    {customizeItemRS && (
+      <ItemCustomizeSheet item={customizeItemRS} onAdd={addToCartRS} onClose={() => setCustomizeItemRS(null)} />
+    )}
+  </>
   )
 }
 

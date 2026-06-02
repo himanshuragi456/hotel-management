@@ -12,7 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('tenants', function (Blueprint $table) {
-            $table->boolean('bill_auto_print')->default(false)->after('kot_printer');
+            // No ->after(): the referenced 'kot_printer' column is created by a later-dated
+            // migration (2026_05_20_000001), so a clean migrate:fresh would fail. Column
+            // position is cosmetic; appending is order-independent and safe on existing DBs.
+            $table->boolean('bill_auto_print')->default(false);
         });
     }
 

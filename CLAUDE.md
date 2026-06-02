@@ -284,3 +284,53 @@ Superadmin, Owner, Waiter, Chef, Billing Counter, Customer
 - [ ] Rate limiting on auth endpoints
 - [ ] CORS locked to production domain
 - [ ] Final smoke test all roles
+
+---
+
+### Phase 8 — Zomato/Swiggy POS Integration
+
+Strategy: 30 restaurants go live WITHOUT the official Zomato API. Biller does manual
+entry for Zomato/Swiggy orders. The POS owns all menu/order/outlet data natively so the
+eventual Zomato API is just a sync adapter on top — no rework. Adapter ships behind a
+per-tenant feature flag, activated only after Zomato approves us.
+
+#### 8.A Menu data model (full Zomato parity)
+- [x] Migrations: order_items variant/addon/GST cols; menu_categories parent_id + is_oos + tag;
+      menu_items GST slab/cgst_sgst/packaging/beverage/meat/nutrition/serving; menu_item_variants;
+      addon_groups + addons; category_schedules (all additive, verified on MySQL + rollback)
+- [x] Models: MenuItemVariant, AddonGroup, Addon, CategorySchedule + relations on MenuItem/MenuCategory/Order/OrderItem
+- [x] OrderService — single source of truth for order creation (variant price, addon snapshot, per-line GST 5(9) bifurcation). Verified against real data.
+- [x] Order::recalculate() aggregates per-line GST (falls back to tenant rate for legacy lines)
+- [x] Owner MenuController API: variants CRUD, addon-groups/addons CRUD, category schedules, category OOS/parent, new item fields. Routes registered.
+- [x] Frontend owner menu UI: variants, add-on groups (min/max), dietary/beverage/meat tags, GST slab + CGST/SGST,
+      packaging charge, nutrition, serving info, sub-categories, category OOS toggle, day/time schedule editor.
+      Files: MenuManager.jsx (CategoryPanel+ItemForm extended) + new VariantsAddonsManager.jsx. Builds clean.
+- [x] Wired POS order paths (waiter, customer QR, billing newOrder/takeaway/addItems) through OrderService.
+      Magic Tables x2 (Razorpay/UPI payment paths) deliberately left as-is — payment-critical, separate consumer app, no variant/addon need yet.
+- [x] Customer/Waiter/Billing menu APIs expose variants + add-ons via MenuCategory::orderableMenu(); respect category isAvailableNow() (OOS + parent OOS + day/time schedule). Verified end-to-end.
+
+#### 8.B Manual aggregator orders (the go-live feature)
+- [x] orders.source += 'aggregator'; platform/external_order_id/aggregator_status/no_cutlery cols
+- [x] Billing screen: channel buttons Takeaway / Zomato / Swiggy (brand-colored), platform-aware order panel
+      (external order id field, optional customer name), order entry via OrderService → storeAggregator. Builds clean.
+- [x] Per-channel reporting: todayRevenue returns `channels[]` (count + total per channel, aggregator split by platform)
+
+#### 8.C Order ops parity (Zomato order-management list)
+- [x] Order rejection with reason codes — order_rejection_reasons table + seeder (9 Zomato-aligned reasons,
+      zomato_message_id column reserved for post-approval mapping), IOOS captures rejected_item_ids.
+      OrderActionController (reject/cancel/markOos) + routes for chef/billing/owner. Chef dashboard reject modal.
+- [x] Mark item/variant/category OOS — backend endpoint + service ready; owners toggle via menu manager;
+      kitchen IOOS handled via reject flow. (Minor follow-up: standalone OOS button on kitchen card.)
+- [x] Merchant-agreed cancellation / order-return loop with audit closure (OrderActionController::cancel)
+- [x] Aggregator platform badges (Zomato/Swiggy) + no_cutlery indicator on kitchen cards. Builds clean.
+
+#### 8.D Outlet management
+- [x] outlet_hours table (per-channel operational hours) + tenant zomato_online/swiggy_online/offline_reason/offline_until.
+      OutletController (show/toggleChannel/setHours) with 7-reason offline glossary. Routes registered.
+- [x] Per-channel outlet on/off toggle + hours editor in owner Settings (OutletCard). Offline-reason prompt on turn-off.
+- [x] Zomato Help Centre link in Settings. Builds clean.
+
+#### 8.E Zomato API adapter (post-approval, behind feature flag)
+- [ ] ZomatoSyncService: map POS models → menu-push / order-push / status APIs
+- [ ] Webhook controller for live order flow (order push, KPT, accept/reject, fetch status)
+- [ ] Per-tenant feature flag to activate; manual restaurants unaffected until flipped

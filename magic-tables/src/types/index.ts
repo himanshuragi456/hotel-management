@@ -51,6 +51,7 @@ export interface MenuItem {
   description: string | null;
   price: number;
   image_url: string | null;
+  video_url: string | null;
   is_available: boolean;
   is_veg: boolean;
   is_ready_made: boolean;

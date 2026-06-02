@@ -117,6 +117,7 @@ class MagicTablesController extends Controller
                     'description'  => $item->description,
                     'price'        => (float) $item->price,
                     'image_url'    => $item->image_url,
+                    'video_url'    => $item->video_url,
                     'is_available' => $item->is_available,
                     'is_veg'             => $item->type === 'veg',
                     'is_ready_made'      => $item->is_ready_made,

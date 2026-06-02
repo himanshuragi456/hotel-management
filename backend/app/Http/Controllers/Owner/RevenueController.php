@@ -89,7 +89,22 @@ class RevenueController extends Controller
 
         $totalRevenue = $foodRevenue + $roomRevenue;
 
+        // Per-channel order breakdown today (dine-in/takeaway/QR + Zomato/Swiggy aggregator).
+        // Aggregator orders split out by platform; everything else grouped by source.
+        $channelRows = Order::where('tenant_id', $tenantId)
+            ->whereDate('created_at', today())
+            ->where('status', '!=', 'cancelled')
+            ->get(['source', 'platform', 'total']);
+        $channels = $channelRows->groupBy(fn($o) => $o->source === 'aggregator' ? ($o->platform ?: 'aggregator') : $o->source)
+            ->map(fn($grp, $key) => [
+                'channel' => $key,
+                'count'   => $grp->count(),
+                'total'   => round($grp->sum('total'), 2),
+            ])
+            ->values();
+
         return $this->success([
+            'channels'            => $channels,
             'revenue'             => $totalRevenue,
             'food_revenue'        => $foodRevenue,
             'room_revenue'        => $roomRevenue,

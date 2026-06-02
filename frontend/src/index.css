@@ -6,29 +6,53 @@
 
 html {
   overflow-x: hidden;
+  /* 16px base on desktop, 17px on mobile for comfortable reading */
+  font-size: 16px;
   -webkit-text-size-adjust: 100%;
+}
+
+@media (max-width: 430px) {
+  html {
+    font-size: 17px;
+  }
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
   max-width: 100vw;
 }
 
-/* Prevent iOS auto-zoom on input focus — inputs must be >= 16px */
+/* Prevent iOS auto-zoom on input focus */
 input, textarea, select {
-  font-size: 16px;
+  font-size: max(16px, 1rem);
 }
 
-/* Override for places that explicitly need smaller text inputs */
-input.text-xs, textarea.text-xs, select.text-xs,
-input.text-sm, textarea.text-sm, select.text-sm {
-  font-size: 16px;
+/* Minimum 44pt touch targets on mobile */
+@media (max-width: 430px) {
+  button {
+    min-height: 44px;
+  }
 }
 
-/* Smooth scrolling feel */
+/* Hide scrollbars on category tab strips */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth tap feel */
 * {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Remove 300ms click delay on mobile */
+a, button {
+  touch-action: manipulation;
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import ItemCustomizeSheet from '@/components/shared/ItemCustomizeSheet'
 
 const WAITER_CALL_WINDOW_MS  = 20_000
 const BILL_REQUEST_WINDOW_MS = 30_000
@@ -51,6 +52,7 @@ import {
   getOwnerSettings, updateOwnerSettings,
   getTenantSettings,
   billingPlaceTakeaway,
+  billingPlaceAggregator,
   getPendingMtOrders, confirmMtPayment, discardMtOrder,
   getBillPaidTables, confirmBillPaid, rejectBillPaid,
   setActiveContactPhone,
@@ -146,13 +148,26 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
           <div className="bg-gray-50 rounded-xl p-3 mb-4 text-sm">
             <div className="font-medium text-gray-700 mb-2">Items</div>
             {order.items?.map((item, i) => (
-              <div key={i} className="flex justify-between text-gray-600 text-xs mb-1">
-                <span>{item.quantity}× {item.item_name}</span>
-                <span>₹{(item.item_price * item.quantity).toFixed(0)}</span>
+              <div key={i} className="mb-1">
+                <div className="flex justify-between text-gray-600 text-xs">
+                  <span>{item.quantity}× {item.item_name}{item.variant_name ? ` (${item.variant_name})` : ''}</span>
+                  <span>₹{item.subtotal}</span>
+                </div>
+                {item.addons?.length > 0 && (
+                  <div className="text-gray-400 ml-4 text-[10px]">+ {item.addons.map(a => a.name).join(', ')}</div>
+                )}
+                {item.gst_rate != null && (
+                  <div className="text-gray-400 ml-4 text-[10px]">
+                    GST {item.gst_rate}%{item.cgst_amount > 0 ? ` · CGST ₹${item.cgst_amount} + SGST ₹${item.sgst_amount}` : ` · ₹${(item.cgst_amount + item.sgst_amount).toFixed(2)}`}
+                  </div>
+                )}
               </div>
             ))}
-            <div className="flex justify-between text-gray-700 font-medium border-t mt-2 pt-2">
+            <div className="flex justify-between text-gray-600 text-xs border-t mt-2 pt-1.5">
               <span>Subtotal</span><span>₹{order.subtotal}</span>
+            </div>
+            <div className="flex justify-between text-gray-600 text-xs">
+              <span>GST</span><span>₹{Number(order.tax).toFixed(2)}</span>
             </div>
           </div>
 
@@ -231,11 +246,22 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
 
   const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data) })
   const cats = menu ?? []
+  const [activeSub, setActiveSub] = useState(null)
   const activeCatId = activeCat ?? cats[0]?.id
-  const allItems = cats.flatMap(c => c.items ?? [])
+  const allItems = cats.flatMap(c => [
+    ...(c.items ?? []),
+    ...(c.subcategories ?? []).flatMap(s => s.items ?? []),
+  ])
+  const activeCatObj = cats.find(c => c.id === activeCatId)
+  const subcatsOfActive = activeCatObj?.subcategories ?? []
   const visibleItems = debouncedSearch.trim()
     ? allItems.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
-    : (cats.find(c => c.id === activeCatId)?.items ?? [])
+    : activeSub
+      ? (activeCatObj?.subcategories?.find(s => s.id === activeSub)?.items ?? [])
+      : [
+          ...(activeCatObj?.items ?? []),
+          ...(activeCatObj?.subcategories ?? []).flatMap(s => s.items ?? []),
+        ]
 
   // Only fetch waiters when creating a new order (not adding items to existing)
   const { data: waiters } = useQuery({
@@ -256,15 +282,26 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
     },
   })
 
-  const addToCart = (item) => setCart(c => {
-    const ex = c.find(x => x.menu_item_id === item.id)
-    if (ex) return c.map(x => x.menu_item_id === item.id ? { ...x, quantity: x.quantity + 1 } : x)
-    return [...c, { menu_item_id: item.id, name: item.name, price: item.price, quantity: 1 }]
-  })
-  const updateQty = (id, delta) =>
-    setCart(c => c.map(x => x.menu_item_id === id ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
+  const cartKey = (itemId, variantId, addonIds) =>
+    `${itemId}:${variantId ?? ''}:${[...(addonIds ?? [])].sort().join(',')}`
+
+  const addToCart = (line) => {
+    const key = cartKey(line.menu_item_id, line.variant_id, line.addon_ids)
+    setCart(c => {
+      const idx = c.findIndex(x => x._key === key)
+      if (idx >= 0) return c.map((x, i) => i === idx ? { ...x, quantity: x.quantity + line.quantity } : x)
+      return [...c, { ...line, _key: key }]
+    })
+    setCustomizeItem(null)
+  }
+  const directAdd = (item) => addToCart({ menu_item_id: item.id, variant_id: null, addon_ids: [], quantity: 1, name: item.name, variant_name: null, addon_labels: [], price: item.price })
+  const updateQty = (key, delta) =>
+    setCart(c => c.map(x => x._key === key ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
+
+  const [customizeItem, setCustomizeItem] = useState(null)
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full sm:rounded-2xl sm:max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b">
@@ -275,22 +312,33 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
         <div className="px-4 pt-3 pb-2 border-b bg-gray-50">
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <input
-              type="search"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search items…"
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
+            <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search items…"
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"/>
           </div>
           {!debouncedSearch.trim() && (
-            <div className="flex gap-2 overflow-x-auto pt-2 pb-0.5">
-              {cats.map(c => (
-                <button key={c.id} onClick={() => setActiveCat(c.id)}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${activeCatId === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 border hover:bg-gray-100'}`}>
-                  {c.name}
-                </button>
-              ))}
+            <div>
+              <div className="flex gap-0 overflow-x-auto border-b border-gray-100 scrollbar-hide -mx-1 px-1">
+                {cats.map(c => (
+                  <button key={c.id} onClick={() => { setActiveCat(c.id); setActiveSub(null) }}
+                    className={`shrink-0 px-3 py-2 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors -mb-px ${activeCatId === c.id ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+              {subcatsOfActive.length > 0 && (
+                <div className="flex gap-2 pt-2 pb-0.5 overflow-x-auto scrollbar-hide">
+                  <button onClick={() => setActiveSub(null)}
+                    className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSub === null ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                    All
+                  </button>
+                  {subcatsOfActive.map(s => (
+                    <button key={s.id} onClick={() => setActiveSub(s.id)}
+                      className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSub === s.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -300,21 +348,27 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
             <p className="text-center text-sm text-gray-400 py-10">No items match "{debouncedSearch}"</p>
           )}
           {visibleItems.map(item => {
-            const inCart = cart.find(x => x.menu_item_id === item.id)
+            const hasCustom = item.variants?.length > 0 || item.addon_groups?.length > 0
+            const totalQty  = cart.filter(x => x.menu_item_id === item.id).reduce((s, x) => s + x.quantity, 0)
+            const simpleCart = !hasCustom ? cart.find(x => x.menu_item_id === item.id && !x.variant_id && !x.addon_ids?.length) : null
+            const displayPrice = item.variants?.length > 0 ? `from ₹${Math.min(...item.variants.map(v => v.price))}` : `₹${item.price}`
             return (
               <div key={item.id} className="flex items-center justify-between px-5 py-3">
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                  <div className="text-xs text-gray-400">₹{item.price}</div>
+                  <div className="text-xs text-gray-400">{displayPrice}{hasCustom ? ' · customize' : ''}</div>
                 </div>
-                {inCart ? (
+                {!hasCustom && simpleCart ? (
                   <div className="flex items-center gap-2">
-                    <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center"><MinusIcon className="w-3.5 h-3.5" /></button>
-                    <span className="w-5 text-center font-semibold text-sm">{inCart.quantity}</span>
-                    <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center"><PlusIcon className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => updateQty(simpleCart._key, -1)} className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center"><MinusIcon className="w-3.5 h-3.5" /></button>
+                    <span className="w-5 text-center font-semibold text-sm">{simpleCart.quantity}</span>
+                    <button onClick={() => updateQty(simpleCart._key, 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center"><PlusIcon className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <button onClick={() => addToCart(item)} className="bg-orange-500 text-white text-xs px-4 py-1.5 rounded-full font-medium">Add</button>
+                  <button onClick={() => hasCustom ? setCustomizeItem(item) : directAdd(item)}
+                    className={`text-xs px-4 py-1.5 rounded-full font-medium ${totalQty > 0 ? 'bg-orange-100 text-orange-700' : 'bg-orange-500 text-white'}`}>
+                    {totalQty > 0 ? `${totalQty} added` : hasCustom ? 'Customize' : 'Add'}
+                  </button>
                 )}
               </div>
             )
@@ -324,37 +378,43 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
         {cart.length > 0 && (
           <div className="border-t px-5 py-4 bg-gray-50">
             {cart.map(item => (
-              <div key={item.menu_item_id} className="flex justify-between text-sm mb-1">
-                <span className="text-gray-700">{item.quantity}× {item.name}</span>
-                <span className="text-gray-600">₹{(item.price * item.quantity).toFixed(0)}</span>
+              <div key={item._key} className="mb-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">{item.quantity}× {item.name}{item.variant_name ? ` (${item.variant_name})` : ''}</span>
+                  <span className="text-gray-600">₹{(item.price * item.quantity).toFixed(0)}</span>
+                </div>
+                {item.addon_labels?.length > 0 && <div className="text-xs text-gray-400 ml-4">{item.addon_labels.join(', ')}</div>}
               </div>
             ))}
             {!orderId && (
               <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                 <label className="block text-xs font-semibold text-blue-700 mb-1.5 flex items-center gap-1.5"><UserIcon className="w-3.5 h-3.5" />Assign Waiter</label>
-                <select
-                  value={waiterId}
-                  onChange={e => setWaiterId(e.target.value)}
-                  className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-800"
-                >
+                <select value={waiterId} onChange={e => setWaiterId(e.target.value)}
+                  className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-800">
                   <option value="">— Unassigned —</option>
-                  {(waiters ?? []).map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
+                  {(waiters ?? []).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </div>
             )}
             <button
-              onClick={() => addItems.mutate(cart.map(({ menu_item_id, quantity }) => ({ menu_item_id, quantity })))}
+              onClick={() => addItems.mutate(cart.map(({ menu_item_id, variant_id, addon_ids, quantity }) => ({
+                menu_item_id,
+                ...(variant_id ? { variant_id } : {}),
+                ...(addon_ids?.length ? { addon_ids } : {}),
+                quantity,
+              })))}
               disabled={addItems.isPending}
-              className="w-full mt-3 bg-orange-500 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-            >
+              className="w-full mt-3 bg-orange-500 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50">
               {addItems.isPending ? 'Sending…' : 'Send to Kitchen'}
             </button>
           </div>
         )}
       </div>
     </div>
+    {customizeItem && (
+      <ItemCustomizeSheet item={customizeItem} onAdd={addToCart} onClose={() => setCustomizeItem(null)} />
+    )}
+    </>
   )
 }
 
@@ -524,11 +584,25 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                 </div>
                 <div className="text-xs text-gray-500 space-y-0.5">
                   {order.items?.map((item, i) => (
-                    <div key={i} className="flex justify-between">
-                      <span>{item.quantity}× {item.item_name}</span>
-                      <span>₹{item.subtotal}</span>
+                    <div key={i}>
+                      <div className="flex justify-between">
+                        <span>{item.quantity}× {item.item_name}{item.variant_name ? ` (${item.variant_name})` : ''}</span>
+                        <span>₹{item.subtotal}</span>
+                      </div>
+                      {item.addons?.length > 0 && (
+                        <div className="text-gray-400 ml-4 text-[10px]">+ {item.addons.map(a => a.name).join(', ')}</div>
+                      )}
+                      {item.gst_rate != null && (
+                        <div className="text-gray-400 ml-4 text-[10px]">GST {item.gst_rate}% · CGST ₹{item.cgst_amount} SGST ₹{item.sgst_amount}</div>
+                      )}
                     </div>
                   ))}
+                  <div className="flex justify-between text-gray-500 border-t pt-1 mt-1">
+                    <span>Subtotal</span><span>₹{order.subtotal}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500">
+                    <span>GST</span><span>₹{order.tax}</span>
+                  </div>
                   <div className="flex justify-between font-medium text-gray-700 border-t pt-1 mt-1">
                     <span>Total</span><span>₹{order.total}</span>
                   </div>
@@ -1143,8 +1217,30 @@ function RecentBillsDrawer({ onClose }) {
   )
 }
 
-// ─── Takeaway Panel ───────────────────────────────────────────────────────────
-function TakeawayPanel({ onClose, onDone }) {
+// ─── Channel buttons (Takeaway / Zomato / Swiggy) ───────────────────────────────
+const CHANNELS = [
+  { key: 'takeaway', label: 'Takeaway', icon: '🛍️', cls: 'bg-orange-500 hover:bg-orange-600 border-orange-500' },
+  { key: 'zomato',   label: 'Zomato',   icon: '🔴', cls: 'bg-[#e23744] hover:bg-[#c52e3a] border-[#e23744]' },
+  { key: 'swiggy',   label: 'Swiggy',   icon: '🟠', cls: 'bg-[#fc8019] hover:bg-[#e0700f] border-[#fc8019]' },
+]
+
+function ChannelButtons({ onPick }) {
+  return (
+    <>
+      {CHANNELS.map(c => (
+        <button key={c.key} onClick={() => onPick(c.key)}
+          className={`inline-flex items-center gap-1.5 text-sm font-semibold text-white px-3 py-1.5 rounded-xl transition-colors shadow-sm border ${c.cls}`}>
+          <span>{c.icon}</span>
+          <span className="hidden sm:inline">{c.label}</span>
+        </button>
+      ))}
+    </>
+  )
+}
+
+// ─── Takeaway / Aggregator Panel ────────────────────────────────────────────────
+// platform: null → takeaway; 'zomato'/'swiggy' → aggregator order tagged with platform.
+function TakeawayPanel({ onClose, onDone, platform = null }) {
   const qc = useQueryClient()
   const [cart, setCart] = useState([])
   const [activeCat, setActiveCat] = useState(null)
@@ -1154,6 +1250,9 @@ function TakeawayPanel({ onClose, onDone }) {
   const [customerPhone, setCustomerPhone] = useState('')
   const [notes, setNotes] = useState('')
   const [nameError, setNameError] = useState('')
+  const [externalId, setExternalId] = useState('')
+  const isAggregator = !!platform
+  const channelMeta = CHANNELS.find(c => c.key === platform)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 250)
@@ -1162,14 +1261,19 @@ function TakeawayPanel({ onClose, onDone }) {
 
   const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data) })
   const cats = menu ?? []
+  const [activeSubTW, setActiveSubTW] = useState(null)
   const activeCatId = activeCat ?? cats[0]?.id
-  const allItems = cats.flatMap(c => c.items ?? [])
+  const allItems2 = cats.flatMap(c => [...(c.items ?? []), ...(c.subcategories ?? []).flatMap(s => s.items ?? [])])
+  const activeCatObj2 = cats.find(c => c.id === activeCatId)
+  const subcatsOfActiveTW = activeCatObj2?.subcategories ?? []
   const visibleItems = debouncedSearch.trim()
-    ? allItems.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
-    : (cats.find(c => c.id === activeCatId)?.items ?? [])
+    ? allItems2.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
+    : activeSubTW
+      ? (activeCatObj2?.subcategories?.find(s => s.id === activeSubTW)?.items ?? [])
+      : [...(activeCatObj2?.items ?? []), ...(activeCatObj2?.subcategories ?? []).flatMap(s => s.items ?? [])]
 
   const place = useMutation({
-    mutationFn: billingPlaceTakeaway,
+    mutationFn: (data) => isAggregator ? billingPlaceAggregator(data) : billingPlaceTakeaway(data),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
       onDone?.(res.data.data)
@@ -1177,42 +1281,64 @@ function TakeawayPanel({ onClose, onDone }) {
     },
   })
 
-  const addToCart = (item) => setCart(c => {
-    const ex = c.find(x => x.menu_item_id === item.id)
-    if (ex) return c.map(x => x.menu_item_id === item.id ? { ...x, quantity: x.quantity + 1 } : x)
-    return [...c, { menu_item_id: item.id, name: item.name, price: item.price, quantity: 1 }]
-  })
-  const updateQty = (id, delta) =>
-    setCart(c => c.map(x => x.menu_item_id === id ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
+  const cartKeyTW = (itemId, variantId, addonIds) =>
+    `${itemId}:${variantId ?? ''}:${[...(addonIds ?? [])].sort().join(',')}`
+  const [customizeItemTW, setCustomizeItemTW] = useState(null)
+
+  const addToCart = (line) => {
+    const key = cartKeyTW(line.menu_item_id, line.variant_id, line.addon_ids)
+    setCart(c => {
+      const idx = c.findIndex(x => x._key === key)
+      if (idx >= 0) return c.map((x, i) => i === idx ? { ...x, quantity: x.quantity + line.quantity } : x)
+      return [...c, { ...line, _key: key }]
+    })
+    setCustomizeItemTW(null)
+  }
+  const directAddTW = (item) => addToCart({ menu_item_id: item.id, variant_id: null, addon_ids: [], quantity: 1, name: item.name, variant_name: null, addon_labels: [], price: item.price })
+  const updateQty = (key, delta) =>
+    setCart(c => c.map(x => x._key === key ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
 
   const total = cart.reduce((s, x) => s + x.price * x.quantity, 0)
 
   const handlePlace = () => {
     if (!cart.length) return
-    if (!customerName.trim()) { setNameError('Customer name is required'); return }
+    if (!isAggregator && !customerName.trim()) { setNameError('Customer name is required'); return }
     setNameError('')
     place.mutate({
-      items: cart.map(x => ({ menu_item_id: x.menu_item_id, quantity: x.quantity })),
-      customer_name: customerName.trim(),
+      items: cart.map(({ menu_item_id, variant_id, addon_ids, quantity }) => ({ menu_item_id, ...(variant_id ? { variant_id } : {}), ...(addon_ids?.length ? { addon_ids } : {}), quantity })),
+      customer_name: customerName.trim() || undefined,
       customer_phone: customerPhone || undefined,
       notes: notes || undefined,
+      ...(isAggregator ? { platform, external_order_id: externalId || undefined } : {}),
     })
   }
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full sm:rounded-2xl sm:max-w-lg max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
           <div className="flex items-center gap-2.5">
-            <span className="text-lg">🛍️</span>
-            <h2 className="font-bold text-gray-900">New Takeaway Order</h2>
+            <span className="text-lg">{isAggregator ? channelMeta?.icon : '🛍️'}</span>
+            <h2 className="font-bold text-gray-900">
+              {isAggregator ? `New ${channelMeta?.label} Order` : 'New Takeaway Order'}
+            </h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="w-5 h-5" /></button>
         </div>
 
         {/* Customer info */}
         <div className="px-5 py-3 border-b bg-gray-50 shrink-0">
+          {isAggregator && (
+            <input
+              type="text"
+              value={externalId}
+              onChange={e => setExternalId(e.target.value)}
+              placeholder={`${channelMeta?.label} order ID (optional)`}
+              className="w-full mb-2 px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          )}
           <div className="flex gap-2">
             <div className="flex-1">
               <div className="relative">
@@ -1221,7 +1347,7 @@ function TakeawayPanel({ onClose, onDone }) {
                   type="text"
                   value={customerName}
                   onChange={e => { setCustomerName(e.target.value); if (e.target.value.trim()) setNameError('') }}
-                  placeholder="Customer name *"
+                  placeholder={isAggregator ? 'Customer name (optional)' : 'Customer name *'}
                   className={`w-full pl-8 pr-3 py-2 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 ${nameError ? 'border-red-400' : 'border-gray-200'}`}
                 />
               </div>
@@ -1255,13 +1381,29 @@ function TakeawayPanel({ onClose, onDone }) {
             />
           </div>
           {!debouncedSearch.trim() && (
-            <div className="flex gap-2 overflow-x-auto pt-2 pb-0.5">
-              {cats.map(c => (
-                <button key={c.id} onClick={() => setActiveCat(c.id)}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${activeCatId === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 border hover:bg-gray-100'}`}>
-                  {c.name}
-                </button>
-              ))}
+            <div>
+              <div className="flex gap-0 overflow-x-auto border-b border-gray-100 scrollbar-hide -mx-1 px-1">
+                {cats.map(c => (
+                  <button key={c.id} onClick={() => { setActiveCat(c.id); setActiveSubTW(null) }}
+                    className={`shrink-0 px-3 py-2 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors -mb-px ${activeCatId === c.id ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+              {subcatsOfActiveTW.length > 0 && (
+                <div className="flex gap-2 pt-2 pb-0.5 overflow-x-auto scrollbar-hide">
+                  <button onClick={() => setActiveSubTW(null)}
+                    className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSubTW === null ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                    All
+                  </button>
+                  {subcatsOfActiveTW.map(s => (
+                    <button key={s.id} onClick={() => setActiveSubTW(s.id)}
+                      className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSubTW === s.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1272,21 +1414,27 @@ function TakeawayPanel({ onClose, onDone }) {
             <p className="text-center text-sm text-gray-400 py-10">No items match "{debouncedSearch}"</p>
           )}
           {visibleItems.map(item => {
-            const inCart = cart.find(x => x.menu_item_id === item.id)
+            const hasCustom  = item.variants?.length > 0 || item.addon_groups?.length > 0
+            const totalQty   = cart.filter(x => x.menu_item_id === item.id).reduce((s, x) => s + x.quantity, 0)
+            const simpleCart = !hasCustom ? cart.find(x => x.menu_item_id === item.id && !x.variant_id && !x.addon_ids?.length) : null
+            const displayPrice = item.variants?.length > 0 ? `from ₹${Math.min(...item.variants.map(v => v.price))}` : `₹${item.price}`
             return (
               <div key={item.id} className="flex items-center justify-between px-5 py-3">
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                  <div className="text-xs text-gray-400">₹{item.price}</div>
+                  <div className="text-xs text-gray-400">{displayPrice}{hasCustom ? ' · customize' : ''}</div>
                 </div>
-                {inCart ? (
+                {!hasCustom && simpleCart ? (
                   <div className="flex items-center gap-2">
-                    <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center"><MinusIcon className="w-3.5 h-3.5" /></button>
-                    <span className="w-5 text-center font-semibold text-sm">{inCart.quantity}</span>
-                    <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center"><PlusIcon className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => updateQty(simpleCart._key, -1)} className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center"><MinusIcon className="w-3.5 h-3.5" /></button>
+                    <span className="w-5 text-center font-semibold text-sm">{simpleCart.quantity}</span>
+                    <button onClick={() => updateQty(simpleCart._key, 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center"><PlusIcon className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <button onClick={() => addToCart(item)} className="bg-orange-500 text-white text-xs px-4 py-1.5 rounded-full font-medium">Add</button>
+                  <button onClick={() => hasCustom ? setCustomizeItemTW(item) : directAddTW(item)}
+                    className={`text-xs px-4 py-1.5 rounded-full font-medium ${totalQty > 0 ? 'bg-orange-100 text-orange-700' : 'bg-orange-500 text-white'}`}>
+                    {totalQty > 0 ? `${totalQty} added` : hasCustom ? 'Customize' : 'Add'}
+                  </button>
                 )}
               </div>
             )
@@ -1298,9 +1446,12 @@ function TakeawayPanel({ onClose, onDone }) {
           <div className="border-t px-5 py-4 bg-gray-50 shrink-0">
             <div className="space-y-1 mb-3 max-h-24 overflow-y-auto">
               {cart.map(item => (
-                <div key={item.menu_item_id} className="flex justify-between text-sm">
-                  <span className="text-gray-700">{item.quantity}× {item.name}</span>
-                  <span className="text-gray-900 font-medium">₹{item.price * item.quantity}</span>
+                <div key={item._key} className="mb-0.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-700">{item.quantity}× {item.name}{item.variant_name ? ` (${item.variant_name})` : ''}</span>
+                    <span className="text-gray-900 font-medium">₹{item.price * item.quantity}</span>
+                  </div>
+                  {item.addon_labels?.length > 0 && <div className="text-xs text-gray-400 ml-4">{item.addon_labels.join(', ')}</div>}
                 </div>
               ))}
             </div>
@@ -1320,12 +1471,16 @@ function TakeawayPanel({ onClose, onDone }) {
               disabled={place.isPending}
               className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50 hover:shadow-md transition-shadow"
             >
-              {place.isPending ? 'Placing…' : `Place Takeaway Order · ₹${total}`}
+              {place.isPending ? 'Placing…' : `Place ${isAggregator ? channelMeta?.label : 'Takeaway'} Order · ₹${total}`}
             </button>
           </div>
         )}
       </div>
     </div>
+    {customizeItemTW && (
+      <ItemCustomizeSheet item={customizeItemTW} onAdd={addToCart} onClose={() => setCustomizeItemTW(null)} />
+    )}
+  </>
   )
 }
 
@@ -1687,7 +1842,8 @@ export default function BillingDashboard({ embedded = false }) {
   const [placingOrderFor, setPlacingOrderFor] = useState(null)
   const [lastInvoiceIds, setLastInvoiceIds] = useState(null)
   const [showRecentBills, setShowRecentBills] = useState(false)
-  const [showTakeaway, setShowTakeaway] = useState(false)
+  // null | 'takeaway' | 'zomato' | 'swiggy' — which order-entry panel is open
+  const [channelPanel, setChannelPanel] = useState(null)
   const [selectedTakeawayOrder, setSelectedTakeawayOrder] = useState(null)
 
   const { data: tenantSettings } = useQuery({
@@ -1785,13 +1941,7 @@ export default function BillingDashboard({ embedded = false }) {
               <span className={`w-2 h-2 rounded-full ${isOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
               <span className="hidden sm:inline">{isOpen ? 'Open' : 'Closed'}</span>
             </button>
-            {hasRestaurant && (
-              <button onClick={() => setShowTakeaway(true)}
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-xl transition-colors shadow-sm">
-                <span>🛍️</span>
-                <span className="hidden sm:inline">Takeaway</span>
-              </button>
-            )}
+            {hasRestaurant && <ChannelButtons onPick={setChannelPanel} />}
             <button onClick={() => setShowRecentBills(true)}
               className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
               <DocumentTextIcon className="w-4 h-4" />
@@ -1813,13 +1963,7 @@ export default function BillingDashboard({ embedded = false }) {
             <p className="text-sm text-gray-400 mt-0.5">Manage tables, orders, and invoices</p>
           </div>
           <div className="flex items-center gap-2">
-            {hasRestaurant && (
-              <button onClick={() => setShowTakeaway(true)}
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-xl transition-colors border border-orange-500">
-                <span>🛍️</span>
-                Takeaway
-              </button>
-            )}
+            {hasRestaurant && <ChannelButtons onPick={setChannelPanel} />}
             <button onClick={() => setShowRecentBills(true)}
               className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
               <DocumentTextIcon className="w-4 h-4" />
@@ -1948,9 +2092,10 @@ export default function BillingDashboard({ embedded = false }) {
         />
       )}
 
-      {showTakeaway && (
+      {channelPanel && (
         <TakeawayPanel
-          onClose={() => setShowTakeaway(false)}
+          platform={channelPanel === 'takeaway' ? null : channelPanel}
+          onClose={() => setChannelPanel(null)}
           onDone={() => qc.invalidateQueries({ queryKey: ['billing-active-orders'] })}
         />
       )}
@@ -2353,11 +2498,16 @@ function BillingRoomServicePanel({ booking, onClose }) {
   const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data) })
   const { data: waiters } = useQuery({ queryKey: ['billing-waiters'], queryFn: () => getBillingWaiters().then(r => r.data.data) })
   const cats = menu ?? []
+  const [activeSubBRS, setActiveSubBRS] = useState(null)
   const activeCatId = activeCat ?? cats[0]?.id
-  const allItems = cats.flatMap(c => c.items ?? [])
+  const allItems3 = cats.flatMap(c => [...(c.items ?? []), ...(c.subcategories ?? []).flatMap(s => s.items ?? [])])
+  const activeCatObj3 = cats.find(c => c.id === activeCatId)
+  const subcatsOfActiveBRS = activeCatObj3?.subcategories ?? []
   const visibleItems = debouncedSearch.trim()
-    ? allItems.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
-    : (cats.find(c => c.id === activeCatId)?.items ?? [])
+    ? allItems3.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
+    : activeSubBRS
+      ? (activeCatObj3?.subcategories?.find(s => s.id === activeSubBRS)?.items ?? [])
+      : [...(activeCatObj3?.items ?? []), ...(activeCatObj3?.subcategories ?? []).flatMap(s => s.items ?? [])]
 
   const create = useMutation({
     mutationFn: billingPlaceRoomService,
@@ -2368,16 +2518,26 @@ function BillingRoomServicePanel({ booking, onClose }) {
     },
   })
 
-  const addToCart = (item) => setCart(c => {
-    const ex = c.find(x => x.menu_item_id === item.id)
-    if (ex) return c.map(x => x.menu_item_id === item.id ? { ...x, quantity: x.quantity + 1 } : x)
-    return [...c, { menu_item_id: item.id, name: item.name, price: item.price, quantity: 1 }]
-  })
-  const updateQty = (id, delta) =>
-    setCart(c => c.map(x => x.menu_item_id === id ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
+  const cartKeyBRS = (itemId, variantId, addonIds) =>
+    `${itemId}:${variantId ?? ''}:${[...(addonIds ?? [])].sort().join(',')}`
+  const [customizeItemBRS, setCustomizeItemBRS] = useState(null)
+
+  const addToCart = (line) => {
+    const key = cartKeyBRS(line.menu_item_id, line.variant_id, line.addon_ids)
+    setCart(c => {
+      const idx = c.findIndex(x => x._key === key)
+      if (idx >= 0) return c.map((x, i) => i === idx ? { ...x, quantity: x.quantity + line.quantity } : x)
+      return [...c, { ...line, _key: key }]
+    })
+    setCustomizeItemBRS(null)
+  }
+  const directAddBRS = (item) => addToCart({ menu_item_id: item.id, variant_id: null, addon_ids: [], quantity: 1, name: item.name, variant_name: null, addon_labels: [], price: item.price })
+  const updateQty = (key, delta) =>
+    setCart(c => c.map(x => x._key === key ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
   const total = cart.reduce((s, x) => s + x.price * x.quantity, 0)
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full sm:rounded-2xl sm:max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b">
@@ -2399,13 +2559,29 @@ function BillingRoomServicePanel({ booking, onClose }) {
             />
           </div>
           {!debouncedSearch.trim() && (
-            <div className="flex gap-2 overflow-x-auto pt-2 pb-0.5">
-              {cats.map(c => (
-                <button key={c.id} onClick={() => setActiveCat(c.id)}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${activeCatId === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 border hover:bg-gray-100'}`}>
-                  {c.name}
-                </button>
-              ))}
+            <div>
+              <div className="flex gap-0 overflow-x-auto border-b border-gray-100 scrollbar-hide -mx-1 px-1">
+                {cats.map(c => (
+                  <button key={c.id} onClick={() => { setActiveCat(c.id); setActiveSubBRS(null) }}
+                    className={`shrink-0 px-3 py-2 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors -mb-px ${activeCatId === c.id ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+              {subcatsOfActiveBRS.length > 0 && (
+                <div className="flex gap-2 pt-2 pb-0.5 overflow-x-auto scrollbar-hide">
+                  <button onClick={() => setActiveSubBRS(null)}
+                    className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSubBRS === null ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                    All
+                  </button>
+                  {subcatsOfActiveBRS.map(s => (
+                    <button key={s.id} onClick={() => setActiveSubBRS(s.id)}
+                      className={`shrink-0 px-3 py-1 text-xs font-medium rounded-full border transition-colors ${activeSubBRS === s.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2414,21 +2590,27 @@ function BillingRoomServicePanel({ booking, onClose }) {
             <p className="text-center text-sm text-gray-400 py-10">No items match "{debouncedSearch}"</p>
           )}
           {visibleItems.map(item => {
-            const inCart = cart.find(x => x.menu_item_id === item.id)
+            const hasCustom  = item.variants?.length > 0 || item.addon_groups?.length > 0
+            const totalQty   = cart.filter(x => x.menu_item_id === item.id).reduce((s, x) => s + x.quantity, 0)
+            const simpleCart = !hasCustom ? cart.find(x => x.menu_item_id === item.id && !x.variant_id && !x.addon_ids?.length) : null
+            const displayPrice = item.variants?.length > 0 ? `from ₹${Math.min(...item.variants.map(v => v.price))}` : `₹${item.price}`
             return (
               <div key={item.id} className="flex items-center justify-between px-5 py-3">
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                  <div className="text-xs text-gray-400">₹{item.price}</div>
+                  <div className="text-xs text-gray-400">{displayPrice}{hasCustom ? ' · customize' : ''}</div>
                 </div>
-                {inCart ? (
+                {!hasCustom && simpleCart ? (
                   <div className="flex items-center gap-2">
-                    <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center"><MinusIcon className="w-3.5 h-3.5" /></button>
-                    <span className="w-5 text-center font-semibold text-sm">{inCart.quantity}</span>
-                    <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center"><PlusIcon className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => updateQty(simpleCart._key, -1)} className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center"><MinusIcon className="w-3.5 h-3.5" /></button>
+                    <span className="w-5 text-center font-semibold text-sm">{simpleCart.quantity}</span>
+                    <button onClick={() => updateQty(simpleCart._key, 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center"><PlusIcon className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <button onClick={() => addToCart(item)} className="bg-orange-500 text-white text-xs px-4 py-1.5 rounded-full font-medium">Add</button>
+                  <button onClick={() => hasCustom ? setCustomizeItemBRS(item) : directAddBRS(item)}
+                    className={`text-xs px-4 py-1.5 rounded-full font-medium ${totalQty > 0 ? 'bg-orange-100 text-orange-700' : 'bg-orange-500 text-white'}`}>
+                    {totalQty > 0 ? `${totalQty} added` : hasCustom ? 'Customize' : 'Add'}
+                  </button>
                 )}
               </div>
             )
@@ -2437,9 +2619,12 @@ function BillingRoomServicePanel({ booking, onClose }) {
         {cart.length > 0 && (
           <div className="border-t px-5 py-4 bg-gray-50">
             {cart.map(item => (
-              <div key={item.menu_item_id} className="flex justify-between text-sm mb-1">
-                <span className="text-gray-700">{item.quantity}× {item.name}</span>
-                <span className="text-gray-600">₹{(item.price * item.quantity).toFixed(0)}</span>
+              <div key={item._key} className="mb-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">{item.quantity}× {item.name}{item.variant_name ? ` (${item.variant_name})` : ''}</span>
+                  <span className="text-gray-600">₹{(item.price * item.quantity).toFixed(0)}</span>
+                </div>
+                {item.addon_labels?.length > 0 && <div className="text-xs text-gray-400 ml-4">{item.addon_labels.join(', ')}</div>}
               </div>
             ))}
             <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
@@ -2453,10 +2638,9 @@ function BillingRoomServicePanel({ booking, onClose }) {
             <div className="flex items-center justify-between mt-3">
               <span className="font-bold text-gray-900">₹{total.toFixed(0)}</span>
               <button
-                onClick={() => create.mutate({ booking_id: booking.id, waiter_id: waiterId || undefined, items: cart.map(({ menu_item_id, quantity }) => ({ menu_item_id, quantity })) })}
+                onClick={() => create.mutate({ booking_id: booking.id, waiter_id: waiterId || undefined, items: cart.map(({ menu_item_id, variant_id, addon_ids, quantity }) => ({ menu_item_id, ...(variant_id ? { variant_id } : {}), ...(addon_ids?.length ? { addon_ids } : {}), quantity })) })}
                 disabled={create.isPending}
-                className="bg-orange-500 text-white px-6 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-              >
+                className="bg-orange-500 text-white px-6 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50">
                 {create.isPending ? 'Sending…' : 'Send to Kitchen'}
               </button>
             </div>
@@ -2464,6 +2648,10 @@ function BillingRoomServicePanel({ booking, onClose }) {
         )}
       </div>
     </div>
+    {customizeItemBRS && (
+      <ItemCustomizeSheet item={customizeItemBRS} onAdd={addToCart} onClose={() => setCustomizeItemBRS(null)} />
+    )}
+    </>
   )
 }
 

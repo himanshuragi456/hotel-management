@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
             RolesPermissionsSeeder::class,
             SuperadminSeeder::class,
             SubscriptionPlansSeeder::class,
+            OrderRejectionReasonsSeeder::class,
             DemoTenantSeeder::class,
             TenantDataSeeder::class,
         ]);

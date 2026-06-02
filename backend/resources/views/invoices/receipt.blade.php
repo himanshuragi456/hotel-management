@@ -15,6 +15,7 @@
   .col-qty  { width: 15%; text-align: center; }
   .col-amt  { width: 30%; text-align: right; }
   .total-row td { font-weight: bold; font-size: 13px; }
+  .sub-line { font-size: 9px; color: #555; padding-left: 6px; }
   .upi { text-align: center; margin-top: 6px; margin-bottom: 8px; }
   .feedback { text-align: center; margin: 4px 0; }
 </style>
@@ -51,29 +52,72 @@
   </table>
 
   <div class="line"></div>
+
+  @php $gstInclusive = (bool) ($invoice->tenant->gst_inclusive ?? false); @endphp
+
   <table>
     <tr>
       <td class="bold col-item">Item</td>
       <td class="bold col-qty">Qty</td>
-      <td class="bold col-amt">Amount</td>
+      <td class="bold col-amt">Amount{{ $gstInclusive ? '*' : '' }}</td>
     </tr>
     <tr><td colspan="3"><div class="line"></div></td></tr>
     @foreach($invoice->order->items as $item)
     <tr>
-      <td class="col-item">{{ $item->item_name }}</td>
+      <td class="col-item">
+        {{ $item->item_name }}
+        @if($item->variant_name)
+        <div class="sub-line">({{ $item->variant_name }})</div>
+        @endif
+        @if(!empty($item->addons))
+          @foreach($item->addons as $addon)
+          <div class="sub-line">+ {{ $addon['name'] }}@if(!empty($addon['price']) && $addon['price'] > 0) &#8377;{{ number_format($addon['price'], 0) }}@endif</div>
+          @endforeach
+        @endif
+        @if($item->notes)
+        <div class="sub-line">* {{ $item->notes }}</div>
+        @endif
+        @php
+          // Show per-item GST slab if it differs from the invoice-level rate
+          $itemGstRate = $item->gst_rate;
+          $invoiceGstRate = round($invoice->gst_rate, 1);
+          $showItemGst = $itemGstRate !== null && round($itemGstRate, 1) !== $invoiceGstRate;
+        @endphp
+        @if($showItemGst)
+        <div class="sub-line">GST {{ round($itemGstRate, 1) }}%</div>
+        @endif
+      </td>
       <td class="col-qty">{{ $item->quantity }}</td>
       <td class="col-amt">&#8377;{{ number_format($item->subtotal, 2) }}</td>
     </tr>
-    @if($item->notes)
-    <tr><td colspan="3" style="font-size:10px;color:#555;">  * {{ $item->notes }}</td></tr>
-    @endif
     @endforeach
   </table>
+
+  @if($gstInclusive)
+  <div style="font-size:9px;color:#555;margin-top:2px;">* Prices include GST</div>
+  @endif
 
   <div class="line"></div>
   <table>
     <tr><td>Subtotal</td><td class="right">&#8377;{{ number_format($invoice->subtotal, 2) }}</td></tr>
-    <tr><td>GST ({{ $invoice->gst_rate }}%)</td><td class="right">&#8377;{{ number_format($invoice->gst_amount, 2) }}</td></tr>
+    @if($gstInclusive)
+    @php $effRate = round($invoice->gst_rate, 2); $rateLabel = ($effRate == floor($effRate)) ? (int)$effRate : $effRate; @endphp
+    <tr><td style="font-size:9px;color:#555;">  incl. GST ({{ $rateLabel }}%)</td><td class="right" style="font-size:9px;color:#555;">&#8377;{{ number_format($invoice->gst_amount, 2) }}</td></tr>
+    @else
+    @php $r = round($invoice->gst_rate, 2); $rateLabel = ($r == floor($r)) ? (int)$r : $r; @endphp
+    <tr><td>GST ({{ $rateLabel }}%)</td><td class="right">&#8377;{{ number_format($invoice->gst_amount, 2) }}</td></tr>
+
+    {{-- Show CGST/SGST breakdown when bifurcation is used --}}
+    @php
+      $cgstTotal = $invoice->order->items->sum('cgst_amount');
+      $sgstTotal = $invoice->order->items->sum('sgst_amount');
+    @endphp
+    @if($cgstTotal > 0 || $sgstTotal > 0)
+    <tr><td style="font-size:9px;color:#555;">  CGST</td><td class="right" style="font-size:9px;color:#555;">&#8377;{{ number_format($cgstTotal, 2) }}</td></tr>
+    <tr><td style="font-size:9px;color:#555;">  SGST</td><td class="right" style="font-size:9px;color:#555;">&#8377;{{ number_format($sgstTotal, 2) }}</td></tr>
+    @endif
+    @endif
+
     @if($invoice->discount_amount > 0)
     <tr><td>Discount</td><td class="right">-&#8377;{{ number_format($invoice->discount_amount, 2) }}</td></tr>
     @endif
