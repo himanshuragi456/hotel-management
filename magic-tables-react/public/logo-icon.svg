@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+
+  <!-- Rounded background -->
+  <rect width="64" height="64" rx="16" fill="#e11d48"/>
+
+  <!-- Table top bar -->
+  <rect x="10" y="18" width="44" height="8" rx="4" fill="white"/>
+
+  <!-- Left leg -->
+  <rect x="15" y="26" width="5" height="18" rx="2.5" fill="white" opacity="0.85"/>
+  <!-- Right leg -->
+  <rect x="44" y="26" width="5" height="18" rx="2.5" fill="white" opacity="0.85"/>
+
+  <!-- QR pixel dots on table surface -->
+  <rect x="20" y="20.5" width="4" height="4" rx="1" fill="#e11d48"/>
+  <rect x="26" y="20.5" width="4" height="4" rx="1" fill="#e11d48"/>
+  <rect x="32" y="20.5" width="4" height="4" rx="1" fill="#e11d48"/>
+  <rect x="38" y="20.5" width="4" height="4" rx="1" fill="#e11d48"/>
+
+  <!-- Magic sparkle star (top-right) -->
+  <g transform="translate(40, 8)">
+    <path d="M5.5 0 L7 4.5 L11.5 5.5 L7 7 L5.5 11.5 L4 7 L0 5.5 L4 4.5 Z" fill="#FBBF24"/>
+  </g>
+
+  <!-- Small sparkle dots -->
+  <circle cx="36" cy="10" r="2" fill="#FDE68A" opacity="0.85"/>
+  <circle cx="52" cy="16" r="1.4" fill="#FDE68A" opacity="0.65"/>
+
+</svg>

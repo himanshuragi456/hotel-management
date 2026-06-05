@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 64" width="260" height="64" fill="none">
+
+  <!-- ── Icon: Rounded table + QR grid + magic sparkle ── -->
+  <g transform="translate(8, 6)">
+
+    <!-- Rose background -->
+    <rect x="0" y="0" width="52" height="52" rx="14" fill="#e11d48"/>
+
+    <!-- Table top bar -->
+    <rect x="8" y="14" width="36" height="7" rx="3.5" fill="white"/>
+
+    <!-- Left leg -->
+    <rect x="12" y="21" width="4" height="16" rx="2" fill="white" opacity="0.85"/>
+    <!-- Right leg -->
+    <rect x="36" y="21" width="4" height="16" rx="2" fill="white" opacity="0.85"/>
+
+    <!-- QR pixel dots on table surface -->
+    <rect x="16" y="16.5" width="3" height="3" rx="0.8" fill="#e11d48"/>
+    <rect x="21" y="16.5" width="3" height="3" rx="0.8" fill="#e11d48"/>
+    <rect x="26" y="16.5" width="3" height="3" rx="0.8" fill="#e11d48"/>
+    <rect x="31" y="16.5" width="3" height="3" rx="0.8" fill="#e11d48"/>
+
+    <!-- Magic sparkle: top-right corner -->
+    <g transform="translate(34, 5)">
+      <path d="M5 0 L6.2 3.8 L10 5 L6.2 6.2 L5 10 L3.8 6.2 L0 5 L3.8 3.8 Z" fill="#FBBF24"/>
+    </g>
+    <!-- Small dot sparkles -->
+    <circle cx="30" cy="7" r="1.5" fill="#FDE68A" opacity="0.9"/>
+    <circle cx="45" cy="12" r="1" fill="#FDE68A" opacity="0.7"/>
+
+  </g>
+
+  <!-- ── Wordmark ── -->
+  <!-- "Magic" — dark bold -->
+  <text
+    x="72" y="28"
+    font-family="'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif"
+    font-size="20"
+    font-weight="800"
+    fill="#1c0a0e"
+    letter-spacing="-0.5"
+  >Magic</text>
+
+  <!-- "TABLES" — rose, lighter weight, spaced -->
+  <text
+    x="72" y="50"
+    font-family="'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif"
+    font-size="14"
+    font-weight="500"
+    fill="#e11d48"
+    letter-spacing="3.5"
+  >TABLES</text>
+
+  <!-- Thin accent line -->
+  <rect x="72" y="32" width="130" height="1.5" rx="1" fill="#ffe4e6"/>
+
+</svg>
