@@ -1,10 +1,85 @@
 # Deployment Notes — Magic Management
 
+---
+
+## Server 1 — dentask (OLD SERVER — DO NOT USE unless explicitly asked)
+
+> **Ignore this server.** It is an old/legacy server kept only for intentional one-off testing
+> when explicitly requested. All active development and deployments target Server 2.
+
 Server: `103.191.209.34`
 SSH: `ssh -i ~/.ssh/id_rsa -p 22 indorede1@103.191.209.34`
 Project path: `/var/www/2ef0389c-f093-4f75-96a8-278253f21e49/magicmanagement.dentask.in`
 Live URL: `https://magicmanagement.dentask.in`
 Web server: LiteSpeed (not Apache — behaves differently)
+DB: `indorede1_hoteldb` / user `indorede1_hoteluser`
+
+---
+
+## Server 2 — magicmanagement.in (MAIN SERVER — all deploys go here)
+
+Server: `45.199.139.15`
+SSH: `ssh -i ~/.ssh/id_rsa -p 22 magicman1@45.199.139.15`
+Project path: `/var/www/7cdb3aaf-9f78-4a90-bba7-14c7d98d26f8/magicmanagement.in`
+Live URL: `https://magicmanagement.in`
+Web server: Apache 2.4 (Ubuntu)
+DB host: `localhost`
+DB name: `magicman1_hoteldb`
+DB user: `magicman1`
+DB password: `za6AWjR3p4bLSHyw` (system-managed — check `~/.my.cnf` on server if it changes)
+
+### Magic Tables (tables.magicmanagement.in)
+
+Static React SPA — no backend, no PHP.
+Path: `/var/www/7cdb3aaf-9f78-4a90-bba7-14c7d98d26f8/tables.magicmanagement.in/`
+API points to: `https://magicmanagement.in/api` (set in `magic-tables-react/.env.production`)
+
+```bash
+# Redeploy Magic Tables
+cd magic-tables-react && npm run build
+rsync -avz -e "ssh -i ~/.ssh/id_rsa -p 22" dist/ magicman1@45.199.139.15:/var/www/7cdb3aaf-9f78-4a90-bba7-14c7d98d26f8/tables.magicmanagement.in/
+```
+
+### Safe Deploy — Server 2
+
+```bash
+SERVER2=magicman1@45.199.139.15
+PATH2=/var/www/7cdb3aaf-9f78-4a90-bba7-14c7d98d26f8/magicmanagement.in
+SSH="ssh -i ~/.ssh/id_rsa -p 22"
+
+# 1. Build frontend (VITE_API_URL must point to magicmanagement.in)
+cd frontend && npm run build
+
+# 2. Sync backend (one dir at a time — never bootstrap/cache/)
+rsync -avz -e "$SSH" backend/app/        $SERVER2:$PATH2/app/
+rsync -avz -e "$SSH" backend/bootstrap/  $SERVER2:$PATH2/bootstrap/ --exclude=cache/
+rsync -avz -e "$SSH" backend/config/     $SERVER2:$PATH2/config/
+rsync -avz -e "$SSH" backend/database/   $SERVER2:$PATH2/database/
+rsync -avz -e "$SSH" backend/resources/  $SERVER2:$PATH2/resources/
+rsync -avz -e "$SSH" backend/routes/     $SERVER2:$PATH2/routes/
+rsync -avz -e "$SSH" backend/storage/    $SERVER2:$PATH2/storage/
+
+# 3. Sync frontend build (NO --delete)
+# NOTE: sync root-level static files too — logo.svg, favicon, payment logos etc. live here
+rsync -avz -e "$SSH" frontend/dist/index.html      $SERVER2:$PATH2/public/index.html
+rsync -avz -e "$SSH" frontend/dist/assets/         $SERVER2:$PATH2/public/assets/
+rsync -avz -e "$SSH" frontend/dist/logo.svg        $SERVER2:$PATH2/public/logo.svg
+rsync -avz -e "$SSH" frontend/dist/logo-violet.svg $SERVER2:$PATH2/public/logo-violet.svg
+rsync -avz -e "$SSH" frontend/dist/favicon.svg     $SERVER2:$PATH2/public/favicon.svg
+rsync -avz -e "$SSH" frontend/dist/icons.svg       $SERVER2:$PATH2/public/icons.svg
+rsync -avz -e "$SSH" frontend/dist/gpaylogo.svg    $SERVER2:$PATH2/public/gpaylogo.svg
+rsync -avz -e "$SSH" frontend/dist/paytmlogo.webp  $SERVER2:$PATH2/public/paytmlogo.webp
+rsync -avz -e "$SSH" frontend/dist/phonepelogo.png $SERVER2:$PATH2/public/phonepelogo.png
+rsync -avz -e "$SSH" frontend/dist/sounds/         $SERVER2:$PATH2/public/sounds/
+
+# 4. Clear stale cache, run migrations
+$SSH $SERVER2 "cd $PATH2 && rm -f bootstrap/cache/services.php bootstrap/cache/packages.php && php artisan migrate --force && php artisan config:clear && php artisan route:clear && php artisan cache:clear && php artisan package:discover --ansi"
+
+# 5. Storage symlink
+$SSH $SERVER2 "cd $PATH2 && php artisan storage:link 2>&1 || true"
+```
+
+---
 
 ---
 
@@ -194,7 +269,7 @@ ls -la public/storage  # should show: lrwxrwxrwx ... -> .../storage/app/public
 
 ---
 
-## Safe Deploy Checklist
+## Safe Deploy Checklist — Server 1 (dentask / staging)
 
 ```bash
 SERVER=indorede1@103.191.209.34
@@ -226,3 +301,16 @@ ssh -i ~/.ssh/id_rsa -p 22 $SERVER "cd $PATH && rm -f bootstrap/cache/services.p
 # ssh -i ~/.ssh/id_rsa -p 22 $SERVER "[ -d $PATH/public/storage ] && [ ! -L $PATH/public/storage ] && rm -rf $PATH/public/storage"
 ssh -i ~/.ssh/id_rsa -p 22 $SERVER "cd $PATH && php artisan storage:link 2>&1 || true"
 ```
+
+---
+
+### 13. Static root assets (logo.svg etc.) not synced — served as HTML (broken image)
+
+**What happened:** Deploy script only synced `assets/` and `index.html`. Root-level static files
+(`logo.svg`, `logo-violet.svg`, `favicon.svg`, `icons.svg`, `gpaylogo.svg`, `paytmlogo.webp`,
+`phonepelogo.png`) were never copied to `public/`. The SPA catch-all in `web.php` intercepted
+requests for these paths and returned `text/html` — browsers rendered a broken/crash image icon
+even though the HTTP status was 200.
+
+**Rule going forward:** Always sync root-level dist files individually alongside `assets/`. They are
+listed explicitly in the Safe Deploy — Server 2 step 3.

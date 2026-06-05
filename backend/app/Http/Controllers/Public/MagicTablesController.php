@@ -102,27 +102,39 @@ class MagicTablesController extends Controller
     {
         $tenant = $this->activeTenant($slug);
 
+        $formatItem = fn($item) => [
+            'id'                => $item->id,
+            'category_id'       => $item->menu_category_id,
+            'name'              => $item->name,
+            'description'       => $item->description,
+            'price'             => (float) $item->price,
+            'image_url'         => $item->image_url,
+            'video_url'         => $item->video_url,
+            'is_available'      => $item->is_available,
+            'is_veg'            => $item->type === 'veg',
+            'is_ready_made'     => $item->is_ready_made,
+            'prep_time_minutes' => $item->is_ready_made ? null : $item->prep_time_minutes,
+        ];
+
         $categories = MenuCategory::where('tenant_id', $tenant->id)
             ->where('is_active', true)
-            ->with(['items' => fn($q) => $q->where('is_available', true)->orderBy('sort_order')])
+            ->whereNull('parent_id')
+            ->with([
+                'items'    => fn($q) => $q->where('is_available', true)->orderBy('sort_order'),
+                'children' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')
+                    ->with(['items' => fn($iq) => $iq->where('is_available', true)->orderBy('sort_order')]),
+            ])
             ->orderBy('sort_order')
             ->get()
             ->map(fn($cat) => [
-                'id'    => $cat->id,
-                'name'  => $cat->name,
-                'items' => $cat->items->map(fn($item) => [
-                    'id'           => $item->id,
-                    'category_id'  => $item->menu_category_id,
-                    'name'         => $item->name,
-                    'description'  => $item->description,
-                    'price'        => (float) $item->price,
-                    'image_url'    => $item->image_url,
-                    'video_url'    => $item->video_url,
-                    'is_available' => $item->is_available,
-                    'is_veg'             => $item->type === 'veg',
-                    'is_ready_made'      => $item->is_ready_made,
-                    'prep_time_minutes'  => $item->is_ready_made ? null : $item->prep_time_minutes,
-                ]),
+                'id'            => $cat->id,
+                'name'          => $cat->name,
+                'items'         => $cat->items->map($formatItem)->values(),
+                'subcategories' => $cat->children->map(fn($sub) => [
+                    'id'    => $sub->id,
+                    'name'  => $sub->name,
+                    'items' => $sub->items->map($formatItem)->values(),
+                ])->values(),
             ]);
 
         return $this->success([
