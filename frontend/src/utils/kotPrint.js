@@ -8,12 +8,25 @@ export function printKot(order) {
     ? `Room ${order.room.number}`
     : '—'
 
+  const esc = (s) => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+
   const itemRows = (order.items ?? [])
-    .map(i => `
+    .map(i => {
+      const group = i.category_name ?? i.menu_item?.category?.name
+      const variant = i.variant_name
+      const addons = Array.isArray(i.addons) ? i.addons : []
+      const detailLines = []
+      if (variant) detailLines.push(`<span style="font-size:12px;color:#000;font-weight:bold;">↳ ${esc(variant)}</span>`)
+      addons.forEach(a => detailLines.push(`<span style="font-size:11px;color:#333;">+ ${esc(a.name)}</span>`))
+      if (i.notes) detailLines.push(`<span style="font-size:11px;color:#666;">* ${esc(i.notes)}</span>`)
+      const detail = detailLines.length ? `<br>${detailLines.join('<br>')}` : ''
+      const groupLabel = group ? `<div style="font-size:10px;color:#777;text-transform:uppercase;letter-spacing:1px;">${esc(group)}</div>` : ''
+      return `
       <tr>
-        <td style="padding:4px 6px;font-size:14px;font-weight:bold;">${i.quantity}</td>
-        <td style="padding:4px 6px;font-size:13px;">${i.item_name}${i.notes ? `<br><span style="font-size:11px;color:#666;">* ${i.notes}</span>` : ''}</td>
-      </tr>`)
+        <td style="padding:4px 6px;font-size:14px;font-weight:bold;vertical-align:top;">${i.quantity}</td>
+        <td style="padding:4px 6px;font-size:13px;">${groupLabel}${esc(i.item_name)}${detail}</td>
+      </tr>`
+    })
     .join('')
 
   const now = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })

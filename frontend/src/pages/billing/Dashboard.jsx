@@ -66,6 +66,17 @@ import { printKot } from '@/utils/kotPrint'
 
 const PAYMENT_METHODS = ['cash', 'upi']
 
+// ─── Shared order-status colors (clear, distinct cues for the biller) ───────────
+// pending = waiting (amber) · preparing = in kitchen (blue) · ready = act now (bold green)
+// · served = done (slate/teal). Kept high-contrast so a biller can scan at a glance.
+const STATUS_STYLES = {
+  pending:   { badge: 'bg-amber-100 text-amber-800 border border-amber-300',  border: 'border-amber-400', label: 'Pending'   },
+  preparing: { badge: 'bg-blue-100 text-blue-800 border border-blue-300',     border: 'border-blue-500',  label: 'Preparing' },
+  ready:     { badge: 'bg-green-600 text-white border border-green-700',       border: 'border-green-600', label: 'Ready'     },
+  served:    { badge: 'bg-teal-100 text-teal-800 border border-teal-300',      border: 'border-teal-500',  label: 'Served'    },
+}
+const statusStyle = (s) => STATUS_STYLES[s] ?? { badge: 'bg-gray-100 text-gray-600 border border-gray-200', border: 'border-gray-200', label: s }
+
 // ─── Status Timeline ──────────────────────────────────────────────────────────
 function StatusTimeline({ order }) {
   const steps = [
@@ -554,11 +565,15 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
           <div className="px-5 py-3 bg-green-50 border-b border-green-200 flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-green-800">{unbilledOrders.length} unbilled batches</p>
-              <p className="text-xs text-green-600">Collect ₹{unbilledTotal.toFixed(0)} in one payment</p>
+              <p className="text-xs text-green-600">
+                {allServed ? `Collect ₹${unbilledTotal.toFixed(0)} in one payment` : 'Bill unlocks once every item is served'}
+              </p>
             </div>
             <button
               onClick={() => setBillAllForm(true)}
-              className="shrink-0 bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl font-semibold text-sm shadow-sm"
+              disabled={!allServed}
+              title={allServed ? '' : 'All orders must be served before billing'}
+              className="shrink-0 bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl font-semibold text-sm shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-green-600"
             >
               Bill All — ₹{unbilledTotal.toFixed(0)}
             </button>
@@ -633,20 +648,10 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
             </div>
           ) : (
             orders.map(order => (
-              <div key={order.id} className={`bg-gray-50 rounded-xl p-4 border-l-4 ${
-                order.status === 'pending'   ? 'border-yellow-400' :
-                order.status === 'preparing' ? 'border-blue-400' :
-                order.status === 'ready'     ? 'border-green-500' :
-                order.status === 'served'    ? 'border-gray-300' : 'border-gray-200'
-              }`}>
+              <div key={order.id} className={`bg-gray-50 rounded-xl p-4 border-l-4 ${statusStyle(order.status).border}`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-semibold text-gray-800">{order.order_number}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
-                    order.status === 'pending'   ? 'bg-yellow-100 text-yellow-700' :
-                    order.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
-                    order.status === 'ready'     ? 'bg-green-100 text-green-700' :
-                    order.status === 'served'    ? 'bg-gray-100 text-gray-500' : 'bg-gray-100 text-gray-600'
-                  }`}>{order.status}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusStyle(order.status).badge}`}>{order.status}</span>
                 </div>
 
                 <StatusTimeline order={order} />
@@ -699,7 +704,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                       Mark Served
                     </button>
                   )}
-                  {['ready', 'served'].includes(order.status) && !order.invoice && !(order.source === 'magic_tables' && order.payment_status === 'paid') && (
+                  {allServed && order.status === 'served' && !order.invoice && !(order.source === 'magic_tables' && order.payment_status === 'paid') && (
                     <button
                       onClick={() => setInvoiceOrder(order)}
                       className={`flex-1 text-xs py-1.5 rounded-lg font-semibold ${
@@ -986,10 +991,7 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
     }
   }
 
-  const statusColor = (s) =>
-    s === 'ready'     ? 'bg-green-100 text-green-700 border border-green-300' :
-    s === 'preparing' ? 'bg-blue-100 text-blue-700 border border-blue-300' :
-                        'bg-yellow-100 text-yellow-700 border border-yellow-300'
+  const statusColor = (s) => statusStyle(s).badge
 
   return (
     <div className="border-b bg-white">
@@ -1224,10 +1226,11 @@ const CHANNELS = [
   { key: 'swiggy',   label: 'Swiggy',   icon: '🟠', cls: 'bg-[#fc8019] hover:bg-[#e0700f] border-[#fc8019]' },
 ]
 
-function ChannelButtons({ onPick }) {
+function ChannelButtons({ onPick, zomatoOnline = true, swiggyOnline = true }) {
+  const isOnline = { takeaway: true, zomato: zomatoOnline, swiggy: swiggyOnline }
   return (
     <>
-      {CHANNELS.map(c => (
+      {CHANNELS.filter(c => isOnline[c.key] !== false).map(c => (
         <button key={c.key} onClick={() => onPick(c.key)}
           className={`inline-flex items-center gap-1.5 text-sm font-semibold text-white px-3 py-1.5 rounded-xl transition-colors shadow-sm border ${c.cls}`}>
           <span>{c.icon}</span>
@@ -1854,10 +1857,22 @@ export default function BillingDashboard({ embedded = false }) {
   const tenantUpiId  = tenantSettings?.upi_id ?? null
   const tenantSlug   = tenantSettings?.slug ?? null
   const isOpen = tenantSettings?.is_open ?? true
+  const zomatoOnline = tenantSettings?.zomato_online ?? true
+  const swiggyOnline = tenantSettings?.swiggy_online ?? true
 
   const toggleOpen = useMutation({
     mutationFn: (val) => updateOwnerSettings({ is_open: val }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tenant-settings'] }),
+  })
+
+  // Biller can advance takeaway/aggregator orders without a kitchen login.
+  const takeawayAdvance = useMutation({
+    mutationFn: ({ orderId, status }) =>
+      status === 'served' ? billingMarkServed(orderId) : billingUpdateStatus(orderId, status),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
+      setSelectedTakeawayOrder(prev => prev ? { ...prev, status: vars.status } : prev)
+    },
   })
 
   const openTable = (t) => {
@@ -1941,7 +1956,7 @@ export default function BillingDashboard({ embedded = false }) {
               <span className={`w-2 h-2 rounded-full ${isOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
               <span className="hidden sm:inline">{isOpen ? 'Open' : 'Closed'}</span>
             </button>
-            {hasRestaurant && <ChannelButtons onPick={setChannelPanel} />}
+            {hasRestaurant && <ChannelButtons onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />}
             <button onClick={() => setShowRecentBills(true)}
               className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
               <DocumentTextIcon className="w-4 h-4" />
@@ -1963,7 +1978,7 @@ export default function BillingDashboard({ embedded = false }) {
             <p className="text-sm text-gray-400 mt-0.5">Manage tables, orders, and invoices</p>
           </div>
           <div className="flex items-center gap-2">
-            {hasRestaurant && <ChannelButtons onPick={setChannelPanel} />}
+            {hasRestaurant && <ChannelButtons onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />}
             <button onClick={() => setShowRecentBills(true)}
               className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
               <DocumentTextIcon className="w-4 h-4" />
@@ -2121,6 +2136,34 @@ export default function BillingDashboard({ embedded = false }) {
                   </div>
                 ))}
               </div>
+
+              {/* Status control — biller advances these without a kitchen login */}
+              {selectedTakeawayOrder.status !== 'served' && (
+                <div className="mb-4 border border-gray-100 rounded-xl p-3 bg-gray-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Kitchen status</span>
+                    <span className="text-xs font-medium capitalize text-gray-600">{selectedTakeawayOrder.status}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {selectedTakeawayOrder.status === 'pending' && (
+                      <button onClick={() => takeawayAdvance.mutate({ orderId: selectedTakeawayOrder.id, status: 'preparing' })}
+                        disabled={takeawayAdvance.isPending}
+                        className="flex-1 text-xs bg-blue-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50">Start Preparing</button>
+                    )}
+                    {selectedTakeawayOrder.status === 'preparing' && (
+                      <button onClick={() => takeawayAdvance.mutate({ orderId: selectedTakeawayOrder.id, status: 'ready' })}
+                        disabled={takeawayAdvance.isPending}
+                        className="flex-1 text-xs bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50">Mark Ready</button>
+                    )}
+                    {selectedTakeawayOrder.status === 'ready' && (
+                      <button onClick={() => takeawayAdvance.mutate({ orderId: selectedTakeawayOrder.id, status: 'served' })}
+                        disabled={takeawayAdvance.isPending}
+                        className="flex-1 text-xs bg-gray-800 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50">Mark Served</button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <InvoiceForm
                 order={selectedTakeawayOrder}
                 onClose={() => setSelectedTakeawayOrder(null)}

@@ -9,6 +9,19 @@ const STATUS_CONFIG = {
   ready:     { border: 'border-green-500',  dot: 'bg-green-500',  badge: 'bg-green-100 text-green-800',   label: 'Ready'     },
 }
 
+const PLATFORM_LABEL = { zomato: 'Zomato', swiggy: 'Swiggy' }
+
+function orderLocationLabel(order) {
+  if (order.type === 'room-service') return `Room ${order.room_id ?? '?'}`
+  if (order.source === 'aggregator') {
+    const name = PLATFORM_LABEL[order.platform] ?? 'Aggregator'
+    return order.external_order_id ? `${name} · #${order.external_order_id}` : name
+  }
+  if (order.source === 'takeaway' || order.type === 'takeaway') return 'Takeaway'
+  if (order.table?.number) return `Table ${order.table.number}`
+  return 'Takeaway'
+}
+
 function StatusTimeline({ order }) {
   const steps = [
     { key: 'pending',   label: 'Ordered',    time: order.elapsed_label },
@@ -55,7 +68,7 @@ function OrderCard({ order, cfg }) {
     <div className={`bg-white rounded-2xl border-l-4 ${cfg.border} p-4 shadow-sm hover:shadow-md transition-shadow`}>
       <div className="flex items-center justify-between mb-1">
         <span className="font-bold text-gray-900 text-sm">
-          {order.type === 'room-service' ? `Room ${order.room_id ?? '?'}` : `Table ${order.table?.number ?? '?'}`}
+          {orderLocationLabel(order)}
         </span>
         <span className={`text-xs font-semibold ${(order.elapsed_minutes ?? 0) > 30 ? 'text-red-500' : 'text-gray-400'}`}>
           {order.elapsed_label ?? `${order.elapsed_minutes}m`}

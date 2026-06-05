@@ -120,7 +120,7 @@ class MenuController extends Controller
             'is_ready_made'       => 'boolean',
             'prep_time_minutes'   => 'nullable|integer|min:1|max:300',
             'image'               => 'nullable|max:5120|mimes:jpg,jpeg,png,gif,webp',
-            'video'               => 'nullable|max:51200|mimes:mp4,webm',
+            'video'               => 'nullable|max:20480|mimes:mp4,webm',
             'sort_order'          => 'integer|min:0',
             // Zomato menu fields
             'gst_slab'            => 'nullable|numeric|min:0|max:100',
@@ -178,7 +178,7 @@ class MenuController extends Controller
             'is_ready_made'       => 'boolean',
             'prep_time_minutes'   => 'nullable|integer|min:1|max:300',
             'image'               => 'nullable|max:5120|mimes:jpg,jpeg,png,gif,webp',
-            'video'               => 'nullable|max:51200|mimes:mp4,webm',
+            'video'               => 'nullable|max:20480|mimes:mp4,webm',
             'sort_order'          => 'integer|min:0',
             'menu_category_id'    => 'exists:menu_categories,id',
             // Zomato menu fields
@@ -199,6 +199,9 @@ class MenuController extends Controller
         if ($request->hasFile('video')) {
             if ($menuItem->video) Storage::disk('public')->delete($menuItem->video);
             $menuItem->video = $request->file('video')->store('menu', 'public');
+        } elseif ($request->boolean('remove_video')) {
+            if ($menuItem->video) Storage::disk('public')->delete($menuItem->video);
+            $menuItem->video = null;
         }
 
         $updateData = $request->only([

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getAnalyticsOverview } from '@/services/restaurantService'
+import useAuthStore from '@/store/authStore'
 import {
   BanknotesIcon, ArrowTrendingUpIcon, ExclamationTriangleIcon, BuildingOfficeIcon,
 } from '@heroicons/react/24/outline'
@@ -78,12 +79,12 @@ function PeakHoursChart({ data }) {
   const maxCount = Math.max(...data.map(d => d.count), 1)
   return (
     <div>
-      <div className="grid grid-cols-12 gap-1 items-end h-24 mb-1">
+      <div className="grid gap-0.5 items-end h-24 mb-1" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
         {data.map(h => {
           const pct = Math.round((h.count / maxCount) * 100)
           const isHot = pct >= 70
           return (
-            <div key={h.hour} className="flex flex-col items-center gap-0.5" title={`${h.label}: ${h.count} orders`}>
+            <div key={h.hour} className="flex flex-col items-center justify-end h-full gap-0.5" title={`${h.label}: ${h.count} orders`}>
               <div
                 className={`w-full rounded-t transition-all ${isHot ? 'bg-orange-500' : pct >= 40 ? 'bg-orange-300' : 'bg-gray-200'}`}
                 style={{ height: `${Math.max(pct, 4)}%` }}
@@ -92,9 +93,9 @@ function PeakHoursChart({ data }) {
           )
         })}
       </div>
-      <div className="grid grid-cols-12 gap-1">
+      <div className="grid gap-0.5" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
         {data.map(h => (
-          <div key={h.hour} className="text-center text-xs text-gray-400">{h.hour % 3 === 0 ? h.hour : ''}</div>
+          <div key={h.hour} className="text-center text-[10px] text-gray-400">{h.hour % 3 === 0 ? h.hour : ''}</div>
         ))}
       </div>
     </div>
@@ -120,6 +121,7 @@ function TopItemsChart({ items }) {
 
 export default function Analytics() {
   const [days, setDays] = useState(30)
+  const hotelEnabled = useAuthStore(s => !!s.user?.modules?.hotel)
 
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', days],
@@ -163,7 +165,7 @@ export default function Analytics() {
             <StatCard label="Revenue"    value={`₹${(t.revenue ?? 0).toLocaleString()}`}  color="green"  sub={`${t.orders ?? 0} orders`} {...STAT_META.revenue} />
             <StatCard label="Expenses"   value={`₹${(t.expenses ?? 0).toLocaleString()}`} color="red"    {...STAT_META.expenses} />
             <StatCard label="Net Profit" value={`₹${(t.profit ?? 0).toLocaleString()}`}   color={(t.profit ?? 0) >= 0 ? 'blue' : 'red'} {...STAT_META.profit} />
-            {data?.hotel?.total_rooms > 0 && (
+            {hotelEnabled && data?.hotel?.total_rooms > 0 && (
               <StatCard label="Occupancy" value={`${data.hotel.occupancy_rate}%`} color="violet" sub={`${data.hotel.total_rooms} rooms`} {...STAT_META.occupancy} />
             )}
           </div>

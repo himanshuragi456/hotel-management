@@ -184,6 +184,19 @@ class TenantController extends Controller
         }
 
         $old = $tenant->toArray();
+
+        // If the tenant's email changes, keep the owner's login email in sync so they
+        // can still log in. The owner user is created with the tenant email on store().
+        if ($request->filled('email') && $request->email !== $tenant->email) {
+            if (User::where('email', $request->email)->where('tenant_id', '!=', $tenant->id)->exists()) {
+                return $this->error('That email is already used by another account.', 422);
+            }
+            User::where('tenant_id', $tenant->id)
+                ->where('role', 'owner')
+                ->where('email', $tenant->email)
+                ->update(['email' => $request->email]);
+        }
+
         $tenant->update($request->only([
             'name', 'email', 'phone', 'address', 'city', 'state',
             'gstin', 'gst_rate', 'status', 'google_place_id', 'google_review_url',

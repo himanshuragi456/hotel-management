@@ -30,6 +30,8 @@ class SettingsController extends Controller
             'upi_id'                        => $tenant->upi_id,
             'contact_phones'                => $tenant->contact_phones ?? [],
             'active_contact_phone'          => $tenant->active_contact_phone,
+            'zomato_online'                 => (bool) ($tenant->zomato_online ?? true),
+            'swiggy_online'                 => (bool) ($tenant->swiggy_online ?? true),
         ];
     }
 

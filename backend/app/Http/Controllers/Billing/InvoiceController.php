@@ -472,11 +472,14 @@ class InvoiceController extends Controller
             ->whereNotIn('status', ['served', 'cancelled'])
             ->where('payment_status', '!=', 'pending_payment')
             ->whereDoesntHave('invoice')
-            ->with(['items', 'table', 'booking.room', 'booking.guest'])
+            ->with(['items.menuItem.category:id,name', 'table', 'booking.room', 'booking.guest'])
             ->oldest()
             ->get()
             ->map(function ($order) {
                 $data = $order->toArray();
+                foreach ($data['items'] as $idx => $item) {
+                    $data['items'][$idx]['category_name'] = $order->items[$idx]->menuItem?->category?->name;
+                }
                 $mins = (int) round(abs(now()->diffInRealMinutes($order->created_at)));
                 $data['elapsed_minutes'] = $mins;
                 $data['elapsed_label']   = $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm' : $mins . 'm';
@@ -873,15 +876,67 @@ class InvoiceController extends Controller
     /** Billing confirms customer paid and frees the table */
     public function confirmBillPaid(int $tableId): JsonResponse
     {
+        $tenantId = auth()->user()->tenant_id;
         $table = RestaurantTable::where('id', $tableId)
-            ->where('tenant_id', auth()->user()->tenant_id)
+            ->where('tenant_id', $tenantId)
             ->where('status', 'occupied')
             ->whereNotNull('bill_paid_at')
             ->firstOrFail();
 
-        $table->free();
+        // The customer paid via UPI through their own bill (QR pay-bill flow). Generate
+        // paid UPI invoices for every unbilled order so the revenue, payment method and
+        // recent-bills views all reflect this self-paid order.
+        $orders = Order::where('tenant_id', $tenantId)
+            ->where('restaurant_table_id', $tableId)
+            ->whereNotIn('status', ['cancelled'])
+            ->whereDoesntHave('invoice')
+            ->with('items')
+            ->get();
 
-        return $this->success(['table_number' => $table->number], 'Table cleared.');
+        $invoiceIds = [];
+        \Illuminate\Support\Facades\DB::transaction(function () use ($orders, $tenantId, $table, &$invoiceIds) {
+            foreach ($orders as $order) {
+                $subtotal  = (float) $order->subtotal;
+                $gstAmount = (float) $order->tax;
+                $total     = (float) $order->total;
+                $gstRate   = $subtotal > 0 ? round($gstAmount / $subtotal * 100, 4) : 0;
+
+                $invoice = Invoice::create([
+                    'tenant_id'       => $tenantId,
+                    'order_id'        => $order->id,
+                    'customer_name'   => $order->customer_name,
+                    'customer_phone'  => $order->customer_phone,
+                    'subtotal'        => $subtotal,
+                    'gst_rate'        => $gstRate,
+                    'gst_amount'      => $gstAmount,
+                    'discount_type'   => 0,
+                    'discount_value'  => 0,
+                    'discount_amount' => 0,
+                    'total'           => $total,
+                    'payment_method'  => 'upi',
+                    'amount_paid'     => $total,
+                    'amount_due'      => 0,
+                    'status'          => 'paid',
+                    'created_by'      => auth()->id(),
+                ]);
+                $order->update(['status' => 'served', 'payment_status' => 'paid']);
+                $invoiceIds[] = $invoice->id;
+            }
+
+            $table->free();
+        });
+
+        AuditLog::record('invoice.self_pay_confirmed', null, [], [
+            'table_id'     => $table->id,
+            'table_number' => $table->number,
+            'invoice_ids'  => $invoiceIds,
+            'payment'      => 'upi',
+        ]);
+
+        return $this->success([
+            'table_number' => $table->number,
+            'invoice_ids'  => $invoiceIds,
+        ], 'Payment confirmed — UPI invoice recorded.');
     }
 
     /** Billing rejects the self-pay notification — clears bill_paid_at so the customer can retry */

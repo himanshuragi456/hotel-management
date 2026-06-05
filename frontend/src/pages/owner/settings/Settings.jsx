@@ -496,6 +496,7 @@ function ChangePasswordCard() {
 }
 
 const ZOMATO_HELP_URL = 'https://www.zomato.com/partners/onlineordering/help/'
+const SWIGGY_HELP_URL = 'https://partner.swiggy.com/help'
 const OUTLET_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function ChannelToggle({ label, online, onToggle, reasons, busy }) {
@@ -618,10 +619,16 @@ function OutletCard() {
 
       <OutletHoursEditor outlet={outlet} busy={saveHours.isPending} onSave={(d) => saveHours.mutate(d)} />
 
-      <a href={ZOMATO_HELP_URL} target="_blank" rel="noopener noreferrer"
-        className="mt-4 inline-flex items-center gap-1.5 text-sm text-[#e23744] hover:underline font-medium">
-        <QuestionMarkCircleIcon className="w-4 h-4" /> Zomato Help Centre
-      </a>
+      <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+        <a href={ZOMATO_HELP_URL} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm text-[#e23744] hover:underline font-medium">
+          <QuestionMarkCircleIcon className="w-4 h-4" /> Zomato Help Centre
+        </a>
+        <a href={SWIGGY_HELP_URL} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm text-[#fc8019] hover:underline font-medium">
+          <QuestionMarkCircleIcon className="w-4 h-4" /> Swiggy Partner Help
+        </a>
+      </div>
     </div>
   )
 }

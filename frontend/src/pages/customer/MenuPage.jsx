@@ -275,6 +275,7 @@ function BatchCard({ batch, batchNum, totalBatches }) {
               <div className="flex items-start gap-3 flex-1 min-w-0">
                 <span className="w-7 h-7 rounded-lg bg-orange-50 text-orange-500 text-sm font-bold flex items-center justify-center shrink-0 mt-0.5">{item.quantity}</span>
                 <div className="min-w-0">
+                  {item.category_name && <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">{item.category_name}</p>}
                   <span className="text-base text-gray-800 font-medium">{item.name}</span>
                   {item.variant_name && <p className="text-sm text-gray-400">{item.variant_name}</p>}
                   {item.addon_labels?.length > 0 && <p className="text-sm text-gray-400">{item.addon_labels.join(', ')}</p>}

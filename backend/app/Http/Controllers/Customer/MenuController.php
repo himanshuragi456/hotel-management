@@ -200,7 +200,9 @@ class MenuController extends Controller
     {
         // Support comma-separated order numbers for batch tracking
         $numbers = array_filter(array_map('trim', explode(',', $orderNumber)));
-        $orders  = Order::whereIn('order_number', $numbers)->with('items')->get();
+        $orders  = Order::whereIn('order_number', $numbers)
+            ->with('items.menuItem.category:id,name')
+            ->get();
 
         if ($orders->isEmpty()) abort(404);
 
@@ -226,9 +228,12 @@ class MenuController extends Controller
                 'preparing_at'   => $order->preparing_at,
                 'created_at'     => $order->created_at,
                 'items'          => $order->items->map(fn($i) => [
-                    'name'     => $i->item_name,
-                    'quantity' => $i->quantity,
-                    'subtotal' => $i->subtotal,
+                    'name'         => $i->item_name,
+                    'category_name'=> $i->menuItem?->category?->name,
+                    'variant_name' => $i->variant_name,
+                    'addon_labels' => collect($i->addons ?? [])->pluck('name')->filter()->values(),
+                    'quantity'     => $i->quantity,
+                    'subtotal'     => $i->subtotal,
                 ]),
                 'total'          => $order->total,
             ];

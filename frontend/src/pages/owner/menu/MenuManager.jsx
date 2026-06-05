@@ -208,6 +208,7 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
   const [imagePreview, setImagePreview] = useState(item?.image_url ?? null)
   const [videoFile, setVideoFile] = useState(null)
   const [videoPreview, setVideoPreview] = useState(item?.video_url ?? null)
+  const [removeVideo, setRemoveVideo] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
 
@@ -261,6 +262,7 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
     if (nutri_protein !== '')  fd.append('nutritional_info[protein]', nutri_protein)
     if (imageFile) fd.append('image', imageFile)
     if (videoFile) fd.append('video', videoFile)
+    if (removeVideo && !videoFile) fd.append('remove_video', 1)
     mutation.mutate(fd)
   }
 
@@ -405,13 +407,14 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
               <p className="text-[11px] text-gray-400">MP4, WebM · 20MB max</p>
             </div>
             {videoPreview && (
-              <button type="button" onClick={e => { e.preventDefault(); setVideoFile(null); setVideoPreview(null) }}
+              <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); setVideoFile(null); setVideoPreview(null); setRemoveVideo(true) }}
                 className="ml-auto text-gray-300 hover:text-red-400 shrink-0">✕</button>
             )}
             <input type="file" accept="video/mp4,video/webm" onChange={e => {
               const file = e.target.files[0]
               if (!file) return
-              setVideoFile(file); setVideoPreview(URL.createObjectURL(file))
+              if (file.size > 20 * 1024 * 1024) { setError('Video must be 20MB or smaller'); e.target.value = ''; return }
+              setError(''); setVideoFile(file); setVideoPreview(URL.createObjectURL(file)); setRemoveVideo(false)
             }} className="hidden" />
           </label>
         </div>

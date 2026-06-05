@@ -171,19 +171,26 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLoc
         </div>
       )}
 
-      <div>
-        <p className="text-xs font-medium text-gray-700 mb-1">Modules *</p>
-        <p className="text-xs text-gray-400 mb-2">Select at least one module for this tenant</p>
-        <div className="flex gap-4">
-          {[['restaurant', 'Restaurant'], ['hotel', 'Hotel'], ['feedback', 'Feedback']].map(([key, label]) => (
-            <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" checked={form.modules[key]} onChange={e => setModule(key, e.target.checked)} className="rounded" />
-              <span className="text-sm">{label}</span>
-            </label>
-          ))}
+      {/* Modules are chosen here only at creation. After that, the dedicated
+          "Module Access" card on the tenant detail page is the single source of
+          truth (it also handles the feedback business domain). */}
+      {isEdit ? (
+        <p className="text-xs text-gray-400">Manage module access from the <span className="font-medium text-gray-600">Module Access</span> card on this tenant's page.</p>
+      ) : (
+        <div>
+          <p className="text-xs font-medium text-gray-700 mb-1">Modules *</p>
+          <p className="text-xs text-gray-400 mb-2">Select at least one module for this tenant</p>
+          <div className="flex gap-4">
+            {[['restaurant', 'Restaurant'], ['hotel', 'Hotel'], ['feedback', 'Feedback']].map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={form.modules[key]} onChange={e => setModule(key, e.target.checked)} className="rounded" />
+                <span className="text-sm">{label}</span>
+              </label>
+            ))}
+          </div>
+          <Err field="modules" />
         </div>
-        <Err field="modules" />
-      </div>
+      )}
     </div>
   )
 }
@@ -371,11 +378,14 @@ export default function TenantForm({ tenant, onSuccess }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    const errs = validate(DETAIL_RULES, form)
+    // Modules are not editable from this form when editing — skip that rule.
+    const rules = isEdit ? Object.fromEntries(Object.entries(DETAIL_RULES).filter(([k]) => k !== 'modules')) : DETAIL_RULES
+    const errs = validate(rules, form)
     if (Object.keys(errs).length) { setFieldErrors(errs); return }
     setError('')
     setFieldErrors({})
-    mutation.mutate(form)
+    const { modules, ...editPayload } = form
+    mutation.mutate(isEdit ? editPayload : form)
   }
 
   const TABS = isEdit
