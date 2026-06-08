@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" fill="none">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <linearGradient id="grad2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+    <linearGradient id="grad3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FDBA74"/>
+      <stop offset="100%" stop-color="#FB923C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Left pillar -->
+  <rect x="4"  y="10" width="10" height="32" rx="3" fill="url(#grad)"/>
+  <!-- Middle pillar -->
+  <rect x="19" y="22" width="10" height="20" rx="3" fill="url(#grad2)"/>
+  <!-- Right pillar -->
+  <rect x="34" y="16" width="10" height="26" rx="3" fill="url(#grad3)"/>
+
+  <!-- Connector bar -->
+  <rect x="4" y="10" width="40" height="5" rx="2.5" fill="url(#grad)"/>
+
+  <!-- Sparkle dot -->
+  <circle cx="47" cy="8" r="3" fill="#F97316" opacity="0.85"/>
+  <circle cx="47" cy="8" r="1.5" fill="white"/>
+</svg>

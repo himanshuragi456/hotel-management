@@ -21,7 +21,7 @@ class GmbService
     // OAuth helpers
     // -------------------------------------------------------------------------
 
-    public static function buildAuthUrl(): string
+    public static function buildAuthUrl(string $tenantId): string
     {
         $params = http_build_query([
             'client_id'     => config('services.google.client_id'),
@@ -30,6 +30,7 @@ class GmbService
             'scope'         => 'https://www.googleapis.com/auth/business.manage',
             'access_type'   => 'offline',
             'prompt'        => 'consent',
+            'state'         => $tenantId,
         ]);
 
         return "https://accounts.google.com/o/oauth2/v2/auth?{$params}";

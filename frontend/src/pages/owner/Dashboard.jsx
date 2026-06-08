@@ -128,8 +128,19 @@ export default function OwnerDashboard() {
     refetchInterval: 10000,
   })
 
-  const dineIn = (orders ?? []).filter(o => o.type !== 'room-service')
-  const roomSvc = (orders ?? []).filter(o => o.type === 'room-service')
+  const isOffPremise = o => o.source === 'aggregator' || o.type === 'takeaway' || o.source === 'takeaway'
+  const dineIn   = (orders ?? []).filter(o => o.type !== 'room-service' && !isOffPremise(o))
+  const offPrem  = (orders ?? []).filter(o => o.type !== 'room-service' && isOffPremise(o))
+  const roomSvc  = (orders ?? []).filter(o => o.type === 'room-service')
+
+  const PLATFORM_LABEL = { zomato: 'Zomato', swiggy: 'Swiggy' }
+  const offPremiseLabel = o => {
+    if (o.source === 'aggregator') {
+      const name = PLATFORM_LABEL[o.platform] ?? 'Aggregator'
+      return o.external_order_id ? `${name} · #${o.external_order_id}` : name
+    }
+    return o.customer_name ? `Takeaway · ${o.customer_name}` : 'Takeaway'
+  }
   const net = rev?.net ?? 0
   const isProfit = net >= 0
 
@@ -201,7 +212,12 @@ export default function OwnerDashboard() {
       {/* Live orders */}
       {hasRestaurant && (
         <LiveSection title="Live Dine-in Orders" orders={dineIn}
-          labelFn={o => `Table ${o.table?.number ?? '?'}`} />
+          labelFn={o => o.table?.number ? `Table ${o.table.number}` : 'Dine-in'} />
+      )}
+      {hasRestaurant && offPrem.length > 0 && (
+        <LiveSection title="Live Takeaway & Delivery" orders={offPrem}
+          labelFn={offPremiseLabel}
+          subFn={o => o.source === 'aggregator' && o.customer_name ? o.customer_name : undefined} />
       )}
       {hasHotel && (
         <LiveSection title="Live Room Service" orders={roomSvc}

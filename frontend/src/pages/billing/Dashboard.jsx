@@ -49,6 +49,7 @@ import {
   billingMarkServedRoom,
   extendBillingBookingStay,
   getActiveOrders,
+  getUnbilledTakeaway,
   getOwnerSettings, updateOwnerSettings,
   getTenantSettings,
   billingPlaceTakeaway,
@@ -974,14 +975,18 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
 
   if (!orders.length) return null
 
-  const orderLabel = (o) => o.type === 'takeaway'
-    ? `🛍️ ${o.customer_name || 'Takeaway'}`
+  // An order is "off-premise" (takeaway / Zomato / Swiggy) if it's tagged takeaway
+  // or comes from an aggregator — these never have a dine-in table.
+  const isOffPremise = (o) => o.type === 'takeaway' || o.source === 'aggregator' || o.source === 'takeaway'
+
+  const orderLabel = (o) => isOffPremise(o)
+    ? `🛍️ ${o.platform ? o.platform[0].toUpperCase() + o.platform.slice(1) : (o.customer_name || 'Takeaway')}`
     : o.type === 'room-service'
     ? `Room ${o.booking?.room?.number ?? o.room_id}`
     : `Table ${o.table?.number ?? '?'}`
 
   const handleOrderClick = (o) => {
-    if (o.type === 'takeaway') {
+    if (isOffPremise(o)) {
       onSelectTakeaway?.(o)
     } else if (o.type === 'room-service' && o.booking) {
       onSelectBooking?.(o.booking)
@@ -1213,6 +1218,57 @@ function RecentBillsDrawer({ onClose }) {
               })}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Unbilled Takeaway Drawer ─────────────────────────────────────────────────
+// Served-but-unbilled takeaway/aggregator orders drop out of the active bar (and
+// have no table to reopen from). This drawer is the way back to bill them.
+function UnbilledTakeawayDrawer({ onClose, onSelect }) {
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['billing-unbilled-takeaway'],
+    queryFn: () => getUnbilledTakeaway().then(r => r.data.data),
+    refetchInterval: 10000,
+  })
+
+  const platformLabel = (o) => o.source === 'aggregator'
+    ? (o.platform ? o.platform[0].toUpperCase() + o.platform.slice(1) : 'Aggregator')
+    : 'Takeaway'
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex justify-end" onClick={onClose}>
+      <div className="bg-white w-full max-w-sm flex flex-col h-full shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-2">
+            <span>🛍️</span>
+            <h2 className="font-bold text-gray-900">Unbilled Takeaway</h2>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+            <XMarkIcon className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {isLoading ? (
+            <p className="text-center text-gray-400 text-sm py-8">Loading…</p>
+          ) : orders.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-8">No unbilled takeaway or delivery orders.</p>
+          ) : orders.map(o => (
+            <button key={o.id}
+              onClick={() => { onSelect(o); onClose() }}
+              className="w-full text-left border border-gray-200 rounded-xl p-3 hover:border-orange-300 hover:bg-orange-50 transition-colors">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-semibold text-gray-800">{platformLabel(o)}{o.external_order_id ? ` · #${o.external_order_id}` : ''}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">{o.status}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>{o.order_number}{o.customer_name ? ` · ${o.customer_name}` : ''}</span>
+                <span className="font-semibold text-gray-800">₹{Number(o.total ?? 0).toFixed(0)}</span>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </div>
@@ -1848,6 +1904,8 @@ export default function BillingDashboard({ embedded = false }) {
   // null | 'takeaway' | 'zomato' | 'swiggy' — which order-entry panel is open
   const [channelPanel, setChannelPanel] = useState(null)
   const [selectedTakeawayOrder, setSelectedTakeawayOrder] = useState(null)
+  const [takeawayInvoiceOrder, setTakeawayInvoiceOrder] = useState(null)
+  const [showUnbilledTakeaway, setShowUnbilledTakeaway] = useState(false)
 
   const { data: tenantSettings } = useQuery({
     queryKey: ['tenant-settings'],
@@ -1871,6 +1929,7 @@ export default function BillingDashboard({ embedded = false }) {
       status === 'served' ? billingMarkServed(orderId) : billingUpdateStatus(orderId, status),
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
+      qc.invalidateQueries({ queryKey: ['billing-unbilled-takeaway'] })
       setSelectedTakeawayOrder(prev => prev ? { ...prev, status: vars.status } : prev)
     },
   })
@@ -1957,6 +2016,12 @@ export default function BillingDashboard({ embedded = false }) {
               <span className="hidden sm:inline">{isOpen ? 'Open' : 'Closed'}</span>
             </button>
             {hasRestaurant && <ChannelButtons onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />}
+            {hasRestaurant && (
+              <button onClick={() => setShowUnbilledTakeaway(true)}
+                className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
+                🛍️<span className="hidden sm:inline">Unbilled Takeaway</span>
+              </button>
+            )}
             <button onClick={() => setShowRecentBills(true)}
               className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
               <DocumentTextIcon className="w-4 h-4" />
@@ -1979,6 +2044,12 @@ export default function BillingDashboard({ embedded = false }) {
           </div>
           <div className="flex items-center gap-2">
             {hasRestaurant && <ChannelButtons onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />}
+            {hasRestaurant && (
+              <button onClick={() => setShowUnbilledTakeaway(true)}
+                className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
+                🛍️ Unbilled Takeaway
+              </button>
+            )}
             <button onClick={() => setShowRecentBills(true)}
               className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
               <DocumentTextIcon className="w-4 h-4" />
@@ -2164,18 +2235,45 @@ export default function BillingDashboard({ embedded = false }) {
                 </div>
               )}
 
-              <InvoiceForm
-                order={selectedTakeawayOrder}
-                onClose={() => setSelectedTakeawayOrder(null)}
-                onDone={(ids) => {
-                  handleInvoiceDone(ids)
-                  setSelectedTakeawayOrder(null)
-                  qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
-                }}
-              />
+              {/* Totals summary */}
+              <div className="border-t border-gray-100 pt-3 mb-4 text-sm">
+                <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>₹{Number(selectedTakeawayOrder.subtotal ?? 0).toFixed(2)}</span></div>
+                {Number(selectedTakeawayOrder.tax ?? 0) > 0 && (
+                  <div className="flex justify-between text-gray-500"><span>GST</span><span>₹{Number(selectedTakeawayOrder.tax).toFixed(2)}</span></div>
+                )}
+                <div className="flex justify-between font-bold text-gray-900 mt-1"><span>Total</span><span>₹{Number(selectedTakeawayOrder.total ?? 0).toFixed(2)}</span></div>
+              </div>
+
+              {/* Bill action — opens the invoice form as a separate step */}
+              {!selectedTakeawayOrder.invoice ? (
+                <button
+                  onClick={() => setTakeawayInvoiceOrder({ ...selectedTakeawayOrder, table: null })}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold text-sm"
+                >
+                  Bill this order · ₹{Number(selectedTakeawayOrder.total ?? 0).toFixed(0)}
+                </button>
+              ) : (
+                <div className="w-full text-center text-sm text-green-600 font-medium py-2">Already billed ₹{selectedTakeawayOrder.invoice.total}</div>
+              )}
             </div>
           </div>
         </div>
+      )}
+
+      {/* Takeaway/aggregator invoice form — separate overlay so it doesn't hide the status panel */}
+      {takeawayInvoiceOrder && (
+        <InvoiceForm
+          order={takeawayInvoiceOrder}
+          onClose={() => setTakeawayInvoiceOrder(null)}
+          onDone={(ids) => {
+            handleInvoiceDone(ids)
+            setTakeawayInvoiceOrder(null)
+            setSelectedTakeawayOrder(null)
+            qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
+            qc.invalidateQueries({ queryKey: ['billing-unbilled-takeaway'] })
+            qc.invalidateQueries({ queryKey: ['billing-recent-invoices'] })
+          }}
+        />
       )}
 
       {lastInvoiceIds && (
@@ -2184,6 +2282,13 @@ export default function BillingDashboard({ embedded = false }) {
 
       {showRecentBills && (
         <RecentBillsDrawer onClose={() => setShowRecentBills(false)} />
+      )}
+
+      {showUnbilledTakeaway && (
+        <UnbilledTakeawayDrawer
+          onClose={() => setShowUnbilledTakeaway(false)}
+          onSelect={(o) => setSelectedTakeawayOrder(o)}
+        />
       )}
     </div>
   )

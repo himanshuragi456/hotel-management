@@ -93,6 +93,7 @@ export const confirmBillPaid        = (tableId)                 => api.post(`/bi
 export const rejectBillPaid         = (tableId)                 => api.post(`/billing/magic-tables/tables/${tableId}/reject-bill-paid`)
 export const getReadyOrders      = ()              => api.get('/billing/orders/ready')
 export const getActiveOrders     = ()              => api.get('/billing/orders/active')
+export const getUnbilledTakeaway = ()              => api.get('/billing/orders/unbilled-takeaway')
 export const getAllBillingOrders  = (params)        => api.get('/billing/orders', { params })
 export const getBillingTables    = ()              => api.get('/billing/tables')
 export const getBillingTableOrders   = (tableId) => api.get(`/billing/tables/${tableId}/orders`)

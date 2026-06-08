@@ -27,16 +27,14 @@ class GmbController extends Controller
 
     public function connectRedirect(Request $request): JsonResponse
     {
-        // Store tenant_id in session so callback knows who to update
-        session(['gmb_tenant_id' => $request->_tenant_id]);
-        $url = GmbService::buildAuthUrl();
+        $url = GmbService::buildAuthUrl($request->_tenant_id);
         return $this->success(['url' => $url]);
     }
 
     public function connectCallback(Request $request): \Illuminate\Http\RedirectResponse
     {
         $code     = $request->query('code');
-        $tenantId = session('gmb_tenant_id');
+        $tenantId = $request->query('state');
 
         if (!$code || !$tenantId) {
             return redirect(config('app.frontend_url') . '/owner/feedback/setup?gmb_error=missing_code');

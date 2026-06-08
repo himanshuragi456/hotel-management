@@ -489,6 +489,37 @@ class InvoiceController extends Controller
         return $this->success($orders);
     }
 
+    /**
+     * Takeaway / aggregator (Zomato/Swiggy) orders that are not yet billed — including
+     * served ones. These have no table to reopen from, so a served-but-unbilled takeaway
+     * order would otherwise be unreachable. This list is the way back to bill them.
+     */
+    public function unbilledTakeaway(): JsonResponse
+    {
+        $tid = auth()->user()->tenant_id;
+
+        $orders = Order::where('tenant_id', $tid)
+            ->where('type', 'takeaway')
+            ->whereNotIn('status', ['cancelled'])
+            ->where('payment_status', '!=', 'pending_payment')
+            ->whereDoesntHave('invoice')
+            ->with(['items.menuItem.category:id,name'])
+            ->oldest()
+            ->get()
+            ->map(function ($order) {
+                $data = $order->toArray();
+                foreach ($data['items'] as $idx => $item) {
+                    $data['items'][$idx]['category_name'] = $order->items[$idx]->menuItem?->category?->name;
+                }
+                $mins = (int) round(abs(now()->diffInRealMinutes($order->created_at)));
+                $data['elapsed_minutes'] = $mins;
+                $data['elapsed_label']   = $mins >= 60 ? floor($mins / 60) . 'h ' . ($mins % 60) . 'm' : $mins . 'm';
+                return $data;
+            });
+
+        return $this->success($orders);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $v = Validator::make($request->all(), [

@@ -51,11 +51,13 @@ return [
     ],
 
     'google' => [
-        'places_api_key'  => env('GOOGLE_PLACES_API_KEY'),
-        'client_id'       => env('GOOGLE_CLIENT_ID'),
-        'client_secret'   => env('GOOGLE_CLIENT_SECRET'),
-        'redirect_uri'    => env('GOOGLE_REDIRECT_URI'),
-        'pubsub_topic'    => env('GOOGLE_PUBSUB_TOPIC'),
+        'places_api_key'       => env('GOOGLE_PLACES_API_KEY'),
+        'client_id'            => env('GOOGLE_CLIENT_ID'),
+        'client_secret'        => env('GOOGLE_CLIENT_SECRET'),
+        'redirect_uri'         => env('GOOGLE_REDIRECT_URI'),
+        'pubsub_topic'         => env('GOOGLE_PUBSUB_TOPIC'),
+        'pubsub_subscription'  => env('GOOGLE_PUBSUB_SUBSCRIPTION'),
+        'service_account_json' => env('GOOGLE_SERVICE_ACCOUNT_JSON'),
     ],
 
 ];

@@ -18,6 +18,8 @@ Inside your project, go to **APIs & Services → Library** and enable each of th
 - [ ] My Business Notifications API
 - [ ] Cloud Pub/Sub API
 
+
+client id: 7050746646-la8f017cht8phe6go3efga73no27ejk1.apps.googleusercontent.com - Business Profile Performance API
 ---
 
 ## Step 3: OAuth 2.0 Credentials

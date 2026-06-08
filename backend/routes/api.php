@@ -332,6 +332,7 @@ Route::middleware(['auth:api'])->group(function () {
             // Cross-module: invoices and active-order feed available if any module active
             Route::get('orders/ready', [InvoiceController::class, 'readyOrders']);
             Route::get('orders/active', [InvoiceController::class, 'activeOrders']);
+            Route::get('orders/unbilled-takeaway', [InvoiceController::class, 'unbilledTakeaway']);
             Route::get('orders', [InvoiceController::class, 'allOrders']);
             Route::post('invoices', [InvoiceController::class, 'store']);
             Route::get('invoices/recent', [InvoiceController::class, 'recent']);

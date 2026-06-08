@@ -10,11 +10,85 @@ import {
   deleteFeedbackQrCode, downloadFeedbackQr,
   getGmbStatus, getGmbConnectUrl, disconnectGmb, updateGmbSettings,
   getGmbAccounts, getGmbLocations, selectGmbLocation,
+  getReviewConfig, updateReviewConfig,
 } from '@/services/restaurantService'
 
 const PLACEMENTS = ['reception', 'entrance', 'counter', 'table', 'room', 'other']
 
 // ─── Google Connect Panel ──────────────────────────────────────────────────────
+
+function ManualPlaceIdPanel() {
+  const qc = useQueryClient()
+  const [placeId, setPlaceId] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const { data: config } = useQuery({
+    queryKey: ['review-config'],
+    queryFn: () => getReviewConfig().then(r => r.data.data),
+  })
+
+  useEffect(() => {
+    if (config?.google_place_id) setPlaceId(config.google_place_id)
+  }, [config])
+
+  const save = useMutation({
+    mutationFn: () => updateReviewConfig({
+      google_place_id: placeId.trim(),
+      google_review_url: placeId.trim()
+        ? `https://search.google.com/local/writereview?placeid=${placeId.trim()}`
+        : null,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['review-config'] })
+      qc.invalidateQueries({ queryKey: ['gmb-status'] })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    },
+  })
+
+  const reviewUrl = placeId.trim()
+    ? `https://search.google.com/local/writereview?placeid=${placeId.trim()}`
+    : null
+
+  return (
+    <div className="border-t border-gray-100 pt-4 mt-4">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+        Or enter Place ID manually
+      </p>
+      <p className="text-xs text-gray-400 mb-3">
+        Find your Place ID at{' '}
+        <a href="https://developers.google.com/maps/documentation/places/web-service/place-id" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+          Google Place ID Finder
+        </a>
+        . This enables the feedback redirect without connecting Google OAuth.
+      </p>
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <input
+            type="text"
+            value={placeId}
+            onChange={e => setPlaceId(e.target.value)}
+            placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50"
+          />
+        </div>
+        <button
+          onClick={() => save.mutate()}
+          disabled={save.isPending || !placeId.trim()}
+          className="inline-flex items-center gap-1.5 bg-gray-800 text-white px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-gray-700 transition-colors whitespace-nowrap"
+        >
+          {saved ? <><CheckCircleIcon className="w-4 h-4 text-green-400" />Saved</> : save.isPending ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+      {reviewUrl && (
+        <a href={reviewUrl} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-blue-500 hover:underline mt-2">
+          Test review link <ArrowTopRightOnSquareIcon className="w-3 h-3" />
+        </a>
+      )}
+    </div>
+  )
+}
 
 function GoogleConnectPanel() {
   const qc = useQueryClient()
@@ -278,6 +352,8 @@ function GoogleConnectPanel() {
           </button>
         </div>
       )}
+
+      <ManualPlaceIdPanel />
     </div>
   )
 }
