@@ -34,13 +34,25 @@
       @foreach($orders as $order)
       <tr>
         <td>{{ $order->order_number }}</td>
-        <td>{{ $order->table?->number ?? 'Room' }}</td>
+        <td>
+          @if($order->table)
+            Table {{ $order->table->number }}
+          @elseif($order->type === 'room-service')
+            Room {{ $order->room?->number ?? 'Service' }}
+          @elseif($order->type === 'takeaway' && $order->source === 'aggregator')
+            {{ ucfirst($order->platform ?? 'Aggregator') }}
+          @elseif($order->type === 'takeaway')
+            Takeaway
+          @else
+            —
+          @endif
+        </td>
         <td>{{ $order->items->sum('quantity') }} items</td>
         <td>₹{{ number_format($order->subtotal, 2) }}</td>
         <td>₹{{ number_format($order->tax, 2) }}</td>
         <td class="total">₹{{ number_format($order->total, 2) }}</td>
         <td>{{ $order->status }}</td>
-        <td>{{ $order->created_at->format('H:i') }}</td>
+        <td>{{ $order->created_at->setTimezone('Asia/Kolkata')->format('d M H:i') }}</td>
       </tr>
       @endforeach
     </tbody>

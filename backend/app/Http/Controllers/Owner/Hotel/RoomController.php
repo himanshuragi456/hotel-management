@@ -13,9 +13,17 @@ class RoomController extends Controller
 {
     use ApiResponse;
 
+    private function roomMenuUrl(Room $room, \App\Models\Tenant $tenant): string
+    {
+        $base = config('app.frontend_url', config('app.url'));
+        return "{$base}/room-menu/{$tenant->slug}/{$room->qr_token}";
+    }
+
     public function index(Request $request): JsonResponse
     {
-        $tid = $request->_tenant_id;
+        $tid    = $request->_tenant_id;
+        $tenant = \App\Models\Tenant::findOrFail($tid);
+
         $rooms = Room::where('tenant_id', $tid)
             ->withCount(['bookings as active_booking_count' => fn($q) => $q->where('status', 'checked_in')])
             ->with('activeBooking.guest')
@@ -24,6 +32,7 @@ class RoomController extends Controller
             ->get()
             ->map(fn($room) => array_merge($room->toArray(), [
                 'occupied_minutes' => $room->occupied_minutes,
+                'menu_url'         => $this->roomMenuUrl($room, $tenant),
             ]));
 
         return $this->success($rooms);
@@ -84,6 +93,20 @@ class RoomController extends Controller
         }
         $room->delete();
         return $this->success(null, 'Room deleted');
+    }
+
+    public function qrCode(Request $request, Room $room): mixed
+    {
+        if ($room->tenant_id !== $request->_tenant_id) return $this->forbidden();
+
+        $tenant = \App\Models\Tenant::findOrFail($request->_tenant_id);
+        $url    = $this->roomMenuUrl($room, $tenant);
+
+        return response(
+            QrCode::format('svg')->size(300)->generate($url),
+            200,
+            ['Content-Type' => 'image/svg+xml']
+        );
     }
 
     public function statusBoard(Request $request): JsonResponse

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   KeyIcon, PrinterIcon, CheckCircleIcon, ExclamationCircleIcon,
-  QrCodeIcon, BellAlertIcon, CreditCardIcon, PhoneIcon, PlusIcon, TrashIcon,
+  QrCodeIcon, CreditCardIcon, PhoneIcon, PlusIcon, TrashIcon,
   PowerIcon, ClockIcon, QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 import { getOwnerSettings, updateOwnerSettings, changeOwnPassword, getFeedbackQrCodes, getOutlet, toggleOutletChannel, setOutletHours } from '@/services/restaurantService'
@@ -170,9 +170,11 @@ function GstSettingsCard({ settings, onUpdate, isPending }) {
   const [saved, setSaved]       = useState(false)
   const inclusive               = settings?.gst_inclusive ?? false
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (settings?.gst_rate != null) setRate(String(settings.gst_rate))
   }, [settings?.gst_rate])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSave = () => {
     const parsed = parseFloat(rate)
@@ -240,13 +242,87 @@ function GstSettingsCard({ settings, onUpdate, isPending }) {
   )
 }
 
+function HotelGstSettingsCard({ settings, onUpdate, isPending }) {
+  const [rate, setRate]   = useState('')
+  const [saved, setSaved] = useState(false)
+  const inclusive         = settings?.hotel_gst_inclusive ?? false
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (settings?.hotel_gst_rate != null) setRate(String(settings.hotel_gst_rate))
+  }, [settings?.hotel_gst_rate])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const handleSave = () => {
+    const parsed = parseFloat(rate)
+    if (isNaN(parsed) || parsed < 0 || parsed > 100) return
+    onUpdate({ hotel_gst_rate: parsed })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+          <span className="text-blue-500 font-bold text-sm">%</span>
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-900 text-sm">Hotel GST / Tax Settings</h3>
+          <p className="text-xs text-gray-400">Configure GST applied to room charges on bookings</p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between py-3 border-b border-gray-50 mb-3">
+        <div className="flex-1 min-w-0 pr-4">
+          <p className="text-sm font-medium text-gray-800">Room prices include GST</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {inclusive
+              ? 'Room price already includes tax. Bills extract the GST component.'
+              : 'GST is added on top of room price. Bills show subtotal + GST = total.'}
+          </p>
+        </div>
+        <button type="button" role="switch" aria-checked={inclusive} disabled={isPending}
+          onClick={() => onUpdate({ hotel_gst_inclusive: !inclusive })}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none disabled:opacity-40 ${inclusive ? 'bg-orange-500' : 'bg-gray-200'}`}>
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${inclusive ? 'translate-x-6' : 'translate-x-1'}`} />
+        </button>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">Hotel GST Rate (%)</label>
+        <div className="flex gap-2">
+          <input type="number" min="0" max="100" step="0.5" value={rate}
+            onChange={e => { setRate(e.target.value); setSaved(false) }}
+            placeholder="e.g. 12"
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+          <button onClick={handleSave} disabled={isPending}
+            className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${saved ? 'bg-green-500 text-white' : 'bg-orange-500 text-white hover:bg-orange-600'} disabled:opacity-50`}>
+            {saved ? 'Saved!' : 'Save'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-1.5">Common rates: 12% (tariff ₹2500–₹7499), 18% (tariff ≥₹7500), 0% (budget hotels).</p>
+      </div>
+
+      <div className={`mt-3 rounded-xl px-4 py-3 text-xs ${inclusive ? 'bg-blue-50 text-blue-700' : 'bg-indigo-50 text-indigo-700'}`}>
+        {inclusive
+          ? <>📌 <strong>Inclusive:</strong> ₹1000/night with 12% GST → guest pays ₹1000. GST extracted = ₹107.14.</>
+          : <>📌 <strong>Exclusive:</strong> ₹1000/night with 12% GST → guest pays ₹1120. GST added = ₹120.</>
+        }
+      </div>
+    </div>
+  )
+}
+
 function UpiSettingsCard({ settings, onUpdate, isPending }) {
   const [upiId, setUpiId] = useState('')
   const [saved, setSaved] = useState(false)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (settings?.upi_id != null) setUpiId(settings.upi_id)
   }, [settings?.upi_id])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSave = () => {
     onUpdate({ upi_id: upiId.trim() || null })
@@ -296,9 +372,11 @@ function ContactPhonesCard({ settings, onUpdate, isPending }) {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (settings?.contact_phones) setPhones(settings.contact_phones)
   }, [settings?.contact_phones])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const addPhone = () => {
     const cleaned = input.replace(/\D/g, '').slice(0, 10)
@@ -439,7 +517,7 @@ function ChangePasswordCard() {
   const inp = (field) =>
     `w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 transition-colors ${errors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`
 
-  const Err = ({ field }) => errors[field]
+  const Err = (field) => errors[field]
     ? <p className="text-xs text-red-500 mt-0.5">{errors[field]}</p>
     : null
 
@@ -470,18 +548,18 @@ function ChangePasswordCard() {
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Current Password *</label>
           <input type="password" value={form.current_password} onChange={e => set('current_password', e.target.value)} className={inp('current_password')} placeholder="Enter current password" />
-          <Err field="current_password" />
+          {Err('current_password')}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">New Password *</label>
           <input type="password" value={form.password} onChange={e => set('password', e.target.value)} className={inp('password')} placeholder="Min 8 chars, A-Z, 0-9, @$!%*#?&" />
-          <Err field="password" />
+          {Err('password')}
           <p className="text-xs text-gray-400 mt-1">Must contain uppercase, number, and special character (@$!%*#?&)</p>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Confirm New Password *</label>
           <input type="password" value={form.password_confirmation} onChange={e => set('password_confirmation', e.target.value)} className={inp('password_confirmation')} placeholder="Repeat new password" />
-          <Err field="password_confirmation" />
+          {Err('password_confirmation')}
         </div>
         <button
           type="submit"
@@ -637,6 +715,7 @@ export default function OwnerSettings() {
   const { user } = useAuthStore()
   const qc = useQueryClient()
   const hasRestaurant = !!user?.modules?.restaurant
+  const hasHotel      = !!user?.modules?.hotel
   const hasFeedback   = !!user?.modules?.feedback
 
   const { data: settings } = useQuery({
@@ -698,6 +777,13 @@ export default function OwnerSettings() {
               isPending={updateMutation.isPending}
             />
           </>
+        )}
+        {hasHotel && (
+          <HotelGstSettingsCard
+            settings={settings}
+            onUpdate={(patch) => updateMutation.mutate(patch)}
+            isPending={updateMutation.isPending}
+          />
         )}
         <ChangePasswordCard />
       </div>

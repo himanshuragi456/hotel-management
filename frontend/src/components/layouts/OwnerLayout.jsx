@@ -19,7 +19,6 @@ import {
   ArrowRightOnRectangleIcon,
   ChevronLeftIcon,
   Bars3Icon,
-  BellIcon,
   XMarkIcon,
   CreditCardIcon,
   Cog6ToothIcon,
@@ -169,7 +168,7 @@ export default function OwnerLayout() {
   const NAV = buildNav(modules)
 
   const handleLogout = async () => {
-    try { await logout() } catch (_) {}
+    try { await logout() } catch { /* ignore */ }
     clearAuth()
     navigate('/login', { replace: true })
   }

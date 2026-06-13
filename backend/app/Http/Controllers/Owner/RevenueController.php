@@ -164,7 +164,7 @@ class RevenueController extends Controller
         $orders = Order::where('tenant_id', $tenantId)
             ->whereBetween('created_at', [$request->from, $request->to . ' 23:59:59'])
             ->where('status', 'served')
-            ->with(['items', 'table', 'invoice'])
+            ->with(['items', 'table', 'room', 'invoice'])
             ->get();
 
         $pdf = Pdf::loadView('reports.orders', [

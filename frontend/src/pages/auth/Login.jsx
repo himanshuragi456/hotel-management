@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import { EnvelopeIcon, LockClosedIcon, BuildingOffice2Icon, SparklesIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import useAuthStore from '@/store/authStore'
 import { login } from '@/services/authService'
@@ -19,6 +20,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
+  const formRef = useScrollToFirstError(fieldErrors)
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
 
@@ -77,7 +79,7 @@ export default function Login() {
           <div className="mt-8 space-y-3 text-left max-w-xs mx-auto">
             {[
               { icon: <SparklesIcon className="w-4 h-4 text-white shrink-0 mt-0.5" />, label: 'Smart Google Reviews', sub: 'AI-generated suggestions that get customers to actually leave reviews' },
-              { icon: '🍽', label: 'Restaurant & POS', sub: 'Table orders, kitchen display, billing & invoices' },
+              { icon: <svg className="w-4 h-4 text-white shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7 2v5a2 2 0 002 2v13M7 2c0 0-2 2-2 5h4M17 2v20M17 2c2 2 3 4 3 7h-3" /></svg>, label: 'Restaurant & POS', sub: 'Table orders, kitchen display, billing & invoices' },
               { icon: '🏨', label: 'Hotel & Rooms', sub: 'Bookings, check-in/out, room service charges' },
             ].map(f => (
               <div key={f.label} className="flex items-start gap-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-3">
@@ -121,7 +123,7 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Email</label>
               <div className="relative">

@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Room;
 use App\Traits\ApiResponse;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,11 +19,13 @@ class BookingController extends Controller
     private function bookingData(Booking $booking): array
     {
         return array_merge($booking->toArray(), [
-            'nights'          => $booking->nights,
-            'room_charges'    => $booking->room_charges,
-            'service_charges' => $booking->service_charges,
-            'total_amount'    => $booking->total_amount,
-            'balance_due'     => $booking->balance_due,
+            'nights'               => $booking->nights,
+            'room_charges'         => $booking->room_charges,
+            'room_gst_amount'      => $booking->room_gst_amount,
+            'computed_room_total'  => $booking->computed_room_total,
+            'service_charges'      => $booking->service_charges,
+            'total_amount'         => $booking->total_amount,
+            'balance_due'          => $booking->balance_due,
             'is_overdue'      => $booking->status === 'checked_in'
                                  && now()->startOfDay()->gt(\Carbon\Carbon::parse($booking->check_out_date)->startOfDay()),
         ]);
@@ -61,10 +64,12 @@ class BookingController extends Controller
             'advance_paid'           => 'nullable|numeric|min:0',
             'advance_payment_method' => 'nullable|string',
             'notes'                  => 'nullable|string',
+            'decided_amount'         => 'nullable|numeric|min:0',
         ]);
 
-        $tid  = $request->_tenant_id;
-        $room = Room::where('tenant_id', $tid)->findOrFail($data['room_id']);
+        $tid    = $request->_tenant_id;
+        $tenant = \App\Models\Tenant::findOrFail($tid);
+        $room   = Room::where('tenant_id', $tid)->findOrFail($data['room_id']);
 
         // Check for conflicting bookings
         $conflict = Booking::where('room_id', $data['room_id'])
@@ -83,12 +88,14 @@ class BookingController extends Controller
         }
 
         $booking = Booking::create(array_merge($data, [
-            'tenant_id'      => $tid,
-            'created_by'     => auth()->id(),
-            'price_per_night'=> $room->price_per_night,
-            'advance_paid'   => $data['advance_paid'] ?? 0,
-            'adults'         => $data['adults'] ?? 1,
-            'children'       => $data['children'] ?? 0,
+            'tenant_id'       => $tid,
+            'created_by'      => auth()->id(),
+            'price_per_night' => $room->price_per_night,
+            'gst_rate'        => (float) ($tenant->hotel_gst_rate ?? 0),
+            'gst_inclusive'   => (bool)  ($tenant->hotel_gst_inclusive ?? false),
+            'advance_paid'    => $data['advance_paid'] ?? 0,
+            'adults'          => $data['adults'] ?? 1,
+            'children'        => $data['children'] ?? 0,
         ]));
 
         $booking->load(['guest', 'room']);
@@ -117,6 +124,7 @@ class BookingController extends Controller
         }
 
         $data = $request->validate([
+            'room_id'                => 'sometimes|exists:rooms,id',
             'check_in_date'          => 'sometimes|date',
             'check_out_date'         => 'sometimes|date|after:check_in_date',
             'adults'                 => 'nullable|integer|min:1',
@@ -124,7 +132,28 @@ class BookingController extends Controller
             'notes'                  => 'nullable|string',
             'advance_paid'           => 'nullable|numeric|min:0',
             'advance_payment_method' => 'nullable|string',
+            'decided_amount'         => 'nullable|numeric|min:0',
+            'guest_name'             => 'sometimes|string|max:255',
+            'guest_phone'            => 'sometimes|string|max:20',
         ]);
+
+        // Update guest name/phone if provided
+        if (isset($data['guest_name']) || isset($data['guest_phone'])) {
+            $guestData = array_filter([
+                'name'  => $data['guest_name']  ?? null,
+                'phone' => $data['guest_phone'] ?? null,
+            ]);
+            $booking->guest?->update($guestData);
+        }
+        unset($data['guest_name'], $data['guest_phone']);
+
+        // If room changed, recalculate price_per_night
+        if (isset($data['room_id']) && $data['room_id'] != $booking->room_id) {
+            $room = \App\Models\Room::where('id', $data['room_id'])
+                ->where('tenant_id', $request->_tenant_id)
+                ->firstOrFail();
+            $data['price_per_night'] = $room->price_per_night;
+        }
 
         $booking->update($data);
         return $this->success($this->bookingData($booking->fresh()->load(['guest', 'room'])));
@@ -320,5 +349,74 @@ class BookingController extends Controller
             'from'           => $from,
             'to'             => $to,
         ]);
+    }
+
+    public function recentCheckouts(Request $request): JsonResponse
+    {
+        $bookings = Booking::where('tenant_id', $request->_tenant_id)
+            ->whereIn('status', ['checked_in', 'checked_out'])
+            ->with(['guest:id,name,phone', 'room:id,number,type'])
+            ->latest('updated_at')
+            ->limit(30)
+            ->get()
+            ->map(fn($b) => [
+                'id'              => $b->id,
+                'booking_number'  => $b->booking_number,
+                'status'          => $b->status,
+                'guest_name'      => $b->guest?->name,
+                'room_number'     => $b->room?->number,
+                'room_type'       => $b->room?->type,
+                'check_in_date'   => $b->check_in_date,
+                'check_out_date'  => $b->check_out_date,
+                'actual_check_out'=> $b->actual_check_out,
+                'total_amount'    => $b->total_amount,
+                'advance_paid'    => $b->advance_paid,
+            ]);
+
+        return $this->success($bookings);
+    }
+
+    public function printBill(Request $request, Booking $booking): mixed
+    {
+        if ($booking->tenant_id !== $request->_tenant_id) return $this->notFound();
+
+        $booking->load(['guest', 'room', 'orders.items']);
+        $tenant = \App\Models\Tenant::findOrFail($booking->tenant_id);
+
+        $serviceOrders = $booking->orders()
+            ->whereNotIn('status', ['cancelled'])
+            ->with('items')
+            ->orderBy('created_at')
+            ->get();
+
+        $byDate = $serviceOrders->groupBy(fn($o) => Carbon::parse($o->created_at)->toDateString());
+
+        $nights       = $booking->nights;
+        $roomCharges  = $booking->room_charges;
+        $gstRate      = (float) ($booking->gst_rate ?? 0);
+        $gstInclusive = (bool)  ($booking->gst_inclusive ?? false);
+        $roomGst      = $booking->room_gst_amount;
+        $roomTotal    = $booking->computed_room_total;
+
+        if ($booking->decided_amount !== null) {
+            $roomCharges  = (float) $booking->decided_amount;
+            $roomGst      = $booking->decided_gst_amount;
+            $roomTotal    = $gstInclusive ? $roomCharges : $roomCharges + $roomGst;
+        }
+
+        $serviceCharges = (float) $serviceOrders->sum('total');
+        $totalAmount    = $roomTotal + $serviceCharges;
+        $advancePaid    = (float) ($booking->advance_paid ?? 0);
+        $paymentMethod  = $request->query('payment_method');
+        $decidedAmount  = $booking->decided_amount !== null ? (float) $booking->decided_amount : null;
+
+        $pdf = Pdf::loadView('hotel.bill', compact(
+            'booking', 'tenant', 'serviceOrders', 'byDate',
+            'nights', 'roomCharges', 'gstRate', 'gstInclusive',
+            'roomGst', 'roomTotal', 'serviceCharges', 'totalAmount',
+            'advancePaid', 'paymentMethod', 'decidedAmount'
+        ))->setPaper([0, 0, 226.77, 700], 'portrait');
+
+        return $pdf->download("hotel-bill-{$booking->booking_number}.pdf");
     }
 }

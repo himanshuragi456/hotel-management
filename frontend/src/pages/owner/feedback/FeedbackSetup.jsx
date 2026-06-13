@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  CheckCircleIcon, ExclamationTriangleIcon, ArrowTopRightOnSquareIcon,
+  CheckCircleIcon, ArrowTopRightOnSquareIcon,
   QrCodeIcon, PlusIcon, TrashIcon, ArrowDownTrayIcon, LinkIcon,
   ArrowPathIcon, XMarkIcon, BuildingStorefrontIcon,
 } from '@heroicons/react/24/outline'
@@ -27,9 +27,11 @@ function ManualPlaceIdPanel() {
     queryFn: () => getReviewConfig().then(r => r.data.data),
   })
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (config?.google_place_id) setPlaceId(config.google_place_id)
   }, [config])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const save = useMutation({
     mutationFn: () => updateReviewConfig({
@@ -103,6 +105,7 @@ function GoogleConnectPanel() {
   })
 
   // Handle OAuth callback redirect params
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('gmb_connected') === '1') {
@@ -115,6 +118,7 @@ function GoogleConnectPanel() {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [qc])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const { data: accounts, isLoading: accountsLoading } = useQuery({
     queryKey: ['gmb-accounts'],

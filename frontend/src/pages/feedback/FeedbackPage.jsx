@@ -174,7 +174,7 @@ function LowRatingForm({ tenantName, rating, onSubmit, isPending }) {
 
 // ── High rating panel ─────────────────────────────────────────────────────────
 
-function HighRatingPanel({ token, rating, tenantName, googleReviewUrl, onSubmit }) {
+function HighRatingPanel({ token, rating, googleReviewUrl, onSubmit }) {
   const [refreshKey, setRefreshKey] = useState(0)
 
   return (
@@ -310,7 +310,7 @@ export default function FeedbackPage() {
   const submit = useMutation({
     mutationFn: ({ comment, suggestion }) =>
       submitFeedback(token, { rating, comment: comment || suggestion || '', submitter_name: undefined }),
-    onSuccess: (_, vars) => setSubmitted(rating >= 4),
+    onSuccess: () => setSubmitted(rating >= 4),
   })
 
   // Stars are always freely changeable until submission

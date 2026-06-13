@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, QrCodeIcon,
   CheckCircleIcon, ClockIcon, UserGroupIcon, ArrowTopRightOnSquareIcon,
@@ -79,6 +80,7 @@ function TableForm({ table, onSuccess }) {
   const [form, setForm] = useState({ number: table?.number ?? '', capacity: table?.capacity ?? 4, section: table?.section ?? '' })
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
+  const formRef = useScrollToFirstError(fieldErrors)
 
   const set = (k, v) => {
     const next = { ...form, [k]: v }
@@ -100,7 +102,7 @@ function TableForm({ table, onSuccess }) {
   const inp = (field) =>
     `w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`
 
-  const Err = ({ field }) => fieldErrors[field]
+  const Err = (field) => fieldErrors[field]
     ? <p className="text-xs text-red-500 mt-0.5">{fieldErrors[field]}</p>
     : null
 
@@ -113,7 +115,7 @@ function TableForm({ table, onSuccess }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Table Number *</label>
@@ -124,7 +126,7 @@ function TableForm({ table, onSuccess }) {
           className={inp('number')}
           placeholder="e.g. 1, A1, T-12"
         />
-        <Err field="number" />
+        {Err('number')}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -137,7 +139,7 @@ function TableForm({ table, onSuccess }) {
             onBlur={() => blur('capacity')}
             className={inp('capacity')}
           />
-          <Err field="capacity" />
+          {Err('capacity')}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Section</label>

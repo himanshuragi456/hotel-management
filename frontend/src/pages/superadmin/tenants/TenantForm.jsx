@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { createTenant, updateTenant, assignPlan, getPlans, getLocations } from '@/services/superadminService'
+import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
+import { createTenant, updateTenant, assignPlan, getLocations } from '@/services/superadminService'
 import { validate, validateField, required, isEmail, isPhone, isGstin, isNonNeg, maxValue, atLeastOne } from '@/utils/validate'
 import { CalendarDaysIcon, InformationCircleIcon, MapPinIcon } from '@heroicons/react/24/outline'
+
+const TOMORROW_MIN = new Date(Date.now() + 86400000).toISOString().split('T')[0]
 
 const DETAIL_RULES = {
   name:     [required('Business name')],
@@ -60,6 +63,10 @@ function CredentialsModal({ email, password, onClose }) {
   )
 }
 
+function FieldError({ message }) {
+  return message ? <p className="text-xs text-red-500 mt-0.5">{message}</p> : null
+}
+
 function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLocations }) {
   const set = (field, value) => {
     setForm(f => ({ ...f, [field]: value }))
@@ -85,9 +92,6 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLoc
 
   const inp = (field) =>
     `w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-300'}`
-  const Err = ({ field }) => fieldErrors[field]
-    ? <p className="text-xs text-red-500 mt-0.5">{fieldErrors[field]}</p>
-    : null
 
   return (
     <div className="space-y-4">
@@ -95,17 +99,23 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLoc
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Business Name *</label>
           <input value={form.name} onChange={e => set('name', e.target.value)} onBlur={() => blur('name')} className={inp('name')} placeholder="Spice Garden Restaurant" />
-          <Err field="name" />
+          <FieldError message={fieldErrors.name} />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Email *</label>
-          <input type="email" value={form.email} onChange={e => set('email', e.target.value)} onBlur={() => blur('email')} className={inp('email')} placeholder="owner@example.com" />
-          <Err field="email" />
+          {isEdit ? (
+            <input type="email" value={form.email} readOnly disabled className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
+          ) : (
+            <>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} onBlur={() => blur('email')} className={inp('email')} placeholder="owner@example.com" />
+              <FieldError message={fieldErrors.email} />
+            </>
+          )}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Phone *</label>
           <input value={form.phone} onChange={e => set('phone', e.target.value)} onBlur={() => blur('phone')} className={inp('phone')} placeholder="+91 98765 43210" />
-          <Err field="phone" />
+          <FieldError message={fieldErrors.phone} />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">City</label>
@@ -118,12 +128,12 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLoc
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">GSTIN</label>
           <input value={form.gstin} onChange={e => set('gstin', e.target.value)} onBlur={() => blur('gstin')} className={inp('gstin')} placeholder="29ABCDE1234F1Z5" />
-          <Err field="gstin" />
+          <FieldError message={fieldErrors.gstin} />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">GST Rate (%) *</label>
           <input type="number" step="0.5" min="0" max="100" value={form.gst_rate} onChange={e => set('gst_rate', e.target.value)} onBlur={() => blur('gst_rate')} className={inp('gst_rate')} />
-          <Err field="gst_rate" />
+          <FieldError message={fieldErrors.gst_rate} />
         </div>
         {isEdit && (
           <div>
@@ -188,14 +198,14 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLoc
               </label>
             ))}
           </div>
-          <Err field="modules" />
+          <FieldError message={fieldErrors.modules} />
         </div>
       )}
     </div>
   )
 }
 
-function SubscriptionTab({ tenant, plans, onSuccess }) {
+export function SubscriptionTab({ tenant, plans, onSuccess }) {
   const [assignForm, setAssignForm] = useState({
     subscription_plan_id: '',
     billing_cycle: 'monthly',
@@ -213,6 +223,7 @@ function SubscriptionTab({ tenant, plans, onSuccess }) {
   const sub = tenant.subscription
   const expDate = sub?.current_period_end ? new Date(sub.current_period_end) : null
   const isExpired = expDate && expDate < new Date()
+
 
   const handleAssign = (e) => {
     e.preventDefault()
@@ -292,7 +303,7 @@ function SubscriptionTab({ tenant, plans, onSuccess }) {
             <div>
               <label className="block text-xs text-gray-500 mb-1">Expires On</label>
               <input type="date" required={assignForm.expiry_mode === 'date'}
-                min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                min={TOMORROW_MIN}
                 value={assignForm.expires_at}
                 onChange={e => setAssignForm(f => ({ ...f, expires_at: e.target.value }))}
                 className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -332,7 +343,6 @@ function SubscriptionTab({ tenant, plans, onSuccess }) {
 
 export default function TenantForm({ tenant, onSuccess }) {
   const isEdit = !!tenant
-  const [tab, setTab] = useState('details')
   const [form, setForm] = useState({
     name:     tenant?.name     ?? '',
     email:    tenant?.email    ?? '',
@@ -352,12 +362,7 @@ export default function TenantForm({ tenant, onSuccess }) {
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [credentials, setCredentials] = useState(null)
-
-  const { data: plans } = useQuery({
-    queryKey: ['plans'],
-    queryFn: () => getPlans().then(r => r.data.data),
-    enabled: isEdit,
-  })
+  const formRef = useScrollToFirstError(fieldErrors)
 
   const { data: allLocations = [] } = useQuery({
     queryKey: ['locations'],
@@ -379,18 +384,16 @@ export default function TenantForm({ tenant, onSuccess }) {
   const handleSubmit = (e) => {
     e.preventDefault()
     // Modules are not editable from this form when editing — skip that rule.
-    const rules = isEdit ? Object.fromEntries(Object.entries(DETAIL_RULES).filter(([k]) => k !== 'modules')) : DETAIL_RULES
+    const rules = isEdit ? Object.fromEntries(Object.entries(DETAIL_RULES).filter(([k]) => k !== 'modules' && k !== 'email')) : DETAIL_RULES
     const errs = validate(rules, form)
     if (Object.keys(errs).length) { setFieldErrors(errs); return }
     setError('')
     setFieldErrors({})
-    const { modules, ...editPayload } = form
+    const editPayload = Object.fromEntries(
+      Object.entries(form).filter(([k]) => k !== 'modules' && k !== 'email')
+    )
     mutation.mutate(isEdit ? editPayload : form)
   }
-
-  const TABS = isEdit
-    ? [{ key: 'details', label: 'Details' }, { key: 'subscription', label: 'Subscription' }]
-    : [{ key: 'details', label: 'Details' }]
 
   return (
     <>
@@ -402,34 +405,16 @@ export default function TenantForm({ tenant, onSuccess }) {
         />
       )}
 
-      {/* Tabs */}
-      {isEdit && (
-        <div className="flex border-b border-gray-200 mb-5 -mt-1">
-          {TABS.map(t => (
-            <button key={t.key} type="button" onClick={() => setTab(t.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === t.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-              {t.label}
-            </button>
-          ))}
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+        {error && <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">{error}</div>}
+        <DetailsTab form={form} setForm={setForm} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} isEdit={isEdit} allLocations={allLocations} />
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="submit" disabled={mutation.isPending}
+            className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+            {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Tenant'}
+          </button>
         </div>
-      )}
-
-      {tab === 'details' && (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">{error}</div>}
-          <DetailsTab form={form} setForm={setForm} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} isEdit={isEdit} allLocations={allLocations} />
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="submit" disabled={mutation.isPending}
-              className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-              {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Tenant'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {tab === 'subscription' && isEdit && (
-        <SubscriptionTab tenant={tenant} plans={plans} onSuccess={onSuccess} />
-      )}
+      </form>
     </>
   )
 }

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import {
   PlusIcon, TrashIcon, BanknotesIcon, FunnelIcon, ReceiptPercentIcon,
 } from '@heroicons/react/24/outline'
 import { getExpenses, createExpense, deleteExpense } from '@/services/restaurantService'
-import { validate, validateField, required, isPositive, dateNotPast } from '@/utils/validate'
+import { validate, validateField, required, isPositive } from '@/utils/validate'
 
 const CATEGORIES = ['Groceries', 'Utilities', 'Staff', 'Maintenance', 'Marketing', 'Equipment', 'Other']
 
@@ -25,6 +26,7 @@ export default function Expenses() {
   const [form, setForm] = useState({ category: '', description: '', amount: '', expense_date: new Date().toISOString().split('T')[0] })
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
+  const formRef = useScrollToFirstError(fieldErrors)
 
   const EXPENSE_RULES = {
     category:     [required('Category')],
@@ -91,7 +93,7 @@ export default function Expenses() {
           <h3 className="font-semibold text-gray-900 text-sm">Add Expense</h3>
         </div>
         {error && <div className="text-red-600 text-sm mb-3 bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
-        <form onSubmit={(e) => {
+        <form ref={formRef} onSubmit={(e) => {
           e.preventDefault()
           const errs = validate(EXPENSE_RULES, form)
           if (Object.keys(errs).length) { setFieldErrors(errs); return }

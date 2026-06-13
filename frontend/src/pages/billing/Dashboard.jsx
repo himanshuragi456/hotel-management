@@ -31,17 +31,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Pusher from 'pusher-js'
 import {
   XMarkIcon, PlusIcon, MinusIcon, PrinterIcon, ArrowDownTrayIcon,
-  CheckCircleIcon, ArrowRightOnRectangleIcon, UserIcon, PhoneIcon,
-  FireIcon, BanknotesIcon, DocumentTextIcon, MagnifyingGlassIcon,
+  ArrowRightOnRectangleIcon, UserIcon, PhoneIcon,
+  BanknotesIcon, DocumentTextIcon, MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import {
   getBillingTables, getBillingTableOrders, getBillingTableHistory, closeBillingTable, billAllOrders,
   getBillingMenu, billingAddItems, billingNewOrder, billingMarkServed, billingUpdateStatus,
   createInvoice, downloadInvoicePdf, downloadCombinedPdf, getRecentInvoices,
-  getBillingRoomStatus, getBillingActiveRooms,
+  getBillingActiveRooms,
   getBillingBookings, createBillingBooking, getBillingBooking,
   checkInBillingBooking, checkOutBillingBooking, cancelBillingBooking,
-  getBillingBookingCheckoutSummary,
+  getBillingBookingCheckoutSummary, downloadBillingBookingBill, getBillingRecentCheckouts,
   searchBillingGuests, createBillingGuest, getBillingRooms,
   getBillingWaiters,
   billingPlaceRoomService,
@@ -50,13 +50,14 @@ import {
   extendBillingBookingStay,
   getActiveOrders,
   getUnbilledTakeaway,
-  getOwnerSettings, updateOwnerSettings,
+  updateOwnerSettings,
   getTenantSettings,
   billingPlaceTakeaway,
   billingPlaceAggregator,
   getPendingMtOrders, confirmMtPayment, discardMtOrder,
   getBillPaidTables, confirmBillPaid, rejectBillPaid,
   setActiveContactPhone,
+  dismissOrder,
 } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
@@ -75,8 +76,35 @@ const STATUS_STYLES = {
   preparing: { badge: 'bg-blue-100 text-blue-800 border border-blue-300',     border: 'border-blue-500',  label: 'Preparing' },
   ready:     { badge: 'bg-green-600 text-white border border-green-700',       border: 'border-green-600', label: 'Ready'     },
   served:    { badge: 'bg-teal-100 text-teal-800 border border-teal-300',      border: 'border-teal-500',  label: 'Served'    },
+  cancelled: { badge: 'bg-red-100 text-red-700 border border-red-300',          border: 'border-red-500',   label: 'Rejected'  },
 }
 const statusStyle = (s) => STATUS_STYLES[s] ?? { badge: 'bg-gray-100 text-gray-600 border border-gray-200', border: 'border-gray-200', label: s }
+
+const REJECTION_LABELS = {
+  item_out_of_stock:     'Item(s) out of stock',
+  kitchen_full:          'Kitchen full / too busy',
+  outlet_closed:         'Outlet closed',
+  rider_unavailable:     'No delivery rider available',
+  price_mismatch:        'Price mismatch',
+  address_unserviceable: 'Address not serviceable',
+  duplicate_order:       'Duplicate order',
+  customer_request:      'Customer requested cancellation',
+  other:                 'Other',
+}
+
+function RejectionBanner({ order }) {
+  if (!(order.status === 'cancelled' && order.rejection_code)) return null
+  const label = REJECTION_LABELS[order.rejection_code] ?? order.rejection_code ?? 'Rejected by kitchen'
+  return (
+    <div className="mt-2 mb-1 flex items-start gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
+      <span className="text-red-500 text-sm leading-none mt-0.5">✕</span>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-red-700">Rejected by chef: {label}</p>
+        {order.rejection_note && <p className="text-xs text-red-500 mt-0.5">{order.rejection_note}</p>}
+      </div>
+    </div>
+  )
+}
 
 // ─── Status Timeline ──────────────────────────────────────────────────────────
 function StatusTimeline({ order }) {
@@ -493,8 +521,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
     },
   })
 
-  const allServed      = orders?.length > 0 && orders.every(o => o.status === 'served')
-  const hasOpenOrders  = orders?.some(o => !['served', 'cancelled'].includes(o.status))
+  const allServed      = orders?.length > 0 && orders.every(o => ['served', 'cancelled'].includes(o.status))
   // Only exclude MT orders that are actually paid — unpaid MT orders need billing
   const unbilledOrders = orders?.filter(o => o.status !== 'cancelled' && !o.invoice && !(o.source === 'magic_tables' && o.payment_status === 'paid')) ?? []
   const unbilledTotal  = unbilledOrders.reduce((s, o) => s + parseFloat(o.total ?? 0), 0)
@@ -655,6 +682,7 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusStyle(order.status).badge}`}>{order.status}</span>
                 </div>
 
+                <RejectionBanner order={order} />
                 <StatusTimeline order={order} />
 
                 <div className="text-xs text-gray-600 space-y-0.5 mb-3">
@@ -864,7 +892,7 @@ function openPrintIframe(url) {
     try {
       win.focus()
       win.print()
-    } catch (_) {}
+    } catch { /* ignore */ }
   })
 }
 
@@ -916,6 +944,11 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
   const tenantId = getTenantId?.()
   const [open, setOpen] = useState(false)
   const prevReadyIds = useRef(new Set())
+
+  const dismiss = useMutation({
+    mutationFn: (id) => dismissOrder(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['billing-active-orders'] }),
+  })
 
   const { data: orders = [] } = useQuery({
     queryKey: ['billing-active-orders'],
@@ -969,7 +1002,7 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
   useEffect(() => {
     if (!readyOrders.length) return
     const newlyReady = readyOrders.filter(o => !prevReadyIds.current.has(o.id))
-    if (newlyReady.length) { try { new Audio('/sounds/ding.wav').play() } catch (_) {} }
+    if (newlyReady.length) { try { new Audio('/sounds/ding.wav').play() } catch { /* ignore */ } }
     prevReadyIds.current = new Set(readyOrders.map(o => o.id))
   }, [readyOrders])
 
@@ -1047,10 +1080,20 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
                 >
                   <span className="font-bold">{orderLabel(o)}</span>
                   <span className="opacity-60">#{o.order_number}</span>
-                  <span className="capitalize opacity-80">· {o.status}</span>
+                  <span className="capitalize opacity-80">· {o.status === 'cancelled' ? 'Rejected' : o.status}</span>
                   <span className="opacity-50">· {o.elapsed_label}</span>
                 </button>
-                {showKotButton && (
+                {o.status === 'cancelled' && (
+                  <button
+                    onClick={() => dismiss.mutate(o.id)}
+                    disabled={dismiss.isPending}
+                    title="Remove rejected order"
+                    className="flex items-center justify-center w-5 h-5 rounded-full bg-red-100 hover:bg-red-200 text-red-600 transition-colors disabled:opacity-50"
+                  >
+                    <XMarkIcon className="w-3 h-3" />
+                  </button>
+                )}
+                {showKotButton && o.status !== 'cancelled' && (
                   <button
                     onClick={(e) => { e.stopPropagation(); printKot(o) }}
                     title="Print KOT"
@@ -1072,11 +1115,39 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
 function RecentBillsDrawer({ onClose }) {
   const [busy, setBusy] = useState(null) // `${sessionIdx}-${invoiceId}-print|download`
   const [expanded, setExpanded] = useState({}) // sessionIdx => bool
+  const [hotelBusy, setHotelBusy] = useState(null) // bookingId-print|download
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['billing-recent-invoices'],
     queryFn: () => getRecentInvoices().then(r => r.data.data),
   })
+
+  const { data: recentCheckouts = [] } = useQuery({
+    queryKey: ['billing-recent-checkouts'],
+    queryFn: () => getBillingRecentCheckouts().then(r => r.data.data).catch(() => []),
+  })
+
+  const handleHotelPrint = async (booking) => {
+    setHotelBusy(`${booking.id}-print`)
+    try {
+      const res = await downloadBillingBookingBill(booking.id, null)
+      const url = URL.createObjectURL(res.data)
+      openPrintIframe(url)
+    } finally { setHotelBusy(null) }
+  }
+
+  const handleHotelDownload = async (booking) => {
+    setHotelBusy(`${booking.id}-dl`)
+    try {
+      const res = await downloadBillingBookingBill(booking.id, null)
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `hotel-bill-${booking.booking_number}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally { setHotelBusy(null) }
+  }
 
   const handlePrint = async (key, ids) => {
     setBusy(key)
@@ -1216,6 +1287,60 @@ function RecentBillsDrawer({ onClose }) {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* Hotel room bills */}
+          {recentCheckouts.length > 0 && (
+            <div className="px-4 pb-4">
+              <div className="flex items-center gap-2 py-3 border-t border-gray-100 mt-1">
+                <span className="text-sm font-bold text-gray-700">🏨 Room Bookings</span>
+              </div>
+              <div className="space-y-2">
+                {recentCheckouts.map(b => {
+                  const isCheckedIn = b.status === 'checked_in'
+                  const dateLabel = isCheckedIn
+                    ? `Due out ${new Date(b.check_out_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+                    : `Out ${new Date(b.actual_check_out ?? b.check_out_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+                  return (
+                    <div key={b.id} className={`border rounded-xl px-4 py-3 ${isCheckedIn ? 'border-green-200 bg-green-50/40' : 'border-gray-200'}`}>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-gray-900">
+                              Room {b.room_number} · {b.guest_name}
+                            </p>
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isCheckedIn ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {isCheckedIn ? 'In' : 'Out'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {b.booking_number} · {dateLabel} · ₹{parseFloat(b.total_amount ?? 0).toFixed(0)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleHotelPrint(b)}
+                          disabled={!!hotelBusy}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-semibold py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          <PrinterIcon className="w-3.5 h-3.5" />
+                          {hotelBusy === `${b.id}-print` ? 'Printing…' : 'Print Bill'}
+                        </button>
+                        <button
+                          onClick={() => handleHotelDownload(b)}
+                          disabled={!!hotelBusy}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-gray-800 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-gray-900 disabled:opacity-50"
+                        >
+                          <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                          {hotelBusy === `${b.id}-dl` ? 'Saving…' : 'Download'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -1975,7 +2100,7 @@ export default function BillingDashboard({ embedded = false }) {
   }
 
   const handleLogout = async () => {
-    try { await logoutApi() } catch (_) {}
+    try { await logoutApi() } catch { /* ignore */ }
     clearAuth()
     navigate('/login', { replace: true })
   }
@@ -2213,8 +2338,9 @@ export default function BillingDashboard({ embedded = false }) {
                 <div className="mb-4 border border-gray-100 rounded-xl p-3 bg-gray-50">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Kitchen status</span>
-                    <span className="text-xs font-medium capitalize text-gray-600">{selectedTakeawayOrder.status}</span>
+                    <span className={`text-xs font-medium capitalize ${selectedTakeawayOrder.status === 'cancelled' && selectedTakeawayOrder.rejection_code ? 'text-red-600' : 'text-gray-600'}`}>{selectedTakeawayOrder.status === 'cancelled' && selectedTakeawayOrder.rejection_code ? 'Rejected' : selectedTakeawayOrder.status}</span>
                   </div>
+                  <RejectionBanner order={selectedTakeawayOrder} />
                   <div className="flex gap-2">
                     {selectedTakeawayOrder.status === 'pending' && (
                       <button onClick={() => takeawayAdvance.mutate({ orderId: selectedTakeawayOrder.id, status: 'preparing' })}
@@ -2245,7 +2371,11 @@ export default function BillingDashboard({ embedded = false }) {
               </div>
 
               {/* Bill action — opens the invoice form as a separate step */}
-              {!selectedTakeawayOrder.invoice ? (
+              {selectedTakeawayOrder.status === 'cancelled' ? (
+                <div className="w-full text-center text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl py-3 font-medium">
+                  Order rejected — cannot be billed
+                </div>
+              ) : !selectedTakeawayOrder.invoice ? (
                 <button
                   onClick={() => setTakeawayInvoiceOrder({ ...selectedTakeawayOrder, table: null })}
                   className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold text-sm"
@@ -2304,6 +2434,7 @@ const BILLING_HOTEL_SERVICES = {
   getBooking:                 getBillingBooking,
   getBookingCheckoutSummary:  getBillingBookingCheckoutSummary,
   extendBookingStay:          extendBillingBookingStay,
+  downloadBookingBill:        downloadBillingBookingBill,
   getRooms:                   getBillingRooms,
   searchGuests:               searchBillingGuests,
   createGuest:                createBillingGuest,
@@ -2466,14 +2597,10 @@ function BillingRoomOrdersPanel({ booking, onClose, onPlaceOrder }) {
                 <span className="text-sm font-semibold text-gray-800">{order.order_number}</span>
                 <div className="flex items-center gap-2">
                   {order.invoice && <span className="text-xs text-green-600 font-medium">Billed ₹{order.invoice.total}</span>}
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
-                    order.status === 'pending'   ? 'bg-yellow-100 text-yellow-700' :
-                    order.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
-                    order.status === 'ready'     ? 'bg-green-100 text-green-700' :
-                    'bg-gray-100 text-gray-500'
-                  }`}>{order.status}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusStyle(order.status).badge}`}>{order.status}</span>
                 </div>
               </div>
+              <RejectionBanner order={order} />
               <div className="text-xs text-gray-600 space-y-0.5 mb-3">
                 {order.items?.map((item, i) => (
                   <div key={i} className="flex justify-between">

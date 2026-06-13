@@ -24,7 +24,7 @@ export default function SubscriptionList() {
 
   const extendMutation = useMutation({
     mutationFn: ({ id, months }) => extendSubscription(id, { months }),
-    onSuccess: (res, { id, months }) => {
+    onSuccess: (res, { id }) => {
       qc.setQueryData(['subscriptions', { status, page }], (old) => {
         if (!old?.data) return old
         const updated = old.data.data.map(s => s.id === id ? { ...s, ...res.data?.data } : s)

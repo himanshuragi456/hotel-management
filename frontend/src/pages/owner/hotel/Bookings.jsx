@@ -1,15 +1,18 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useDebounce } from '@/hooks/useDebounce'
+import { useScrollToFirstError, scrollToEl } from '@/hooks/useScrollToFirstError'
 import {
-  getBookings, createBooking, checkInBooking, checkOutBooking, cancelBooking, getBooking,
-  getRooms, searchGuests, createGuest, getBookingCheckoutSummary, extendBookingStay,
+  getBookings, createBooking, updateBooking, checkInBooking, checkOutBooking, cancelBooking, getBooking,
+  getRooms, searchGuests, createGuest, getBookingCheckoutSummary, extendBookingStay, getOwnerSettings,
+  downloadBookingBill,
 } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import {
-  PlusIcon, CalendarDaysIcon, ExclamationTriangleIcon,
+  PlusIcon, CalendarDaysIcon, ExclamationTriangleIcon, ChatBubbleBottomCenterTextIcon,
 } from '@heroicons/react/24/outline'
-import { validate, required, isEmail, isPhone, dateAfter, dateNotPast, minValue, isInteger } from '@/utils/validate'
+import { validate, validateField, required, isEmail, isPhone, dateAfter, dateNotPast, minValue, isInteger } from '@/utils/validate'
 
 const STATUS_BADGE = {
   upcoming:    'bg-blue-100 text-blue-700',
@@ -23,31 +26,44 @@ const isOverdue = (b) => b.is_overdue || (
 )
 
 function NewBookingForm({ onSuccess, svc }) {
-  const [step, setStep] = useState(1)
   const [guestQuery, setGuestQuery] = useState('')
+  const debouncedGuestQuery = useDebounce(guestQuery, 350)
   const [guest, setGuest] = useState(null)
   const [newGuest, setNewGuest] = useState({ name: '', phone: '', email: '' })
   const [isNewGuest, setIsNewGuest] = useState(false)
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => ({
     room_id: '',
     check_in_date: new Date().toISOString().split('T')[0],
     check_out_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     adults: 1, children: 0,
     advance_paid: '', advance_payment_method: 'cash',
+    decided_amount: '',
     notes: '',
-  })
+  }))
+  const [decidedAmountTouched, setDecidedAmountTouched] = useState(false)
   const [error, setError] = useState('')
+  const [submitCount, setSubmitCount] = useState(0)
+  const errorRef = useRef(null)
   const qc = useQueryClient()
 
+  useEffect(() => {
+    if (error && errorRef.current) requestAnimationFrame(() => scrollToEl(errorRef.current))
+  }, [submitCount])
+
   const { data: guestResults } = useQuery({
-    queryKey: ['guest-search', svc._prefix ?? 'owner', guestQuery],
-    queryFn: () => svc.searchGuests(guestQuery).then(r => r.data.data),
-    enabled: guestQuery.length >= 2,
+    queryKey: ['guest-search', svc._prefix ?? 'owner', debouncedGuestQuery],
+    queryFn: () => svc.searchGuests(debouncedGuestQuery).then(r => r.data.data),
+    enabled: debouncedGuestQuery.length >= 2,
   })
 
   const { data: rooms } = useQuery({
     queryKey: ['rooms-available', svc._prefix ?? 'owner'],
     queryFn: () => svc.getRooms().then(r => r.data.data),
+  })
+
+  const { data: ownerSettings } = useQuery({
+    queryKey: ['owner-settings'],
+    queryFn: () => getOwnerSettings().then(r => r.data.data),
   })
 
   const makeGuest = useMutation({ mutationFn: svc.createGuest })
@@ -61,9 +77,21 @@ function NewBookingForm({ onSuccess, svc }) {
   const nights = form.check_in_date && form.check_out_date
     ? Math.max(0, (new Date(form.check_out_date) - new Date(form.check_in_date)) / 86400000)
     : 0
-  const roomCharges = (selectedRoom?.price_per_night ?? 0) * nights
+  const roomCharges   = (selectedRoom?.price_per_night ?? 0) * nights
+  const hotelGstRate  = ownerSettings?.hotel_gst_rate ?? 0
+  const hotelGstIncl  = ownerSettings?.hotel_gst_inclusive ?? false
+  // Auto-fill decided_amount with base room charges (before GST) unless user has edited it
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!decidedAmountTouched && roomCharges > 0) {
+      setForm(f => ({ ...f, decided_amount: roomCharges.toFixed(2) }))
+    }
+  }, [roomCharges, decidedAmountTouched])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400'
+
+  const fail = (msg) => { setError(msg); setSubmitCount(c => c + 1) }
 
   const handleSubmit = async () => {
     setError('')
@@ -75,34 +103,40 @@ function NewBookingForm({ onSuccess, svc }) {
         email: [isEmail()],
       }, newGuest)
       if (Object.keys(guestErrs).length) {
-        setError(Object.values(guestErrs)[0])
+        fail(Object.values(guestErrs)[0])
         return
       }
     }
 
-    if (!guest && !isNewGuest) { setError('Please select or add a guest'); return }
-    if (!form.room_id) { setError('Please select a room'); return }
+    if (!guest && !isNewGuest) { fail('Please select or add a guest'); return }
+    if (!form.room_id) { fail('Please select a room'); return }
 
     const bookingErrs = validate({
       check_in_date:  [required('Check-in date'), dateNotPast('Check-in date')],
       check_out_date: [required('Check-out date'), dateAfter('check_in_date', 'check-in', 'Check-out date')],
       adults:         [required('Adults'), minValue(1, 'Adults'), isInteger('Adults')],
     }, form)
-    if (Object.keys(bookingErrs).length) { setError(Object.values(bookingErrs)[0]); return }
+    if (Object.keys(bookingErrs).length) { fail(Object.values(bookingErrs)[0]); return }
 
     let guestId = guest?.id
     if (isNewGuest) {
       const res = await makeGuest.mutateAsync({ ...newGuest })
       guestId = res.data.data?.id
     }
-    if (!guestId) { setError('Failed to create guest'); return }
+    if (!guestId) { fail('Failed to create guest'); return }
 
-    book.mutate({ ...form, guest_id: guestId, adults: parseInt(form.adults), children: parseInt(form.children) })
+    book.mutate({
+      ...form,
+      guest_id:       guestId,
+      adults:         parseInt(form.adults),
+      children:       parseInt(form.children),
+      decided_amount: form.decided_amount !== '' ? parseFloat(form.decided_amount) : null,
+    })
   }
 
   return (
     <div className="space-y-4">
-      {error && <div className="text-red-600 text-sm bg-red-50 p-2 rounded">{error}</div>}
+      {error && <div ref={errorRef} className="text-red-600 text-sm bg-red-50 p-2 rounded">{error}</div>}
 
       {/* Step 1 — Guest */}
       <div className="bg-gray-50 rounded-xl p-4">
@@ -175,26 +209,104 @@ function NewBookingForm({ onSuccess, svc }) {
               <input type="number" min="0" value={form.children} onChange={e => setForm(f => ({ ...f, children: e.target.value }))} className={inp} />
             </div>
           </div>
-          {nights > 0 && selectedRoom && (
-            <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-sm text-blue-800">
-              {nights} night{nights > 1 ? 's' : ''} × ₹{selectedRoom.price_per_night} = <strong>₹{roomCharges.toLocaleString()}</strong>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Step 3 — Advance */}
-      <div className="bg-gray-50 rounded-xl p-4">
-        <h3 className="font-medium text-gray-800 mb-3 text-sm">3. Advance Payment (optional)</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <input type="number" step="0.01" min="0" value={form.advance_paid} onChange={e => setForm(f => ({ ...f, advance_paid: e.target.value }))} placeholder="Amount ₹" className={inp} />
-          <select value={form.advance_payment_method} onChange={e => setForm(f => ({ ...f, advance_payment_method: e.target.value }))} className={inp}>
-            <option value="cash">Cash</option>
-            <option value="upi">UPI</option>
-            <option value="card">Card</option>
-          </select>
+      {/* Step 3 — Payment */}
+      <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+        <h3 className="font-medium text-gray-800 mb-1 text-sm">3. Payment</h3>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Decided Amount (₹)
+            {decidedAmountTouched && roomCharges > 0 && (
+              <button
+                type="button"
+                onClick={() => { setDecidedAmountTouched(false); setForm(f => ({ ...f, decided_amount: roomCharges.toFixed(2) })) }}
+                className="ml-2 text-orange-500 hover:underline text-xs font-normal"
+              >Reset to calculated</button>
+            )}
+          </label>
+          <input
+            type="number" step="0.01" min="0"
+            value={form.decided_amount}
+            onChange={e => { setDecidedAmountTouched(true); setForm(f => ({ ...f, decided_amount: e.target.value })) }}
+            placeholder="Base room amount (before GST)"
+            className={inp}
+          />
+          <p className="text-xs text-gray-400 mt-0.5">Pre-filled from base room charges. Edit to negotiate a different rate.</p>
+          {nights > 0 && form.decided_amount !== '' && (() => {
+            const dBase = parseFloat(form.decided_amount || 0)
+            const dPerNight = nights > 0 ? dBase / nights : 0
+            const dGst = hotelGstRate > 0
+              ? (hotelGstIncl ? dBase * hotelGstRate / (100 + hotelGstRate) : dBase * hotelGstRate / 100)
+              : 0
+            const dTotal = hotelGstIncl ? dBase : dBase + dGst
+            return (
+              <div className="mt-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-sm text-blue-800 space-y-1">
+                <div className="flex justify-between">
+                  <span>{nights} night{nights > 1 ? 's' : ''} × ₹{dPerNight.toFixed(2)}</span>
+                  <span>₹{dBase.toFixed(2)}</span>
+                </div>
+                {hotelGstRate > 0 && (
+                  <div className="flex justify-between text-blue-600">
+                    <span>GST ({hotelGstRate}%){hotelGstIncl ? ' incl.' : ''}</span>
+                    <span>{hotelGstIncl ? '−' : '+'}₹{dGst.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold border-t border-blue-200 pt-1">
+                  <span>Total room charges</span>
+                  <span>₹{dTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            )
+          })()}
         </div>
-        <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes (optional)" className={`${inp} mt-2`} />
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Advance Paid (₹)</label>
+            <input type="number" step="0.01" min="0" value={form.advance_paid}
+              onChange={e => {
+                const dBase = parseFloat(form.decided_amount || 0)
+                const dGst  = hotelGstRate > 0 && !hotelGstIncl ? dBase * hotelGstRate / 100 : 0
+                const max   = dBase + dGst
+                const val   = e.target.value
+                if (max > 0 && parseFloat(val) > max) return
+                setForm(f => ({ ...f, advance_paid: val }))
+              }}
+              placeholder="0" className={inp} />
+            {(() => {
+              const dBase = parseFloat(form.decided_amount || 0)
+              const dGst  = hotelGstRate > 0 && !hotelGstIncl ? dBase * hotelGstRate / 100 : 0
+              const max   = dBase + dGst
+              return max > 0 ? <p className="text-xs text-gray-400 mt-0.5">Max ₹{max.toFixed(2)}</p> : null
+            })()}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
+            <select value={form.advance_payment_method} onChange={e => setForm(f => ({ ...f, advance_payment_method: e.target.value }))} className={inp}>
+              <option value="cash">Cash</option>
+              <option value="upi">UPI</option>
+              <option value="card">Card</option>
+            </select>
+          </div>
+        </div>
+
+        {form.decided_amount && parseFloat(form.decided_amount) > 0 && (() => {
+          const dBase2 = parseFloat(form.decided_amount)
+          const dGst2 = hotelGstRate > 0 && !hotelGstIncl ? dBase2 * hotelGstRate / 100 : 0
+          const dTotal2 = dBase2 + dGst2
+          const balance = Math.max(0, dTotal2 - parseFloat(form.advance_paid || 0))
+          return (
+            <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-600 flex justify-between">
+              <span>Balance due at check-out</span>
+              <span className="font-semibold text-gray-900">₹{balance.toFixed(2)}</span>
+            </div>
+          )
+        })()}
+
+        <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes (optional)" className={inp} />
       </div>
 
       <button onClick={handleSubmit} disabled={book.isPending || makeGuest.isPending}
@@ -205,13 +317,15 @@ function NewBookingForm({ onSuccess, svc }) {
   )
 }
 
-export function CheckOutModal({ booking, onSuccess, onClose, svc }) {
+export function CheckOutModal({ booking, onSuccess, svc }) {
   const qc = useQueryClient()
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [error, setError] = useState('')
   const [showExtend, setShowExtend] = useState(false)
   const [newCheckOut, setNewCheckOut] = useState('')
   const [showFoodDetail, setShowFoodDetail] = useState(false)
+  const [checkedOut, setCheckedOut] = useState(false)
+  const [printing, setPrinting] = useState(false)
 
   const { data: summary, isLoading: summaryLoading, refetch } = useQuery({
     queryKey: ['checkout-summary', booking.id],
@@ -220,9 +334,26 @@ export function CheckOutModal({ booking, onSuccess, onClose, svc }) {
 
   const checkout = useMutation({
     mutationFn: () => svc.checkOutBooking(booking.id, { payment_method: paymentMethod, extra_paid: Math.max(0, totalAmount - advancePaid) }),
-    onSuccess: () => { qc.invalidateQueries({ predicate: q => q.queryKey.includes('bookings') }); qc.invalidateQueries({ predicate: q => q.queryKey.includes('rooms') }); onSuccess?.() },
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: q => q.queryKey.includes('bookings') })
+      qc.invalidateQueries({ predicate: q => q.queryKey.includes('rooms') })
+      setCheckedOut(true)
+    },
     onError: (err) => setError(err.response?.data?.message ?? 'Error'),
   })
+
+  const handlePrintBill = async () => {
+    setPrinting(true)
+    try {
+      const billFn = svc.downloadBookingBill ?? downloadBookingBill
+      const res = await billFn(booking.id, paymentMethod)
+      const url = URL.createObjectURL(res.data)
+      const win = window.open(url, '_blank', 'width=800,height=600')
+      if (win) win.addEventListener('load', () => { try { win.focus(); win.print() } catch { /* ignore */ } })
+    } finally {
+      setPrinting(false)
+    }
+  }
 
   const extend = useMutation({
     mutationFn: () => (svc.extendBookingStay ?? extendBookingStay)(booking.id, { check_out_date: newCheckOut }),
@@ -244,8 +375,6 @@ export function CheckOutModal({ booking, onSuccess, onClose, svc }) {
   const byDate         = summary?.unbilled_orders_by_date ?? []
   const foodTotal      = parseFloat(summary?.unbilled_food_total ?? 0)
   const overdue        = isOverdue(b)
-
-  const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400'
 
   return (
     <div className="space-y-4">
@@ -372,19 +501,375 @@ export function CheckOutModal({ booking, onSuccess, onClose, svc }) {
           </div>
         )
       )}
-      <button onClick={() => checkout.mutate()} disabled={checkout.isPending || summaryLoading}
-        className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
-        {checkout.isPending ? 'Processing…' : 'Confirm Check-out'}
-      </button>
+      {checkedOut ? (
+        <div className="space-y-3">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+            <p className="text-base font-semibold text-green-700">✓ Checked out successfully</p>
+            <p className="text-xs text-gray-500 mt-1">Room {booking.room?.number} is now available</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handlePrintBill} disabled={printing}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+              {printing ? 'Preparing…' : '🖨 Print Bill'}
+            </button>
+            <button onClick={() => onSuccess?.()}
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold text-sm">
+              Close
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button onClick={handlePrintBill} disabled={printing || summaryLoading}
+            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+            {printing ? 'Preparing…' : '🖨 Print Bill'}
+          </button>
+          <button onClick={() => checkout.mutate()} disabled={checkout.isPending || summaryLoading}
+            className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+            {checkout.isPending ? 'Processing…' : 'Confirm Check-out'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
-function BookingRow({ booking, onCheckIn, onCheckOut, onCancel, onView }) {
+const toDateValue = (v) => v ? v.toString().slice(0, 10) : ''
+
+const EDIT_RULES_BASE = {
+  guest_name:  [required('Full name')],
+  guest_phone: [required('Phone'), isPhone()],
+}
+const EDIT_RULES_UPCOMING = {
+  ...EDIT_RULES_BASE,
+  room_id:        [required('Room')],
+  check_in_date:  [required('Check-in date')],
+  check_out_date: [required('Check-out date'), dateAfter('check_in_date', 'check-in', 'Check-out date')],
+  adults:         [required('Adults'), minValue(1, 'Adults'), isInteger('Adults')],
+}
+
+function EditBookingForm({ booking, onSuccess, svc }) {
+  const qc = useQueryClient()
+  const isUpcoming = booking.status === 'upcoming'
+  const RULES = isUpcoming ? EDIT_RULES_UPCOMING : EDIT_RULES_BASE
+
+  const [form, setForm] = useState({
+    guest_name:     booking.guest?.name  ?? '',
+    guest_phone:    booking.guest?.phone ?? '',
+    room_id:        booking.room_id ?? booking.room?.id ?? '',
+    check_in_date:  toDateValue(booking.check_in_date),
+    check_out_date: toDateValue(booking.check_out_date),
+    adults:         booking.adults   ?? 1,
+    children:       booking.children ?? 0,
+    decided_amount: booking.decided_amount != null
+      ? String(booking.decided_amount)
+      : booking.computed_room_total != null
+        ? String(parseFloat(booking.computed_room_total).toFixed(2))
+        : '',
+    notes:          booking.notes    ?? '',
+  })
+  const [decidedTouched, setDecidedTouched] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [touched, setTouched] = useState({})
+  const [apiError, setApiError] = useState('')
+  const [submitCount, setSubmitCount] = useState(0)
+  const formRef = useScrollToFirstError(fieldErrors, submitCount)
+
+  const set = (k, v) => {
+    const next = { ...form, [k]: v }
+    setForm(next)
+    if (touched[k]) {
+      const err = validateField(RULES, k, v, next)
+      setFieldErrors(e => ({ ...e, [k]: err }))
+      // re-validate check_out_date when check_in_date changes
+      if (k === 'check_in_date' && touched.check_out_date) {
+        setFieldErrors(e => ({ ...e, check_out_date: validateField(RULES, 'check_out_date', next.check_out_date, next) }))
+      }
+    }
+  }
+
+  const touch = (k) => {
+    setTouched(t => ({ ...t, [k]: true }))
+    const err = validateField(RULES, k, form[k], form)
+    setFieldErrors(e => ({ ...e, [k]: err }))
+  }
+
+  const { data: rooms } = useQuery({
+    queryKey: ['rooms-available', svc._prefix ?? 'owner'],
+    queryFn: () => svc.getRooms().then(r => r.data.data),
+    enabled: isUpcoming,
+  })
+
+  const availableRooms = rooms?.filter(r => r.status === 'available' || r.id === (booking.room_id ?? booking.room?.id)) ?? []
+
+  const { data: ownerSettings } = useQuery({
+    queryKey: ['owner-settings'],
+    queryFn: () => getOwnerSettings().then(r => r.data.data),
+  })
+
+  const nights = form.check_in_date && form.check_out_date
+    ? Math.max(0, (new Date(form.check_out_date) - new Date(form.check_in_date)) / 86400000)
+    : 0
+  const selectedRoom   = availableRooms.find(r => r.id === parseInt(form.room_id))
+  const roomCharges    = (selectedRoom?.price_per_night ?? 0) * nights
+  const editGstRate    = ownerSettings?.hotel_gst_rate ?? booking.gst_rate ?? 0
+  const editGstIncl    = ownerSettings?.hotel_gst_inclusive ?? booking.gst_inclusive ?? false
+  // Auto-fill decided_amount with base room charges (before GST) unless user has edited it
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!decidedTouched && roomCharges > 0) {
+      setForm(f => ({ ...f, decided_amount: roomCharges.toFixed(2) }))
+    }
+  }, [roomCharges, decidedTouched])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const mutation = useMutation({
+    mutationFn: (data) => (svc.updateBooking ?? updateBooking)(booking.id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: q => q.queryKey.includes('bookings') })
+      qc.invalidateQueries({ queryKey: ['booking', booking.id] })
+      onSuccess?.()
+    },
+    onError: (err) => setApiError(err.response?.data?.message ?? 'Update failed'),
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setApiError('')
+    const errs = validate(RULES, form)
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs)
+      setTouched(Object.fromEntries(Object.keys(RULES).map(k => [k, true])))
+      setSubmitCount(c => c + 1)
+      return
+    }
+    const decidedVal = form.decided_amount !== '' ? parseFloat(form.decided_amount) : null
+    mutation.mutate(isUpcoming
+      ? { ...form, adults: parseInt(form.adults), children: parseInt(form.children), decided_amount: decidedVal }
+      : { notes: form.notes, guest_name: form.guest_name, guest_phone: form.guest_phone, decided_amount: decidedVal }
+    )
+  }
+
+  const inpCls = (field) =>
+    `w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-300'}`
+
+  const Err = (field) => fieldErrors[field]
+    ? <p className="text-xs text-red-500 mt-0.5">{fieldErrors[field]}</p>
+    : null
+
+  return (
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+      {apiError && <div className="text-red-600 text-sm bg-red-50 p-2 rounded">{apiError}</div>}
+
+      {/* Guest */}
+      <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+        <h3 className="font-medium text-gray-800 text-sm">Guest</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Full Name *</label>
+            <input
+              value={form.guest_name}
+              onChange={e => set('guest_name', e.target.value)}
+              onBlur={() => touch('guest_name')}
+              className={inpCls('guest_name')}
+              placeholder="Guest name"
+            />
+            {Err('guest_name')}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
+            <input
+              value={form.guest_phone}
+              onChange={e => set('guest_phone', e.target.value)}
+              onBlur={() => touch('guest_phone')}
+              className={inpCls('guest_phone')}
+              placeholder="Phone number"
+            />
+            {Err('guest_phone')}
+          </div>
+        </div>
+      </div>
+
+      {/* Room & Dates — upcoming only */}
+      {isUpcoming && (
+        <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+          <h3 className="font-medium text-gray-800 text-sm">Room & Dates</h3>
+          <div>
+            <select
+              value={form.room_id}
+              onChange={e => set('room_id', e.target.value)}
+              onBlur={() => touch('room_id')}
+              className={inpCls('room_id')}
+            >
+              <option value="">Select room…</option>
+              {availableRooms.map(r => (
+                <option key={r.id} value={r.id}>{r.number} — {r.type} (Floor {r.floor}) — ₹{r.price_per_night}/night</option>
+              ))}
+            </select>
+            {Err('room_id')}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Check-in *</label>
+              <input
+                type="date"
+                value={form.check_in_date}
+                onChange={e => set('check_in_date', e.target.value)}
+                onBlur={() => touch('check_in_date')}
+                className={inpCls('check_in_date')}
+              />
+              {Err('check_in_date')}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Check-out *</label>
+              <input
+                type="date"
+                value={form.check_out_date}
+                onChange={e => set('check_out_date', e.target.value)}
+                onBlur={() => touch('check_out_date')}
+                className={inpCls('check_out_date')}
+              />
+              {Err('check_out_date')}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Adults *</label>
+              <input
+                type="number" min="1"
+                value={form.adults}
+                onChange={e => set('adults', e.target.value)}
+                onBlur={() => touch('adults')}
+                className={inpCls('adults')}
+              />
+              {Err('adults')}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Children</label>
+              <input
+                type="number" min="0"
+                value={form.children}
+                onChange={e => set('children', e.target.value)}
+                className={inpCls('children')}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decided Amount */}
+      <div className="bg-gray-50 rounded-xl p-4">
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Decided Amount (₹)
+          {decidedTouched && roomCharges > 0 && (
+            <button
+              type="button"
+              onClick={() => { setDecidedTouched(false); setForm(f => ({ ...f, decided_amount: roomCharges.toFixed(2) })) }}
+              className="ml-2 text-orange-500 hover:underline text-xs font-normal"
+            >Reset to calculated</button>
+          )}
+        </label>
+        <input
+          type="number" step="0.01" min="0"
+          value={form.decided_amount}
+          onChange={e => { setDecidedTouched(true); setForm(f => ({ ...f, decided_amount: e.target.value })) }}
+          placeholder="Base room amount (before GST)"
+          className={inpCls('decided_amount')}
+        />
+        <p className="text-xs text-gray-400 mt-0.5">Pre-filled from base room charges. Edit to negotiate a different rate.</p>
+        {nights > 0 && form.decided_amount !== '' && (() => {
+          const dBase = parseFloat(form.decided_amount || 0)
+          const dPerNight = nights > 0 ? dBase / nights : 0
+          const dGst = editGstRate > 0
+            ? (editGstIncl ? dBase * editGstRate / (100 + editGstRate) : dBase * editGstRate / 100)
+            : 0
+          const dTotal = editGstIncl ? dBase : dBase + dGst
+          return (
+            <div className="mt-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-sm text-blue-800 space-y-1">
+              <div className="flex justify-between">
+                <span>{nights} night{nights > 1 ? 's' : ''} × ₹{dPerNight.toFixed(2)}</span>
+                <span>₹{dBase.toFixed(2)}</span>
+              </div>
+              {editGstRate > 0 && (
+                <div className="flex justify-between text-blue-600">
+                  <span>GST ({editGstRate}%){editGstIncl ? ' incl.' : ''}</span>
+                  <span>{editGstIncl ? '−' : '+'}₹{dGst.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold border-t border-blue-200 pt-1">
+                <span>Total room charges</span>
+                <span>₹{dTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* Notes */}
+      <div className="bg-gray-50 rounded-xl p-4">
+        <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+        <input
+          value={form.notes}
+          onChange={e => set('notes', e.target.value)}
+          placeholder="Optional notes…"
+          className={inpCls('notes')}
+        />
+        {!isUpcoming && (
+          <p className="text-xs text-gray-400 mt-2">Room and dates cannot be changed after check-in.</p>
+        )}
+      </div>
+
+      <button type="submit" disabled={mutation.isPending}
+        className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+        {mutation.isPending ? 'Saving…' : 'Save Changes'}
+      </button>
+    </form>
+  )
+}
+
+function BookingRow({ booking, onCheckIn, onCheckOut, onCancel, onEdit, onView, onPrintBill }) {
   const overdue = isOverdue(booking)
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const checkInDate = new Date(booking.check_in_date); checkInDate.setHours(0, 0, 0, 0)
+  const checkInReady = checkInDate <= today
+  const [notePos, setNotePos] = useState(null)
+  const noteRef = useRef(null)
+
+  const toggleNote = (e) => {
+    e.stopPropagation()
+    if (notePos) { setNotePos(null); return }
+    const rect = noteRef.current.getBoundingClientRect()
+    setNotePos({ top: rect.bottom + 6, left: rect.left })
+  }
+
   return (
     <tr className={`cursor-pointer transition-colors ${overdue ? 'bg-red-50/60 hover:bg-red-100/60' : 'hover:bg-gray-50/80'}`} onClick={() => onView(booking)}>
-      <td className="px-5 py-4 font-mono text-xs text-gray-500">{booking.booking_number}</td>
+      <td className="px-5 py-4">
+        <span className="font-mono text-xs text-gray-500">{booking.booking_number}</span>
+        {booking.notes && (
+          <span className="inline-flex items-center ml-1.5 align-middle" onClick={e => e.stopPropagation()}>
+            <button
+              ref={noteRef}
+              type="button"
+              onClick={toggleNote}
+              className="text-amber-400 hover:text-amber-500 transition-colors"
+            >
+              <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" />
+            </button>
+            {notePos && (
+              <div
+                style={{ position: 'fixed', top: notePos.top, left: notePos.left, zIndex: 9999 }}
+                className="w-56 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl"
+                onClick={e => e.stopPropagation()}
+              >
+                <p className="font-semibold text-amber-300 mb-1">Note</p>
+                <p className="leading-relaxed whitespace-pre-wrap">{booking.notes}</p>
+                <button onClick={() => setNotePos(null)} className="mt-2 text-gray-400 hover:text-white text-xs underline">close</button>
+              </div>
+            )}
+          </span>
+        )}
+      </td>
       <td className="px-5 py-4">
         <div className="font-semibold text-gray-900 text-sm">{booking.guest?.name}</div>
         <div className="text-xs text-gray-400 mt-0.5">{booking.guest?.phone}</div>
@@ -415,13 +900,28 @@ function BookingRow({ booking, onCheckIn, onCheckOut, onCancel, onView }) {
         <div className="flex gap-1.5 flex-wrap">
           {booking.status === 'upcoming' && (
             <>
-              <button onClick={() => onCheckIn(booking)} className="text-xs bg-green-50 text-green-700 hover:bg-green-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">Check-in</button>
+              <button
+                onClick={() => onCheckIn(booking)}
+                disabled={!checkInReady}
+                title={!checkInReady ? `Check-in available on ${new Date(booking.check_in_date).toLocaleDateString()}` : undefined}
+                className="text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-green-50 text-green-700 hover:bg-green-100 disabled:hover:bg-green-50"
+              >Check-in</button>
+              <button onClick={() => onEdit(booking)} className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">Edit</button>
               <button onClick={() => onCancel(booking)} className="text-xs bg-red-50 text-red-500 hover:bg-red-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">Cancel</button>
             </>
           )}
           {booking.status === 'checked_in' && (
-            <button onClick={() => onCheckOut(booking)} className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors ${overdue ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>
-              Check-out
+            <>
+              <button onClick={() => onCheckOut(booking)} className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors ${overdue ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>
+                Check-out
+              </button>
+              <button onClick={() => onEdit(booking)} className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">Edit</button>
+              <button onClick={() => onPrintBill?.(booking)} className="text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg font-medium transition-colors">🖨 Bill</button>
+            </>
+          )}
+          {booking.status === 'checked_out' && (
+            <button onClick={() => onPrintBill?.(booking)} className="text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg font-medium transition-colors">
+              🖨 Bill
             </button>
           )}
         </div>
@@ -435,11 +935,13 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
     _prefix:                    queryKeyPrefix,
     getBookings:                getBookings,
     createBooking:              createBooking,
+    updateBooking:              updateBooking,
     checkInBooking:             checkInBooking,
     checkOutBooking:            checkOutBooking,
     cancelBooking:              cancelBooking,
     getBooking:                 getBooking,
     getBookingCheckoutSummary:  getBookingCheckoutSummary,
+    downloadBookingBill:        downloadBookingBill,
     getRooms:                   getRooms,
     searchGuests:               searchGuests,
     createGuest:                createGuest,
@@ -454,6 +956,17 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
   const [viewBooking, setViewBooking] = useState(null)
   const [checkInTarget, setCheckInTarget] = useState(null)
   const [cancelTarget, setCancelTarget] = useState(null)
+
+  const handlePrintBill = async (booking) => {
+    try {
+      const billFn = svc.downloadBookingBill ?? downloadBookingBill
+      const res = await billFn(booking.id, booking.payment_method ?? 'cash')
+      const url = URL.createObjectURL(res.data)
+      const win = window.open(url, '_blank', 'width=800,height=600')
+      if (win) win.addEventListener('load', () => { try { win.focus(); win.print() } catch { /* ignore */ } })
+    } catch { /* ignore */ }
+  }
+  const [editTarget, setEditTarget] = useState(null)
 
   const { data: bookingPage, isLoading } = useQuery({
     queryKey: [qk, 'bookings', status],
@@ -530,7 +1043,9 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
                   onCheckIn={(bk) => setCheckInTarget(bk)}
                   onCheckOut={(bk) => setCheckingOut(bk)}
                   onCancel={(bk) => setCancelTarget(bk)}
+                  onEdit={(bk) => setEditTarget(bk)}
                   onView={setViewBooking}
+                  onPrintBill={handlePrintBill}
                 />
               ))}
             </tbody>
@@ -540,6 +1055,10 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
 
       <Modal open={showNew} onClose={() => setShowNew(false)} title="New Booking" size="md">
         <NewBookingForm svc={svc} onSuccess={() => setShowNew(false)} />
+      </Modal>
+
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title={`Edit Booking · ${editTarget?.booking_number}`} size="md">
+        {editTarget && <EditBookingForm svc={svc} booking={editTarget} onSuccess={() => setEditTarget(null)} />}
       </Modal>
 
       <Modal open={!!checkingOut} onClose={() => setCheckingOut(null)} title={`Check-out · Room ${checkingOut?.room?.number}`} size="sm">

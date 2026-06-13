@@ -122,7 +122,7 @@ export default function OwnerDashboard() {
     queryFn: () => getTodayRevenue().then(r => r.data.data),
     refetchInterval: 30000,
   })
-  const { data: orders, isLoading: ordersLoading } = useQuery({
+  const { data: orders } = useQuery({
     queryKey: ['live-orders'],
     queryFn: () => getLiveOrders().then(r => r.data.data),
     refetchInterval: 10000,

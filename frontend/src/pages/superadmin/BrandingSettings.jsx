@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import {
   PhoneIcon,
   EnvelopeIcon,
@@ -45,6 +46,7 @@ export default function BrandingSettings() {
   const [logoFile, setLogoFile] = useState(null)
   const [saved, setSaved] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
+  const formRef = useScrollToFirstError(fieldErrors)
 
   const { isLoading, data: brandingData } = useQuery({
     queryKey: ['branding'],
@@ -52,6 +54,7 @@ export default function BrandingSettings() {
   })
 
   // Populate form on load and after successful save (re-sync fresh logo URL)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (brandingData) {
       setForm(brandingData)
@@ -59,6 +62,7 @@ export default function BrandingSettings() {
       setLogoFile(null)
     }
   }, [brandingData])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const mutation = useMutation({
     mutationFn: (fd) => updateBranding(fd),
@@ -125,7 +129,7 @@ export default function BrandingSettings() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
 
         {/* ── Logo ── */}
         <section className="bg-white rounded-xl border border-gray-200 p-6">

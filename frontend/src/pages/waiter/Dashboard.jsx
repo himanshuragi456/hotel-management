@@ -233,7 +233,6 @@ function TableOrderPanel({ table, onClose }) {
     setCart(c => c.map(x => x._key === key ? { ...x, quantity: Math.max(0, x.quantity + delta) } : x).filter(x => x.quantity > 0))
 
   const cartTotal = cart.reduce((s, x) => s + x.price * x.quantity, 0)
-  const hasOpenOrders = orders.some(o => !['served', 'cancelled'].includes(o.status))
   const unbilled = orders.filter(o => o.status !== 'cancelled' && !o.invoice)
   const billSubtotal = unbilled.reduce((s, o) => s + parseFloat(o.subtotal ?? 0), 0)
   const billTax      = unbilled.reduce((s, o) => s + parseFloat(o.tax ?? 0), 0)
@@ -922,7 +921,7 @@ export default function WaiterDashboard() {
   }
 
   const handleLogout = async () => {
-    try { await logoutApi() } catch (_) {}
+    try { await logoutApi() } catch { /* ignore */ }
     clearAuth()
     navigate('/login', { replace: true })
   }

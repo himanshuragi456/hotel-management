@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, BuildingOfficeIcon,
-  UserGroupIcon, BanknotesIcon, WrenchScrewdriverIcon,
+  UserGroupIcon, BanknotesIcon, QrCodeIcon,
+  ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline'
-import { getRooms, createRoom, updateRoom, deleteRoom } from '@/services/restaurantService'
+import { getRooms, createRoom, updateRoom, deleteRoom, getRoomQr } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
 import { formatOccupied } from '@/utils/time'
 import { validate, validateField, required, isPositive, isNonNeg, minValue, isInteger } from '@/utils/validate'
@@ -19,7 +21,7 @@ const STATUS_CONFIG = {
   maintenance: { border: 'border-red-400',    bg: 'bg-red-50',     dot: 'bg-red-500',    badge: 'bg-red-100 text-red-700',       label: 'Maintenance' },
 }
 
-function RoomCard({ room, onEdit, onDelete }) {
+function RoomCard({ room, onEdit, onDelete, onQr }) {
   const cfg = STATUS_CONFIG[room.status] ?? STATUS_CONFIG.available
 
   return (
@@ -30,6 +32,10 @@ function RoomCard({ room, onEdit, onDelete }) {
           <div className="text-xs text-gray-500 capitalize">{room.type} · Floor {room.floor}</div>
         </div>
         <div className="flex items-center gap-0.5">
+          <button onClick={() => onQr(room)} title="Room Service QR"
+            className="w-7 h-7 rounded-lg hover:bg-white/60 flex items-center justify-center transition-colors">
+            <QrCodeIcon className="w-4 h-4 text-gray-500" />
+          </button>
           <button onClick={() => onEdit(room)}
             className="w-7 h-7 rounded-lg hover:bg-white/60 flex items-center justify-center transition-colors">
             <PencilSquareIcon className="w-4 h-4 text-blue-500" />
@@ -96,6 +102,7 @@ function RoomForm({ room, onSuccess }) {
   })
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
+  const formRef = useScrollToFirstError(fieldErrors)
 
   const set = (k, v) => {
     const next = { ...form, [k]: v }
@@ -118,7 +125,7 @@ function RoomForm({ room, onSuccess }) {
   const inp = (field) =>
     `w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`
 
-  const Err = ({ field }) => fieldErrors[field]
+  const Err = (field) => fieldErrors[field]
     ? <p className="text-xs text-red-500 mt-0.5">{fieldErrors[field]}</p>
     : null
 
@@ -135,7 +142,7 @@ function RoomForm({ room, onSuccess }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -147,7 +154,7 @@ function RoomForm({ room, onSuccess }) {
             className={inp('number')}
             placeholder="101, A-202…"
           />
-          <Err field="number" />
+          {Err('number')}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Floor</label>
@@ -159,14 +166,14 @@ function RoomForm({ room, onSuccess }) {
             onBlur={() => blur('floor')}
             className={inp('floor')}
           />
-          <Err field="floor" />
+          {Err('floor')}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type *</label>
           <select value={form.type} onChange={e => set('type', e.target.value)} className={inp('type')}>
             {ROOM_TYPES.map(t => <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
           </select>
-          <Err field="type" />
+          {Err('type')}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity *</label>
@@ -178,7 +185,7 @@ function RoomForm({ room, onSuccess }) {
             onBlur={() => blur('capacity')}
             className={inp('capacity')}
           />
-          <Err field="capacity" />
+          {Err('capacity')}
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Price / Night (₹) *</label>
@@ -192,7 +199,7 @@ function RoomForm({ room, onSuccess }) {
             className={inp('price_per_night')}
             placeholder="0.00"
           />
-          <Err field="price_per_night" />
+          {Err('price_per_night')}
         </div>
         {isEdit && (
           <div className="col-span-2">
@@ -229,6 +236,13 @@ export default function RoomManager() {
   const [editing, setEditing] = useState(null)
   const [filterStatus, setFilterStatus] = useState('')
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [qrData, setQrData] = useState(null) // { svgUrl, room }
+
+  const handleQr = async (room) => {
+    const res = await getRoomQr(room.id)
+    const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(res.data)
+    setQrData({ svgUrl, room })
+  }
 
   const { data: rooms, isLoading } = useQuery({
     queryKey: ['rooms'],
@@ -310,10 +324,36 @@ export default function RoomManager() {
           {filtered.map(room => (
             <RoomCard key={room.id} room={room}
               onEdit={(r) => { setEditing(r); setShowForm(true) }}
-              onDelete={(r) => setDeleteTarget(r)} />
+              onDelete={(r) => setDeleteTarget(r)}
+              onQr={handleQr} />
           ))}
         </div>
       )}
+
+      <Modal open={!!qrData} onClose={() => setQrData(null)} title={`Room ${qrData?.room?.number} — QR Code`} size="sm">
+        {qrData && (
+          <div className="text-center">
+            <div className="bg-gray-50 rounded-2xl p-6 mb-4 inline-block">
+              <img src={qrData.svgUrl} className="mx-auto w-48 h-48" />
+            </div>
+            <p className="text-xs text-gray-500 mb-4">Guests scan this to order room service from their room</p>
+            <div className="flex gap-2 justify-center">
+              <a href={qrData.svgUrl} download={`room-${qrData.room.number}-qr.svg`}
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow">
+                <QrCodeIcon className="w-4 h-4" />
+                Download QR
+              </a>
+              {qrData.room.menu_url && (
+                <a href={qrData.room.menu_url} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                  <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                  Open Menu
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={showForm} onClose={() => { setShowForm(false); setEditing(null) }} title={editing ? 'Edit Room' : 'Add Room'} size="sm">
         <RoomForm room={editing} onSuccess={() => { setShowForm(false); setEditing(null); qc.invalidateQueries({ queryKey: ['rooms'] }) }} />

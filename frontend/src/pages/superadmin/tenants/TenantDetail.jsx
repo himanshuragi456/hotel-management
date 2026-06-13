@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTenant, updateTenantModules, exportTenantData, updateTenantAiSettings, loginAsStaff, changeUserPassword } from '@/services/superadminService'
+import { getTenant, updateTenantModules, exportTenantData, updateTenantAiSettings, loginAsStaff, changeUserPassword, getPlans } from '@/services/superadminService'
 import Badge from '@/components/shared/Badge'
 import Modal from '@/components/shared/Modal'
-import TenantForm from './TenantForm'
+import TenantForm, { SubscriptionTab } from './TenantForm'
 import { ROLE_HOME } from '@/components/layouts/RoleGuard'
 import useAuthStore from '@/store/authStore'
 import { validate, required, isStrongPassword } from '@/utils/validate'
@@ -181,6 +181,7 @@ export default function TenantDetail() {
   const qc = useQueryClient()
   const { setAuth } = useAuthStore()
   const [showEdit, setShowEdit] = useState(false)
+  const [showSubscription, setShowSubscription] = useState(false)
   const [feedbackDomain, setFeedbackDomain] = useState('')
   const [feedbackDomainOther, setFeedbackDomainOther] = useState('')
   const [loggingInAs, setLoggingInAs] = useState(null)
@@ -205,6 +206,12 @@ export default function TenantDetail() {
   const { data: res, isLoading } = useQuery({
     queryKey: ['tenant', id],
     queryFn: () => getTenant(id).then(r => r.data.data),
+  })
+
+  const { data: plans } = useQuery({
+    queryKey: ['plans'],
+    queryFn: () => getPlans().then(r => r.data.data),
+    enabled: showSubscription,
   })
 
   const modulesMutation = useMutation({
@@ -389,7 +396,7 @@ export default function TenantDetail() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">Subscription</h3>
-            <button onClick={() => setShowEdit(true)}
+            <button onClick={() => setShowSubscription(true)}
               className="text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">
               {tenant.subscription ? 'Manage' : 'Assign Plan'}
             </button>
@@ -405,7 +412,7 @@ export default function TenantDetail() {
           ) : (
             <div className="text-center py-6">
               <p className="text-sm text-gray-400">No active subscription — tenant is on free trial</p>
-              <button onClick={() => setShowEdit(true)} className="mt-2 text-xs text-blue-600 hover:underline font-medium">Assign a plan →</button>
+              <button onClick={() => setShowSubscription(true)} className="mt-2 text-xs text-blue-600 hover:underline font-medium">Assign a plan →</button>
             </div>
           )}
         </div>
@@ -466,6 +473,10 @@ export default function TenantDetail() {
 
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Tenant" size="lg">
         <TenantForm tenant={tenant} onSuccess={() => { setShowEdit(false); qc.invalidateQueries({ queryKey: ['tenant', id] }) }} />
+      </Modal>
+
+      <Modal open={showSubscription} onClose={() => setShowSubscription(false)} title="Manage Subscription" size="lg">
+        <SubscriptionTab tenant={tenant} plans={plans} onSuccess={() => { setShowSubscription(false); qc.invalidateQueries({ queryKey: ['tenant', id] }) }} />
       </Modal>
 
       <Modal open={!!changePwdTarget} onClose={() => setChangePwdTarget(null)} title="Change Password" size="sm">

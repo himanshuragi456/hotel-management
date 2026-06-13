@@ -67,6 +67,7 @@ import BillingDashboard from '@/pages/billing/Dashboard'
 
 // Customer (public — no auth)
 import CustomerMenuPage from '@/pages/customer/MenuPage'
+import RoomMenuPage from '@/pages/customer/RoomMenuPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -85,6 +86,8 @@ export default function App() {
 
           {/* Customer QR menu — no auth required */}
           <Route path="/menu/:slug/:token" element={<CustomerMenuPage />} />
+          {/* Room service QR menu — no auth required */}
+          <Route path="/room-menu/:slug/:token" element={<RoomMenuPage />} />
 
           {/* Feedback — public, no auth */}
           <Route path="/feedback/:token" element={<FeedbackPage />} />

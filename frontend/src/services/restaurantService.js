@@ -66,7 +66,8 @@ export const updateOrderStatus = (id, status) => api.put(`/chef/orders/${id}/sta
 // Order actions — reject (with reason), cancel, mark OOS (chef/billing/owner)
 export const getRejectionReasons = () => api.get('/order-actions/rejection-reasons')
 export const rejectOrder = (id, data) => api.post(`/order-actions/${id}/reject`, data)
-export const cancelOrder = (id, data) => api.post(`/order-actions/${id}/cancel`, data)
+export const cancelOrder  = (id, data) => api.post(`/order-actions/${id}/cancel`, data)
+export const dismissOrder = (id)       => api.delete(`/order-actions/${id}/dismiss`)
 export const markOos = (data) => api.post('/order-actions/mark-oos', data)
 
 // Billing — Hotel (billing role has access to these)
@@ -81,6 +82,8 @@ export const checkOutBillingBooking              = (id, data) => api.post(`/bill
 export const cancelBillingBooking                = (id)       => api.post(`/billing/hotel/bookings/${id}/cancel`)
 export const getBillingBookingCheckoutSummary    = (id)       => api.get(`/billing/hotel/bookings/${id}/checkout-summary`)
 export const extendBillingBookingStay            = (id, data) => api.patch(`/billing/hotel/bookings/${id}/extend`, data)
+export const downloadBillingBookingBill          = (id, paymentMethod) => api.get(`/billing/hotel/bookings/${id}/bill`, { params: { payment_method: paymentMethod }, responseType: 'blob' })
+export const getBillingRecentCheckouts           = ()                  => api.get('/billing/hotel/bookings/recent-checkouts')
 export const searchBillingGuests    = (q)        => api.get('/billing/hotel/guests/search', { params: { q } })
 export const createBillingGuest     = (data)     => api.post('/billing/hotel/guests', data)
 
@@ -161,6 +164,7 @@ export const getAiSuggestions        = (token, data) => api.post(`/public/feedba
 
 // Owner — Hotel Rooms
 export const getRooms          = ()         => api.get('/owner/hotel/rooms')
+export const getRoomQr         = (id)       => api.get(`/owner/hotel/rooms/${id}/qr`, { responseType: 'text' })
 export const getRoomStatus     = ()         => api.get('/owner/hotel/rooms/status')
 export const createRoom        = (data)     => api.post('/owner/hotel/rooms', data)
 export const updateRoom        = (id, data) => api.put(`/owner/hotel/rooms/${id}`, data)
@@ -185,6 +189,7 @@ export const checkOutBooking         = (id, data) => api.post(`/owner/hotel/book
 export const cancelBooking           = (id)       => api.post(`/owner/hotel/bookings/${id}/cancel`)
 export const getBookingCheckoutSummary = (id)     => api.get(`/owner/hotel/bookings/${id}/checkout-summary`)
 export const extendBookingStay         = (id, data) => api.patch(`/owner/hotel/bookings/${id}/extend`, data)
+export const downloadBookingBill       = (id, paymentMethod, prefix = 'owner') => api.get(`/${prefix}/hotel/bookings/${id}/bill`, { params: { payment_method: paymentMethod }, responseType: 'blob' })
 
 // Waiter — Room Service
 export const getActiveRooms    = ()         => api.get('/waiter/room-service/active-rooms')
@@ -195,6 +200,9 @@ export const getPublicMenu = (slug, token) => api.get(`/public/menu/${slug}/${to
 export const placePublicOrder = (slug, token, data) => api.post(`/public/menu/${slug}/${token}/order`, data)
 export const getCustomerMenu = (slug, token) => api.get(`/public/menu/${slug}/${token}`)
 export const customerPlaceOrder = (slug, token, data) => api.post(`/public/menu/${slug}/${token}/order`, data)
+// Room service QR menu (public)
+export const getCustomerRoomMenu   = (slug, token)       => api.get(`/public/room/${slug}/${token}`)
+export const customerPlaceRoomOrder = (slug, token, data) => api.post(`/public/room/${slug}/${token}/order`, data)
 export const customerRequestBill    = (slug, token) => api.post(`/public/menu/${slug}/${token}/request-bill`)
 export const customerCallWaiter     = (slug, token) => api.post(`/public/menu/${slug}/${token}/call-waiter`)
 export const customerNotifyBillPaid = (slug, token) => api.post(`/public/menu/${slug}/${token}/notify-bill-paid`)

@@ -102,7 +102,7 @@ export default function SuperadminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const handleLogout = async () => {
-    try { await logout() } catch (_) {}
+    try { await logout() } catch { /* ignore */ }
     clearAuth()
     navigate('/login', { replace: true })
   }

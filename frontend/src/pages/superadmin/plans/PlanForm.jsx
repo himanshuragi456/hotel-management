@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import { createPlan, updatePlan } from '@/services/superadminService'
 import { validate, validateField, required, isPositive, isNonNeg } from '@/utils/validate'
 
@@ -37,6 +38,7 @@ export default function PlanForm({ plan, onSuccess }) {
   })
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
+  const formRef = useScrollToFirstError(fieldErrors)
 
   const mutation = useMutation({
     mutationFn: isEdit ? (data) => updatePlan(plan.id, data) : createPlan,
@@ -76,14 +78,14 @@ export default function PlanForm({ plan, onSuccess }) {
   const inp = (field) =>
     `w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-300'}`
 
-  const Err = ({ field }) => fieldErrors[field]
+  const Err = (field) => fieldErrors[field]
     ? <p className="text-xs text-red-500 mt-0.5">{fieldErrors[field]}</p>
     : null
 
   const moduleError = fieldErrors.module_restaurant
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">{error}</div>}
 
       <div className="grid grid-cols-2 gap-4">
@@ -96,7 +98,7 @@ export default function PlanForm({ plan, onSuccess }) {
             className={inp('name')}
             placeholder="e.g. Starter, Professional, Enterprise"
           />
-          <Err field="name" />
+          {Err('name')}
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
@@ -119,7 +121,7 @@ export default function PlanForm({ plan, onSuccess }) {
             className={inp('price_monthly')}
             placeholder="999"
           />
-          <Err field="price_monthly" />
+          {Err('price_monthly')}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Yearly Price (₹) *</label>
@@ -133,7 +135,7 @@ export default function PlanForm({ plan, onSuccess }) {
             className={inp('price_yearly')}
             placeholder="9999"
           />
-          <Err field="price_yearly" />
+          {Err('price_yearly')}
         </div>
       </div>
 
@@ -167,7 +169,7 @@ export default function PlanForm({ plan, onSuccess }) {
             onBlur={() => blur('max_users')}
             className={inp('max_users')}
           />
-          <Err field="max_users" />
+          {Err('max_users')}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Max Tables</label>
@@ -179,7 +181,7 @@ export default function PlanForm({ plan, onSuccess }) {
             onBlur={() => blur('max_tables')}
             className={inp('max_tables')}
           />
-          <Err field="max_tables" />
+          {Err('max_tables')}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Max Rooms</label>
@@ -191,7 +193,7 @@ export default function PlanForm({ plan, onSuccess }) {
             onBlur={() => blur('max_rooms')}
             className={inp('max_rooms')}
           />
-          <Err field="max_rooms" />
+          {Err('max_rooms')}
         </div>
       </div>
 

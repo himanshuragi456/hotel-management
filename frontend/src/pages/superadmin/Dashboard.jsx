@@ -7,7 +7,7 @@ export default function SuperadminDashboard() {
   const navigate = useNavigate()
 
   const handleLogout = async () => {
-    try { await logout() } catch (_) {}
+    try { await logout() } catch { /* ignore */ }
     clearAuth()
     navigate('/login', { replace: true })
   }

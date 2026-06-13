@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
@@ -525,7 +525,6 @@ export default function CustomerMenuPage() {
   const [showCart, setShowCart]         = useState(false)
   const [activeCat, setActiveCat]       = useState(null)
   const [activeSub, setActiveSub]       = useState(null)
-  const [expandedCats, setExpandedCats] = useState({})
   const [menuSearch, setMenuSearch]     = useState('')
   const [debouncedSearch, setDebounced] = useState('')
   const [customizeItem, setCustomizeItem] = useState(null)
@@ -569,6 +568,7 @@ export default function CustomerMenuPage() {
     return () => { channel.unbind_all(); pusher.unsubscribe(`tenant.${tenantId}.table.${tableId}`); pusher.disconnect() }
   }, [data?.tenant_id, data?.table?.id, sessionOrders, refetchMenu])
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!data) return
     const tableFreed = data.table?.status === 'free'
@@ -580,12 +580,14 @@ export default function CustomerMenuPage() {
     } else if (data.active_order_numbers) {
       setSessionOrders(data.active_order_numbers)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
   useEffect(() => {
     if (!data) return
     setBillPaidAwaiting(!!data.table?.bill_paid_at)
   }, [data])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!billPaidAwaiting) return
@@ -664,7 +666,6 @@ export default function CustomerMenuPage() {
 
   const orderingEnabled    = data?.tenant?.qr_ordering_enabled !== false
   const billRequestEnabled = data?.tenant?.customer_bill_request_enabled !== false
-  const cartCount          = cart.reduce((s, x) => s + x.quantity, 0)
 
   // Get cart line for an item (first matching item_id for simple items)
   const getCartLine = (item) => {

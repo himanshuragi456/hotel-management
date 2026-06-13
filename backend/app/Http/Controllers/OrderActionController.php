@@ -100,6 +100,23 @@ class OrderActionController extends Controller
         return $this->success($order->fresh(), 'Order cancelled');
     }
 
+    /** Permanently delete a rejected (cancelled) order that has no invoice. */
+    public function dismiss(Order $order): JsonResponse
+    {
+        if ($order->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
+        if ($order->status !== 'cancelled') return $this->error('Only rejected orders can be dismissed.', 422);
+        if ($order->invoice) return $this->error('Cannot remove an invoiced order.', 422);
+
+        AuditLog::record('order.dismissed', $order, [], [
+            'order_number' => $order->order_number,
+        ]);
+
+        $order->items()->delete();
+        $order->delete();
+
+        return $this->success(null, 'Order removed');
+    }
+
     /**
      * Mark an item / variant / category out of stock straight from the order screen.
      * type=item|variant|category, id=target id.

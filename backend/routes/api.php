@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Billing\InvoiceController;
 use App\Http\Controllers\Chef\KitchenController;
 use App\Http\Controllers\Customer\MenuController as CustomerMenuController;
+use App\Http\Controllers\Customer\RoomMenuController;
 use App\Http\Controllers\Owner\MenuController as OwnerMenuController;
 use App\Http\Controllers\Owner\RevenueController;
 use App\Http\Controllers\Owner\SettingsController;
@@ -170,6 +171,7 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::get('hotel/rooms/{room}', [RoomController::class, 'show']);
                 Route::put('hotel/rooms/{room}', [RoomController::class, 'update']);
                 Route::delete('hotel/rooms/{room}', [RoomController::class, 'destroy']);
+                Route::get('hotel/rooms/{room}/qr', [RoomController::class, 'qrCode']);
                 Route::get('hotel/guests', [GuestController::class, 'index']);
                 Route::post('hotel/guests', [GuestController::class, 'store']);
                 Route::get('hotel/guests/search', [GuestController::class, 'search']);
@@ -179,6 +181,7 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::post('hotel/bookings', [BookingController::class, 'store']);
                 Route::get('hotel/bookings/calendar', [BookingController::class, 'calendar']);
                 Route::get('hotel/bookings/occupancy', [BookingController::class, 'occupancyReport']);
+                Route::get('hotel/bookings/recent-checkouts', [BookingController::class, 'recentCheckouts']);
                 Route::get('hotel/bookings/{booking}', [BookingController::class, 'show']);
                 Route::put('hotel/bookings/{booking}', [BookingController::class, 'update']);
                 Route::post('hotel/bookings/{booking}/check-in', [BookingController::class, 'checkIn']);
@@ -186,6 +189,7 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::post('hotel/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
                 Route::get('hotel/bookings/{booking}/checkout-summary', [BookingController::class, 'checkoutSummary']);
                 Route::patch('hotel/bookings/{booking}/extend', [BookingController::class, 'extendStay']);
+                Route::get('hotel/bookings/{booking}/bill', [BookingController::class, 'printBill']);
             });
             // Feedback module
             Route::middleware(['module:feedback'])->group(function () {
@@ -245,6 +249,7 @@ Route::middleware(['auth:api'])->group(function () {
             Route::get('order-actions/rejection-reasons', [\App\Http\Controllers\OrderActionController::class, 'rejectionReasons']);
             Route::post('order-actions/{order}/reject', [\App\Http\Controllers\OrderActionController::class, 'reject']);
             Route::post('order-actions/{order}/cancel', [\App\Http\Controllers\OrderActionController::class, 'cancel']);
+            Route::delete('order-actions/{order}/dismiss', [\App\Http\Controllers\OrderActionController::class, 'dismiss']);
             Route::post('order-actions/mark-oos', [\App\Http\Controllers\OrderActionController::class, 'markOos']);
         });
 
@@ -298,6 +303,7 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::get('hotel/active-rooms', [RoomServiceController::class, 'activeRooms']);
                 Route::get('hotel/bookings', [BookingController::class, 'index']);
                 Route::post('hotel/bookings', [BookingController::class, 'store']);
+                Route::get('hotel/bookings/recent-checkouts', [BookingController::class, 'recentCheckouts']);
                 Route::get('hotel/bookings/{booking}', [BookingController::class, 'show']);
                 Route::put('hotel/bookings/{booking}', [BookingController::class, 'update']);
                 Route::post('hotel/bookings/{booking}/check-in', [BookingController::class, 'checkIn']);
@@ -305,6 +311,7 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::post('hotel/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
                 Route::get('hotel/bookings/{booking}/checkout-summary', [BookingController::class, 'checkoutSummary']);
                 Route::patch('hotel/bookings/{booking}/extend', [BookingController::class, 'extendStay']);
+                Route::get('hotel/bookings/{booking}/bill', [BookingController::class, 'printBill']);
                 Route::get('hotel/guests/search', [GuestController::class, 'search']);
                 Route::post('hotel/guests', [GuestController::class, 'store']);
             });
@@ -364,6 +371,9 @@ Route::prefix('public')->group(function () {
     Route::post('menu/{tenantSlug}/{qrToken}/call-waiter', [CustomerMenuController::class, 'callWaiter']);
     Route::post('menu/{tenantSlug}/{qrToken}/notify-bill-paid', [CustomerMenuController::class, 'notifyBillPaid']);
     Route::get('orders/{orderNumber}/status', [CustomerMenuController::class, 'orderStatus']);
+    // Room service QR menu (no auth)
+    Route::get('room/{tenantSlug}/{qrToken}', [RoomMenuController::class, 'menu']);
+    Route::post('room/{tenantSlug}/{qrToken}/order', [RoomMenuController::class, 'placeOrder']);
     // Feedback submission (public — no auth)
     // Google OAuth callback (redirects to frontend after token exchange)
     Route::get('auth/google/gmb/callback', [GmbController::class, 'connectCallback']);

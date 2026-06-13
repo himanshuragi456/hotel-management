@@ -70,7 +70,7 @@ class InvoiceController extends Controller
 
         $orders = Order::where('tenant_id', auth()->user()->tenant_id)
             ->where('restaurant_table_id', $tableId)
-            ->where('status', '!=', 'cancelled')
+            ->where(fn($q) => $q->where('status', '!=', 'cancelled')->orWhereNotNull('rejection_code'))
             ->when($table->occupied_since, fn($q) => $q->where('created_at', '>=', $table->occupied_since))
             ->with(['items', 'table', 'invoice'])
             ->oldest()
@@ -469,7 +469,8 @@ class InvoiceController extends Controller
         $tid = auth()->user()->tenant_id;
 
         $orders = Order::where('tenant_id', $tid)
-            ->whereNotIn('status', ['served', 'cancelled'])
+            ->where('status', '!=', 'served')
+            ->where(fn($q) => $q->where('status', '!=', 'cancelled')->orWhereNotNull('rejection_code'))
             ->where('payment_status', '!=', 'pending_payment')
             ->whereDoesntHave('invoice')
             ->with(['items.menuItem.category:id,name', 'table', 'booking.room', 'booking.guest'])

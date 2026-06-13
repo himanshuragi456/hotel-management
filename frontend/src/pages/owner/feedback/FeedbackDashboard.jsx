@@ -38,10 +38,8 @@ function RatingBar({ star, count, total }) {
 }
 
 export default function FeedbackDashboard() {
-  const today         = new Date().toISOString().split('T')[0]
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-  const [from, setFrom]   = useState(thirtyDaysAgo)
-  const [to, setTo]       = useState(today)
+  const [from, setFrom]   = useState(() => new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0])
+  const [to, setTo]       = useState(() => new Date().toISOString().split('T')[0])
   const [rating, setRating] = useState('')
   const [view, setView]   = useState('')
 

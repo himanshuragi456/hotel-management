@@ -11,7 +11,7 @@ class Tenant extends Model
 {
     protected $fillable = [
         'name', 'slug', 'email', 'phone', 'address', 'city', 'state',
-        'country', 'gstin', 'gst_rate', 'gst_inclusive', 'logo', 'currency', 'timezone',
+        'country', 'gstin', 'gst_rate', 'gst_inclusive', 'hotel_gst_rate', 'hotel_gst_inclusive', 'logo', 'currency', 'timezone',
         'status', 'is_open', 'zomato_online', 'swiggy_online', 'offline_reason', 'offline_until',
         'qr_ordering_enabled', 'customer_bill_request_enabled',
         'kot_enabled', 'kot_auto_print', 'kot_printer', 'bill_auto_print', 'feedback_on_bill', 'upi_id',
@@ -28,6 +28,7 @@ class Tenant extends Model
         'review_suggestions'     => 'array',
         'contact_phones'         => 'array',
         'gst_inclusive'                     => 'boolean',
+        'hotel_gst_inclusive'               => 'boolean',
         'is_open'                           => 'boolean',
         'zomato_online'                     => 'boolean',
         'swiggy_online'                     => 'boolean',

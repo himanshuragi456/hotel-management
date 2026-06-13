@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  PlusIcon, XMarkIcon, UserGroupIcon, PencilSquareIcon, TrashIcon,
+  PlusIcon, XMarkIcon, UserGroupIcon,
 } from '@heroicons/react/24/outline'
 import { getStaff, createStaff, updateStaff, deleteStaff, toggleStaffActive } from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
@@ -30,8 +30,6 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
   const isEdit = !!initial
   const [form, setForm] = useState(initial ?? { name: '', email: '', phone: '', role: defaultRole, password: '' })
   const [errors, setErrors] = useState({})
-
-  const rules = buildRules(isEdit, !!form.password)
 
   const set = (k, v) => {
     const next = { ...form, [k]: v }
@@ -81,7 +79,7 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
   const inp = (field) =>
     `w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-colors ${errors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-300'}`
 
-  const Err = ({ field }) => errors[field]
+  const Err = (field) => errors[field]
     ? <p className="text-xs text-red-500 mt-0.5">{errors[field]}</p>
     : null
 
@@ -106,7 +104,7 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
               placeholder="Full name"
               className={inp('name')}
             />
-            <Err field="name" />
+            {Err('name')}
           </div>
 
           <div>
@@ -119,7 +117,7 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
               placeholder="email@example.com"
               className={inp('email')}
             />
-            <Err field="email" />
+            {Err('email')}
           </div>
 
           <div>
@@ -132,7 +130,7 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
               placeholder="+91 98765 43210"
               className={inp('phone')}
             />
-            <Err field="phone" />
+            {Err('phone')}
           </div>
 
           <div>
@@ -160,7 +158,7 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
               placeholder={isEdit ? '••••••••' : 'Min 8 chars, A-Z, 0-9, @$!%*#?&'}
               className={inp('password')}
             />
-            <Err field="password" />
+            {Err('password')}
           </div>
 
           <button

@@ -11,8 +11,8 @@ class Booking extends Model
         'tenant_id', 'guest_id', 'room_id', 'created_by',
         'booking_number', 'check_in_date', 'check_out_date',
         'actual_check_in', 'actual_check_out',
-        'adults', 'children', 'price_per_night', 'advance_paid',
-        'advance_payment_method', 'status', 'payment_status', 'notes',
+        'adults', 'children', 'price_per_night', 'gst_rate', 'gst_inclusive', 'decided_amount',
+        'advance_paid', 'advance_payment_method', 'status', 'payment_status', 'notes',
     ];
 
     protected function casts(): array
@@ -53,9 +53,43 @@ class Booking extends Model
         return (float) $this->orders()->whereNotIn('status', ['cancelled'])->whereDoesntHave('invoice')->sum('total');
     }
 
+    public function getRoomGstAmountAttribute(): float
+    {
+        $rate = (float) ($this->gst_rate ?? 0);
+        if ($rate <= 0) return 0.0;
+        $base = $this->room_charges;
+        if ($this->gst_inclusive) {
+            // GST is extracted from the price: GST = base * rate / (100 + rate)
+            return round($base * $rate / (100 + $rate), 2);
+        }
+        return round($base * $rate / 100, 2);
+    }
+
+    public function getComputedRoomTotalAttribute(): float
+    {
+        $gst = $this->gst_inclusive ? 0.0 : $this->room_gst_amount;
+        return $this->room_charges + $gst;
+    }
+
+    public function getDecidedGstAmountAttribute(): float
+    {
+        if ($this->decided_amount === null) return 0.0;
+        $rate = (float) ($this->gst_rate ?? 0);
+        if ($rate <= 0) return 0.0;
+        $base = (float) $this->decided_amount;
+        return $this->gst_inclusive
+            ? round($base * $rate / (100 + $rate), 2)
+            : round($base * $rate / 100, 2);
+    }
+
     public function getTotalAmountAttribute(): float
     {
-        return $this->room_charges + $this->service_charges;
+        if ($this->decided_amount !== null) {
+            $base = (float) $this->decided_amount;
+            $gst  = $this->gst_inclusive ? 0.0 : $this->decided_gst_amount;
+            return $base + $gst + $this->service_charges;
+        }
+        return $this->computed_room_total + $this->service_charges;
     }
 
     public function getBalanceDueAttribute(): float

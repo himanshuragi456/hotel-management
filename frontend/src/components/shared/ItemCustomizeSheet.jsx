@@ -24,12 +24,15 @@ export default function ItemCustomizeSheet({ item, gstInclusive = false, onAdd, 
   const [qty,   setQty]   = useState(initialQty)
   const [error, setError] = useState('')
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setSelectedVariant(hasVariants ? item.variants[0] : null)
     setSelectedAddons({})
     setQty(initialQty)
     setError('')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.id])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const basePrice   = selectedVariant ? selectedVariant.price : item.price
   const addonsTotal = Object.values(selectedAddons).flatMap(s => [...s])

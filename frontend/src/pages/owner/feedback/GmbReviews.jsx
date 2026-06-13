@@ -184,7 +184,6 @@ export default function GmbReviews() {
   })
 
   const reviews = reviewsData?.data ?? []
-  const total   = reviewsData?.total ?? 0
 
   if (!status?.connected || !status?.location_name) {
     return (

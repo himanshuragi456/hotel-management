@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useDebounce } from '@/hooks/useDebounce'
+import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import {
   PlusIcon, MagnifyingGlassIcon, PencilSquareIcon, UsersIcon,
 } from '@heroicons/react/24/outline'
@@ -30,6 +32,7 @@ function GuestForm({ guest, onSuccess }) {
   })
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
+  const formRef = useScrollToFirstError(fieldErrors)
 
   const set = (k, v) => {
     const next = { ...form, [k]: v }
@@ -66,12 +69,12 @@ function GuestForm({ guest, onSuccess }) {
   const inp = (field) =>
     `w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-300'}`
 
-  const Err = ({ field }) => fieldErrors[field]
+  const Err = (field) => fieldErrors[field]
     ? <p className="text-xs text-red-500 mt-0.5">{fieldErrors[field]}</p>
     : null
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
       {error && <div className="text-red-600 text-sm bg-red-50 p-2 rounded">{error}</div>}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
@@ -83,7 +86,7 @@ function GuestForm({ guest, onSuccess }) {
             className={inp('name')}
             placeholder="e.g. Rahul Sharma"
           />
-          <Err field="name" />
+          {Err('name')}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
@@ -94,7 +97,7 @@ function GuestForm({ guest, onSuccess }) {
             className={inp('phone')}
             placeholder="+91 98765 43210"
           />
-          <Err field="phone" />
+          {Err('phone')}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
@@ -106,7 +109,7 @@ function GuestForm({ guest, onSuccess }) {
             className={inp('email')}
             placeholder="guest@example.com"
           />
-          <Err field="email" />
+          {Err('email')}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">ID Type</label>
@@ -135,7 +138,7 @@ function GuestForm({ guest, onSuccess }) {
             placeholder={form.id_proof_type ? 'Enter ID number' : '—'}
             disabled={!form.id_proof_type}
           />
-          <Err field="id_proof_number" />
+          {Err('id_proof_number')}
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">Company / Sponsor</label>
@@ -214,13 +217,14 @@ function GuestDetail({ guestId, onNewBooking }) {
 export default function Guests() {
   const qc = useQueryClient()
   const [q, setQ] = useState('')
+  const debouncedQ = useDebounce(q, 350)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [viewGuest, setViewGuest] = useState(null)
 
   const { data: guestsPage, isLoading } = useQuery({
-    queryKey: ['guests', q],
-    queryFn: () => getGuests({ q }).then(r => r.data.data),
+    queryKey: ['guests', debouncedQ],
+    queryFn: () => getGuests({ q: debouncedQ }).then(r => r.data.data),
   })
 
   const guests = guestsPage?.data ?? guestsPage ?? []

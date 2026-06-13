@@ -21,12 +21,6 @@ import {
 const STATUS_FLOW = { pending: 'preparing', preparing: 'ready' }
 const STATUS_LABEL = { pending: 'Start Preparing', preparing: 'Mark Ready' }
 
-const urgencyStyle = (mins, status) => {
-  if (status === 'ready') return 'border-green-500 bg-green-950'
-  if (mins > 30) return 'border-red-500 bg-red-950'
-  if (mins > 15) return 'border-yellow-500 bg-yellow-950'
-  return 'border-blue-500 bg-gray-900'
-}
 
 const urgencyCardClass = (mins, status) => {
   if (status === 'ready')  return 'border-green-500 bg-white/5 backdrop-blur-sm border border-white/10'
@@ -356,7 +350,7 @@ export default function ChefDashboard() {
   }, [tenantId, soundEnabled, qc])
 
   const handleLogout = async () => {
-    try { await logoutApi() } catch (_) {}
+    try { await logoutApi() } catch { /* ignore */ }
     clearAuth()
     navigate('/login', { replace: true })
   }

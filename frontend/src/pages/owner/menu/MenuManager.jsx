@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import {
   PlusIcon, MagnifyingGlassIcon, TrashIcon, PencilSquareIcon,
   TagIcon, PhotoIcon, BoltIcon, ClockIcon,
@@ -209,8 +210,10 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
   const [videoFile, setVideoFile] = useState(null)
   const [videoPreview, setVideoPreview] = useState(item?.video_url ?? null)
   const [removeVideo, setRemoveVideo] = useState(false)
+  const [videoError, setVideoError] = useState('')
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
+  const formRef = useScrollToFirstError(fieldErrors)
 
   const ITEM_RULES = {
     menu_category_id: [required('Category')],
@@ -270,7 +273,7 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
     `w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50 transition-colors ${fieldErrors[field] ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
@@ -413,10 +416,11 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
             <input type="file" accept="video/mp4,video/webm" onChange={e => {
               const file = e.target.files[0]
               if (!file) return
-              if (file.size > 20 * 1024 * 1024) { setError('Video must be 20MB or smaller'); e.target.value = ''; return }
-              setError(''); setVideoFile(file); setVideoPreview(URL.createObjectURL(file)); setRemoveVideo(false)
+              if (file.size > 20 * 1024 * 1024) { setVideoError('Video must be 20 MB or smaller'); e.target.value = ''; return }
+              setVideoError(''); setVideoFile(file); setVideoPreview(URL.createObjectURL(file)); setRemoveVideo(false)
             }} className="hidden" />
           </label>
+          {videoError && <p className="text-xs text-red-500 mt-1">{videoError}</p>}
         </div>
 
         {/* Advanced / Zomato fields — collapsed by default */}
@@ -503,7 +507,7 @@ export default function MenuManager() {
   const [search, setSearch] = useState('')
   const [deleteItemTarget, setDeleteItemTarget] = useState(null)
 
-  const { data: cats, isLoading: catsLoading }  = useQuery({ queryKey: ['categories'], queryFn: () => getCategories().then(r => r.data.data) })
+  const { data: cats }  = useQuery({ queryKey: ['categories'], queryFn: () => getCategories().then(r => r.data.data) })
   const { data: items, isLoading: itemsLoading } = useQuery({ queryKey: ['menu-items'], queryFn: () => getMenuItems().then(r => r.data.data) })
 
   const delItem = useMutation({
@@ -535,7 +539,6 @@ export default function MenuManager() {
 
   // Build nested structure for tabs
   const topLevelCats = cats?.filter(c => !c.parent_id) ?? []
-  const activeCatObj = cats?.find(c => String(c.id) === String(activeCat))
   const subcatsOfActive = cats?.filter(c => String(c.parent_id) === String(activeCat)) ?? []
 
   const filteredItems = items?.filter(item => {

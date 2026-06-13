@@ -83,5 +83,5 @@ ${order.notes ? `<div class="notes"><strong>Note:</strong> ${order.notes}</div>`
   win.focus()
   win.onload = () => { win.print(); win.close() }
   // Fallback if onload doesn't fire
-  setTimeout(() => { try { win.print(); win.close() } catch (_) {} }, 600)
+  setTimeout(() => { try { win.print(); win.close() } catch { /* ignore */ } }, 600)
 }

@@ -3,13 +3,21 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Room extends Model
 {
     protected $fillable = [
         'tenant_id', 'number', 'type', 'floor', 'capacity',
-        'price_per_night', 'amenities', 'status', 'occupied_since', 'description',
+        'price_per_night', 'amenities', 'status', 'occupied_since', 'description', 'qr_token',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $room) {
+            $room->qr_token ??= (string) Str::uuid();
+        });
+    }
 
     protected function casts(): array
     {
