@@ -153,7 +153,7 @@ function NewBookingForm({ onSuccess, svc }) {
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <input required value={newGuest.name} onChange={e => setNewGuest(g => ({ ...g, name: e.target.value }))} placeholder="Full name *" className={inp} />
-              <input type="tel" required value={newGuest.phone} onChange={e => setNewGuest(g => ({ ...g, phone: e.target.value }))} placeholder="Phone *" className={inp} />
+              <input type="tel" inputMode="numeric" maxLength={10} required value={newGuest.phone} onChange={e => setNewGuest(g => ({ ...g, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile *" className={inp} />
             </div>
             <input type="email" value={newGuest.email} onChange={e => setNewGuest(g => ({ ...g, email: e.target.value }))} placeholder="Email (optional)" className={inp} />
             <button onClick={() => setIsNewGuest(false)} className="text-xs text-gray-400 hover:text-gray-600">← Search existing guest</button>
@@ -679,11 +679,14 @@ function EditBookingForm({ booking, onSuccess, svc }) {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
             <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
               value={form.guest_phone}
-              onChange={e => set('guest_phone', e.target.value)}
+              onChange={e => set('guest_phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
               onBlur={() => touch('guest_phone')}
               className={inpCls('guest_phone')}
-              placeholder="Phone number"
+              placeholder="10-digit mobile number"
             />
             {Err('guest_phone')}
           </div>

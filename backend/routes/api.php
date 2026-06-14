@@ -127,6 +127,7 @@ Route::middleware(['auth:api'])->group(function () {
             Route::middleware(['module:restaurant'])->group(function () {
                 Route::get('menu/categories', [OwnerMenuController::class, 'categories']);
                 Route::post('menu/categories', [OwnerMenuController::class, 'storeCategory']);
+                Route::post('menu/categories/reorder', [OwnerMenuController::class, 'reorderCategories']);
                 Route::put('menu/categories/{menuCategory}', [OwnerMenuController::class, 'updateCategory']);
                 Route::delete('menu/categories/{menuCategory}', [OwnerMenuController::class, 'destroyCategory']);
                 Route::get('menu/items', [OwnerMenuController::class, 'items']);

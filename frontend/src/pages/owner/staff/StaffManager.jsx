@@ -124,10 +124,12 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
             <label className="block text-xs font-medium text-gray-600 mb-1">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
             <input
               type="tel"
+              inputMode="numeric"
+              maxLength={10}
               value={form.phone}
-              onChange={e => set('phone', e.target.value)}
+              onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
               onBlur={() => blur('phone')}
-              placeholder="+91 98765 43210"
+              placeholder="10-digit mobile number"
               className={inp('phone')}
             />
             {Err('phone')}

@@ -361,26 +361,16 @@ export default function ChefDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      {/* Hidden audio ping */}
-      <audio ref={audioRef} preload="auto">
-        <source src="/sounds/ding.wav" type="audio/wav" />
-      </audio>
-
       {/* Header */}
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-4">
-          {/* Brand mark */}
           <div className="flex items-center gap-2">
             <FireIcon className="w-6 h-6 text-orange-400" />
             <span className="text-white font-bold text-base tracking-tight">Kitchen</span>
           </div>
-
-          {/* Operator name */}
           {user?.name && (
             <span className="text-slate-500 text-sm hidden sm:block">{user.name}</span>
           )}
-
-          {/* Live indicator */}
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             <span className="text-xs text-slate-400">Live</span>
@@ -388,6 +378,11 @@ export default function ChefDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Hidden audio ping */}
+          <audio ref={audioRef} preload="auto">
+            <source src="/sounds/new kitchen order.MP3" type="audio/mpeg" />
+          </audio>
+
           {/* Sound toggle */}
           <button
             onClick={() => setSoundEnabled(s => !s)}

@@ -14,7 +14,7 @@ class LandingController extends Controller
         $v = Validator::make($request->all(), [
             'name'    => 'required|string|max:100',
             'email'   => 'nullable|email|max:150',
-            'phone'   => 'nullable|string|max:20',
+            'phone'   => 'nullable|regex:/^[6-9]\d{9}$/',
             'outlets' => 'nullable|string|max:50',
             'type'    => 'nullable|string|max:50',
             'message' => 'nullable|string|max:2000',

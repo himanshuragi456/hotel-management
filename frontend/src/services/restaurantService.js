@@ -5,6 +5,7 @@ export const getCategories = () => api.get('/owner/menu/categories')
 export const createCategory = (data) => api.post('/owner/menu/categories', data)
 export const updateCategory = (id, data) => api.put(`/owner/menu/categories/${id}`, data)
 export const deleteCategory = (id) => api.delete(`/owner/menu/categories/${id}`)
+export const reorderCategories = (ids) => api.post('/owner/menu/categories/reorder', { ids })
 
 export const getMenuItems = (params) => api.get('/owner/menu/items', { params })
 export const createMenuItem = (data) => api.post('/owner/menu/items', data, { headers: { 'Content-Type': 'multipart/form-data' } })

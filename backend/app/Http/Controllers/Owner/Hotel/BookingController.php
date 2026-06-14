@@ -134,7 +134,7 @@ class BookingController extends Controller
             'advance_payment_method' => 'nullable|string',
             'decided_amount'         => 'nullable|numeric|min:0',
             'guest_name'             => 'sometimes|string|max:255',
-            'guest_phone'            => 'sometimes|string|max:20',
+            'guest_phone'            => 'sometimes|regex:/^[6-9]\d{9}$/',
         ]);
 
         // Update guest name/phone if provided

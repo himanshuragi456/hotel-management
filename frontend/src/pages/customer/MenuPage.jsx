@@ -70,6 +70,86 @@ function CartBar({ cart, onOpen, onViewOrders, sessionOrders, onRequestBill, bil
   )
 }
 
+// ── Customer Details Sheet ────────────────────────────────────────────────────
+function CustomerDetailsSheet({ onConfirm, onClose, placing }) {
+  const [form, setForm]     = useState({ name: '', phone: '', email: '' })
+  const [errors, setErrors] = useState({})
+
+  const validate = () => {
+    const errs = {}
+    if (!form.name.trim())  errs.name  = 'Full name is required'
+    if (!form.phone.trim()) errs.phone = 'Phone number is required'
+    else if (!/^[6-9]\d{9}$/.test(form.phone)) errs.phone = 'Enter a valid 10-digit Indian mobile number'
+    if (!form.email.trim()) errs.email = 'Email address is required'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = 'Enter a valid email address'
+    return errs
+  }
+
+  const handleSubmit = () => {
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    onConfirm({ name: form.name.trim(), phone: form.phone, email: form.email.trim() })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center">
+      <div className="flex-1 w-full bg-black/40" onClick={onClose}/>
+      <div className="w-full max-w-md bg-white rounded-t-3xl px-5 pt-6 pb-10 shadow-2xl">
+        <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5"/>
+        <h2 className="text-xl font-bold text-gray-900 mb-1">Your Details</h2>
+        <p className="text-sm text-gray-400 mb-6">Required before we can confirm your order</p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name <span className="text-red-500">*</span></label>
+            <input
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Your full name"
+              className="w-full border border-gray-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50"
+            />
+            {errors.name && <p className="text-xs text-red-500 mt-1.5">{errors.name}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number <span className="text-red-500">*</span></label>
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              value={form.phone}
+              onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+              placeholder="10-digit mobile number"
+              className="w-full border border-gray-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50"
+            />
+            {errors.phone && <p className="text-xs text-red-500 mt-1.5">{errors.phone}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address <span className="text-red-500">*</span></label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="your@email.com"
+              className="w-full border border-gray-200 rounded-2xl px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50"
+            />
+            {errors.email && <p className="text-xs text-red-500 mt-1.5">{errors.email}</p>}
+          </div>
+        </div>
+
+        <button
+          onClick={handleSubmit}
+          disabled={placing}
+          className="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold text-lg mt-6 disabled:opacity-50">
+          {placing ? 'Placing Order…' : 'Confirm & Place Order'}
+        </button>
+        <p className="text-xs text-gray-400 text-center mt-3">Details help us identify and assist you at the table</p>
+      </div>
+    </div>
+  )
+}
+
 // ── Cart Sheet ────────────────────────────────────────────────────────────────
 function CartSheet({ cart, onClose, onUpdateQty, onPlaceOrder, placing, gstInclusive, gstRate }) {
   const subtotal = cart.reduce((s, x) => s + x.price * x.quantity, 0)
@@ -304,19 +384,19 @@ function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnab
 
   useEffect(() => {
     if (!tenantId || !tableId) return
-    const pusherConfig = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
+    const cfg = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
     if (import.meta.env.VITE_PUSHER_HOST) {
-      pusherConfig.wsHost = import.meta.env.VITE_PUSHER_HOST
-      pusherConfig.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      pusherConfig.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      pusherConfig.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-      pusherConfig.disableStats = true
-      pusherConfig.enabledTransports = ['ws']
+      cfg.wsHost = import.meta.env.VITE_PUSHER_HOST
+      cfg.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      cfg.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      cfg.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
+      cfg.disableStats = true
+      cfg.enabledTransports = ['ws']
     }
-    const pusher  = new Pusher(import.meta.env.VITE_PUSHER_KEY, pusherConfig)
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
     const channel = pusher.subscribe(`tenant.${tenantId}.table.${tableId}`)
     channel.bind('order.updated', () => refetch())
-    return () => { channel.unbind_all(); pusher.unsubscribe(`tenant.${tenantId}.table.${tableId}`); pusher.disconnect() }
+    return () => { channel.unbind_all(); pusher.unsubscribe(`tenant.${tenantId}.table.${tableId}`) }
   }, [tenantId, tableId, refetch])
 
   const batches     = data?.batches ?? []
@@ -537,6 +617,9 @@ export default function CustomerMenuPage() {
   const [showPayBillSheet, setShowPayBillSheet] = useState(false)
   const [billPaidAwaiting, setBillPaidAwaiting] = useState(false)
   const [notifyError, setNotifyError]     = useState('')
+  const [customerInfo, setCustomerInfo]   = useState(null) // { name, phone, email } — set once per session
+  const [showCustomerForm, setShowCustomerForm] = useState(false)
+  const [dietFilter, setDietFilter]       = useState(null) // null | 'veg' | 'non-veg'
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(menuSearch), 250)
@@ -550,7 +633,7 @@ export default function CustomerMenuPage() {
     staleTime: 0,
   })
 
-  // Pusher table channel
+  // Realtime table channel
   useEffect(() => {
     const tenantId = data?.tenant_id
     const tableId  = data?.table?.id
@@ -558,14 +641,16 @@ export default function CustomerMenuPage() {
     const cfg = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
     if (import.meta.env.VITE_PUSHER_HOST) {
       cfg.wsHost = import.meta.env.VITE_PUSHER_HOST
-      cfg.wsPort = cfg.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      cfg.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      cfg.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
       cfg.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-      cfg.disableStats = true; cfg.enabledTransports = ['ws']
+      cfg.disableStats = true
+      cfg.enabledTransports = ['ws']
     }
-    const pusher  = new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
     const channel = pusher.subscribe(`tenant.${tenantId}.table.${tableId}`)
     channel.bind('order.updated', () => refetchMenu())
-    return () => { channel.unbind_all(); pusher.unsubscribe(`tenant.${tenantId}.table.${tableId}`); pusher.disconnect() }
+    return () => { channel.unbind_all(); pusher.unsubscribe(`tenant.${tenantId}.table.${tableId}`) }
   }, [data?.tenant_id, data?.table?.id, sessionOrders, refetchMenu])
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -600,16 +685,46 @@ export default function CustomerMenuPage() {
   }, [billPaidAwaiting])
 
   const placeOrder = useMutation({
-    mutationFn: ({ slug, token, items }) => customerPlaceOrder(slug, token, { items }),
+    mutationFn: ({ slug, token, items, customer_name, customer_phone, customer_email }) =>
+      customerPlaceOrder(slug, token, { items, customer_name, customer_phone, customer_email }),
     onSuccess: (res) => {
       const d = res.data.data
       const newNumbers = d?.order_numbers ?? d?.order_number
       setSessionOrders(prev => prev ? `${prev},${newNumbers}` : newNumbers)
       setCart([])
       setShowCart(false)
+      setShowCustomerForm(false)
       setView('orders')
     },
   })
+
+  const buildCartPayload = () =>
+    cart.map(({ menu_item_id, variant_id, addon_ids, quantity }) => ({
+      menu_item_id,
+      variant_id: variant_id  ?? undefined,
+      addon_ids:  addon_ids?.length ? addon_ids : undefined,
+      quantity,
+    }))
+
+  const doPlaceOrder = (info) => {
+    placeOrder.mutate({
+      slug,
+      token,
+      items:          buildCartPayload(),
+      customer_name:  info.name,
+      customer_phone: info.phone,
+      customer_email: info.email,
+    })
+  }
+
+  const handlePlaceOrder = () => {
+    if (customerInfo) {
+      doPlaceOrder(customerInfo)
+    } else {
+      setShowCart(false)
+      setShowCustomerForm(true)
+    }
+  }
 
   const requestBill   = useMutation({ mutationFn: () => customerRequestBill(slug, token), onSuccess: () => setBillRequested(true) })
   const notifyBillPaid = useMutation({
@@ -655,14 +770,20 @@ export default function CustomerMenuPage() {
     ...(c.subcategories ?? []).flatMap(s => s.items ?? []),
   ])
 
+  const filterDiet = (items) => {
+    if (!dietFilter) return items
+    if (dietFilter === 'veg') return items.filter(i => i.type === 'veg' || i.type === 'vegan')
+    return items.filter(i => i.type === dietFilter)
+  }
+
   const searchedItems = debouncedSearch.trim()
-    ? allItems.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
+    ? filterDiet(allItems.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase())))
     : null
 
   // Active category/subcategory items
   const activeCatData = categories.find(c => c.id === (activeCat ?? categories[0]?.id))
   const activeSubData = activeSub ? activeCatData?.subcategories?.find(s => s.id === activeSub) : null
-  const displayedItems = searchedItems ?? (activeSubData ? activeSubData.items : activeCatData?.items ?? [])
+  const displayedItems = searchedItems ?? filterDiet(activeSubData ? activeSubData.items : activeCatData?.items ?? [])
 
   const orderingEnabled    = data?.tenant?.qr_ordering_enabled !== false
   const billRequestEnabled = data?.tenant?.customer_bill_request_enabled !== false
@@ -741,6 +862,9 @@ export default function CustomerMenuPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900 leading-tight">{tenant?.name}</h1>
             <p className="text-sm text-gray-400 mt-0.5">Table {table?.number}{table?.section ? ` · ${table.section}` : ''}</p>
+            {customerInfo && (
+              <p className="text-xs text-orange-500 font-medium mt-0.5">👤 {customerInfo.name}</p>
+            )}
           </div>
           {sessionOrders && (
             <button onClick={() => setView(v => v === 'orders' ? 'menu' : 'orders')}
@@ -761,6 +885,27 @@ export default function CustomerMenuPage() {
                 placeholder="Search menu…"
                 className="w-full pl-10 pr-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400 text-base"/>
             </div>
+            {/* Veg / Non-Veg filter pills */}
+            <div className="flex items-center gap-2 mt-2.5 mb-0.5">
+              {[
+                { label: 'All',     value: null,       dot: null },
+                { label: 'Veg',     value: 'veg',      dot: VEG_DOT },
+                { label: 'Non-Veg', value: 'non-veg',  dot: NONVEG_DOT },
+              ].map(opt => (
+                <button key={String(opt.value)} onClick={() => setDietFilter(opt.value)}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                    dietFilter === opt.value
+                      ? opt.value === 'veg'     ? 'bg-green-600 text-white border-green-600'
+                      : opt.value === 'non-veg' ? 'bg-red-600 text-white border-red-600'
+                      : 'bg-gray-800 text-white border-gray-800'
+                      : 'bg-white text-gray-600 border-gray-200'
+                  }`}>
+                  {opt.dot && <span className="scale-90">{opt.dot}</span>}
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
             {!debouncedSearch.trim() && (
               <div className="flex gap-0 pt-2 pb-0 overflow-x-auto border-b border-gray-100 scrollbar-hide -mx-5 px-5">
                 {categories.map(cat => (
@@ -837,18 +982,19 @@ export default function CustomerMenuPage() {
               <div className="px-4 py-4 space-y-3">
                 {activeSub === null ? (
                   <>
-                    {activeCatData?.items?.map(item => {
+                    {filterDiet(activeCatData?.items ?? []).map(item => {
                       const cartLine = getCartLine(item)
                       return <MenuItemCard key={item.id} item={item} cartLine={cartLine} gstInclusive={gstInclusive}
                         orderingEnabled={orderingEnabled} onTap={setCustomizeItem}
                         onDirectAdd={directAdd} onUpdateQty={updateQty}/>
                     })}
-                    {activeCatData?.subcategories?.map(sub => (
-                      sub.items?.length > 0 && (
+                    {activeCatData?.subcategories?.map(sub => {
+                      const subItems = filterDiet(sub.items ?? [])
+                      return subItems.length > 0 && (
                         <div key={sub.id}>
                           <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 mt-5 first:mt-0">{sub.name}</p>
                           <div className="space-y-3">
-                            {sub.items.map(item => {
+                            {subItems.map(item => {
                               const cartLine = getCartLine(item)
                               return <MenuItemCard key={item.id} item={item} cartLine={cartLine} gstInclusive={gstInclusive}
                                 orderingEnabled={orderingEnabled} onTap={setCustomizeItem}
@@ -857,8 +1003,8 @@ export default function CustomerMenuPage() {
                           </div>
                         </div>
                       )
-                    ))}
-                    {!activeCatData?.items?.length && !activeCatData?.subcategories?.some(s => s.items?.length) && (
+                    })}
+                    {!filterDiet(activeCatData?.items ?? []).length && !activeCatData?.subcategories?.some(s => filterDiet(s.items ?? []).length) && (
                       <p className="text-center text-base text-gray-400 py-8">No items in this category</p>
                     )}
                   </>
@@ -939,16 +1085,19 @@ export default function CustomerMenuPage() {
           placing={placeOrder.isPending}
           gstInclusive={gstInclusive}
           gstRate={gstRate}
-          onPlaceOrder={() => placeOrder.mutate({
-            slug,
-            token,
-            items: cart.map(({ menu_item_id, variant_id, addon_ids, quantity }) => ({
-              menu_item_id,
-              variant_id:  variant_id  ?? undefined,
-              addon_ids:   addon_ids?.length ? addon_ids : undefined,
-              quantity,
-            })),
-          })}
+          onPlaceOrder={handlePlaceOrder}
+        />
+      )}
+
+      {/* Customer details sheet — shown before first order */}
+      {showCustomerForm && (
+        <CustomerDetailsSheet
+          placing={placeOrder.isPending}
+          onClose={() => setShowCustomerForm(false)}
+          onConfirm={(info) => {
+            setCustomerInfo(info)
+            doPlaceOrder(info)
+          }}
         />
       )}
 

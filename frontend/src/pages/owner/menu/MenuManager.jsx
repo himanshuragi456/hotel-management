@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import {
   PlusIcon, MagnifyingGlassIcon, TrashIcon, PencilSquareIcon,
-  TagIcon, PhotoIcon, BoltIcon, ClockIcon,
+  TagIcon, PhotoIcon, BoltIcon, ClockIcon, Bars3Icon,
 } from '@heroicons/react/24/outline'
-import { getCategories, createCategory, updateCategory, deleteCategory, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, bulkToggleItems, setCategorySchedules } from '@/services/restaurantService'
+import { getCategories, createCategory, updateCategory, deleteCategory, reorderCategories, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, bulkToggleItems, setCategorySchedules } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import { validate, validateField, required, isPositive } from '@/utils/validate'
@@ -84,6 +84,9 @@ function CategoryPanel() {
   const [parentId, setParentId] = useState('')
   const [catError, setCatError] = useState('')
   const [scheduleFor, setScheduleFor] = useState(null)
+  const [dragId, setDragId] = useState(null)
+  const [dragOverId, setDragOverId] = useState(null)
+
   const { data: cats, isLoading } = useQuery({ queryKey: ['categories'], queryFn: () => getCategories().then(r => r.data.data) })
   const create = useMutation({
     mutationFn: createCategory,
@@ -98,6 +101,43 @@ function CategoryPanel() {
       qc.invalidateQueries({ queryKey: ['categories'] })
     },
   })
+  const reorder = useMutation({
+    mutationFn: reorderCategories,
+    onMutate: (ids) => {
+      // Optimistically reorder in the cache
+      qc.setQueryData(['categories'], (old) => {
+        if (!old) return old
+        const orderMap = Object.fromEntries(ids.map((id, i) => [id, i]))
+        return [...old].sort((a, b) => {
+          const aO = orderMap[a.id] ?? a.sort_order ?? 0
+          const bO = orderMap[b.id] ?? b.sort_order ?? 0
+          return aO - bO
+        })
+      })
+    },
+    onError: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+  })
+
+  const handleDrop = (targetCat) => {
+    setDragOverId(null)
+    if (!dragId || dragId === targetCat.id) { setDragId(null); return }
+    const dragged = cats?.find(c => c.id === dragId)
+    if (!dragged || dragged.parent_id !== targetCat.parent_id) { setDragId(null); return }
+
+    // Get all cats at this level in current order
+    const levelCats = (cats ?? []).filter(c => c.parent_id === dragged.parent_id)
+    const fromIdx = levelCats.findIndex(c => c.id === dragId)
+    const toIdx   = levelCats.findIndex(c => c.id === targetCat.id)
+    if (fromIdx === -1 || toIdx === -1) { setDragId(null); return }
+
+    const reordered = [...levelCats]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+
+    reorder.mutate(reordered.map(c => c.id))
+    setDragId(null)
+  }
 
   // Top-level categories (no parent) are valid parents for new sub-categories.
   const parents = cats?.filter(c => !c.parent_id) ?? []
@@ -136,6 +176,9 @@ function CategoryPanel() {
         </select>
         {catError && <p className="text-xs text-red-500">{catError}</p>}
       </form>
+      <p className="text-[11px] text-gray-400 mb-2 flex items-center gap-1">
+        <Bars3Icon className="w-3 h-3" /> Drag to reorder
+      </p>
       <div className="space-y-1">
         {isLoading && [1,2,3].map(i => (
           <div key={i} className="h-8 bg-gray-100 rounded-xl animate-pulse" />
@@ -149,28 +192,48 @@ function CategoryPanel() {
             const subs = cats?.filter(c => c.parent_id === cat.id) ?? []
             for (const sub of subs) rows.push({ cat: sub, isChild: true })
           }
-          return rows.map(({ cat, isChild }) => (
-          <div key={cat.id} className={`flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded-xl group text-sm ${isChild ? 'ml-4 border-l-2 border-gray-100 pl-3' : ''}`}>
-            <span className={`flex-1 truncate ${cat.is_oos ? 'text-red-400' : cat.is_active ? 'text-gray-800 font-medium' : 'text-gray-400 line-through'}`}>
-              {isChild && <span className="text-gray-300 mr-1">↳</span>}
-              {cat.name}
-              {cat.schedules?.length > 0 && <ClockIcon className="w-3 h-3 inline ml-1 text-amber-500" title="Has schedule" />}
-            </span>
-            {/* OOS toggle */}
-            <button title={cat.is_oos ? 'Mark in stock' : 'Mark out of stock'}
-              onClick={() => update.mutate({ id: cat.id, data: { is_oos: !cat.is_oos } })}
-              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${cat.is_oos ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400 opacity-0 group-hover:opacity-100'}`}>
-              OOS
-            </button>
-            <button title="Set schedule" onClick={() => setScheduleFor(cat)}
-              className="opacity-0 group-hover:opacity-100 transition-opacity">
-              <ClockIcon className="w-3.5 h-3.5 text-gray-400 hover:text-orange-500" />
-            </button>
-            <button onClick={() => del.mutate(cat.id)} disabled={del.isPending} className="opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30">
-              <TrashIcon className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
-            </button>
-          </div>
-          ))
+          return rows.map(({ cat, isChild }) => {
+            const isDragging = dragId === cat.id
+            const isOver    = dragOverId === cat.id && dragId !== cat.id
+            const draggedCat = cats?.find(c => c.id === dragId)
+            const canDrop   = isOver && draggedCat?.parent_id === cat.parent_id
+            return (
+              <div
+                key={cat.id}
+                draggable
+                onDragStart={() => setDragId(cat.id)}
+                onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverId(cat.id) }}
+                onDragLeave={() => setDragOverId(null)}
+                onDrop={() => handleDrop(cat)}
+                className={`flex items-center gap-2 px-2 py-2 rounded-xl group text-sm transition-colors select-none
+                  ${isChild ? 'ml-4 border-l-2 border-gray-100 pl-3' : ''}
+                  ${isDragging ? 'opacity-40' : ''}
+                  ${canDrop ? 'bg-orange-50 ring-1 ring-orange-300' : 'hover:bg-gray-50'}
+                `}
+              >
+                <Bars3Icon className="w-3.5 h-3.5 text-gray-300 cursor-grab shrink-0" />
+                <span className={`flex-1 truncate ${cat.is_oos ? 'text-red-400' : cat.is_active ? 'text-gray-800 font-medium' : 'text-gray-400 line-through'}`}>
+                  {isChild && <span className="text-gray-300 mr-1">↳</span>}
+                  {cat.name}
+                  {cat.schedules?.length > 0 && <ClockIcon className="w-3 h-3 inline ml-1 text-amber-500" title="Has schedule" />}
+                </span>
+                {/* OOS toggle */}
+                <button title={cat.is_oos ? 'Mark in stock' : 'Mark out of stock'}
+                  onClick={() => update.mutate({ id: cat.id, data: { is_oos: !cat.is_oos } })}
+                  className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${cat.is_oos ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400 opacity-0 group-hover:opacity-100'}`}>
+                  OOS
+                </button>
+                <button title="Set schedule" onClick={() => setScheduleFor(cat)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <ClockIcon className="w-3.5 h-3.5 text-gray-400 hover:text-orange-500" />
+                </button>
+                <button onClick={() => del.mutate(cat.id)} disabled={del.isPending} className="opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30">
+                  <TrashIcon className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
+                </button>
+              </div>
+            )
+          })
         })()}
         {!isLoading && !cats?.length && (
           <p className="text-xs text-gray-400 text-center py-4">No categories yet</p>

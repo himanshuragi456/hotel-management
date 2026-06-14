@@ -180,7 +180,7 @@ class MagicTablesController extends Controller
         $v = Validator::make($request->all(), [
             'table_id'             => 'required|integer|exists:restaurant_tables,id',
             'customer_name'        => 'required|string|max:100',
-            'customer_phone'       => 'required|string|max:20',
+            'customer_phone'       => 'required|regex:/^[6-9]\d{9}$/',
             'items'                => 'required|array|min:1',
             'items.*.menu_item_id' => 'required|integer|exists:menu_items,id',
             'items.*.quantity'     => 'required|integer|min:1',
@@ -372,7 +372,7 @@ class MagicTablesController extends Controller
         $v = Validator::make($request->all(), [
             'table_id'             => 'required|integer|exists:restaurant_tables,id',
             'customer_name'        => 'required|string|max:100',
-            'customer_phone'       => 'required|string|max:20',
+            'customer_phone'       => 'required|regex:/^[6-9]\d{9}$/',
             'items'                => 'required|array|min:1',
             'items.*.menu_item_id' => 'required|integer|exists:menu_items,id',
             'items.*.quantity'     => 'required|integer|min:1',
@@ -587,7 +587,7 @@ class MagicTablesController extends Controller
 
         $v = Validator::make($request->all(), [
             'table_id'       => 'required|integer|exists:restaurant_tables,id',
-            'customer_phone' => 'required|string',
+            'customer_phone' => 'required|regex:/^[6-9]\d{9}$/',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
@@ -685,7 +685,7 @@ class MagicTablesController extends Controller
     public function notifyBillPaid(Request $request, string $slug, int $tableId): JsonResponse
     {
         $request->validate([
-            'customer_phone' => 'required|string',
+            'customer_phone' => 'required|regex:/^[6-9]\d{9}$/',
             'amount'         => 'required|numeric|min:0',
         ]);
 
@@ -722,7 +722,7 @@ class MagicTablesController extends Controller
     public function cancelOrder(Request $request, string $slug, int $orderId): JsonResponse
     {
         $request->validate([
-            'customer_phone' => 'required|string',
+            'customer_phone' => 'required|regex:/^[6-9]\d{9}$/',
         ]);
 
         $tenant = $this->activeTenant($slug);

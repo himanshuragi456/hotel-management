@@ -32,8 +32,8 @@ class BrandingController extends Controller
     {
         $request->validate([
             'brand_name'       => 'nullable|string|max:100',
-            'contact_phone'    => 'nullable|string|max:20',
-            'contact_whatsapp' => 'nullable|string|max:20',
+            'contact_phone'    => 'nullable|regex:/^[6-9]\d{9}$/',
+            'contact_whatsapp' => 'nullable|regex:/^[6-9]\d{9}$/',
             'contact_email'    => 'nullable|email|max:100',
             'sales_tagline'    => 'nullable|string|max:255',
             'brand_logo'       => 'nullable|image|max:2048',

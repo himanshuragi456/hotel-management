@@ -12,6 +12,7 @@ use App\Models\MenuItemVariant;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
@@ -96,6 +97,26 @@ class MenuController extends Controller
         $this->authorizesTenant($menuCategory);
         $menuCategory->delete();
         return $this->success(null, 'Category deleted');
+    }
+
+    public function reorderCategories(Request $request): JsonResponse
+    {
+        $tenantId = auth()->user()->tenant_id;
+        $v = Validator::make($request->all(), [
+            'ids'   => 'required|array',
+            'ids.*' => 'integer',
+        ]);
+        if ($v->fails()) return $this->validationError($v->errors());
+
+        DB::transaction(function () use ($request, $tenantId) {
+            foreach ($request->ids as $order => $id) {
+                MenuCategory::where('id', $id)
+                    ->where('tenant_id', $tenantId)
+                    ->update(['sort_order' => $order]);
+            }
+        });
+
+        return $this->success(null, 'Categories reordered');
     }
 
     // ── Items ─────────────────────────────────────────────────────────────────

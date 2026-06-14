@@ -72,7 +72,7 @@ class FeedbackSubmissionController extends Controller
             'rating'           => 'required|integer|min:1|max:5',
             'comment'          => 'nullable|string|max:1000',
             'submitter_name'   => 'nullable|string|max:100',
-            'submitter_phone'  => 'nullable|string|max:20',
+            'submitter_phone'  => 'nullable|regex:/^[6-9]\d{9}$/',
         ]);
 
         $isInternal = $data['rating'] <= 3;

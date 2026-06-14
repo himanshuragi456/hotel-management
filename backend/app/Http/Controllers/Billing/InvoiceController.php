@@ -186,7 +186,7 @@ class InvoiceController extends Controller
             'items.*.quantity'    => 'required|integer|min:1',
             'items.*.notes'       => 'nullable|string',
             'customer_name'       => 'required|string|max:100',
-            'customer_phone'      => 'nullable|string|max:20',
+            'customer_phone'      => 'nullable|regex:/^[6-9]\d{9}$/',
             'notes'               => 'nullable|string',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
@@ -236,7 +236,7 @@ class InvoiceController extends Controller
             'items.*.addon_ids.*' => 'integer',
             'items.*.notes'       => 'nullable|string',
             'customer_name'       => 'nullable|string|max:100',
-            'customer_phone'      => 'nullable|string|max:20',
+            'customer_phone'      => 'nullable|regex:/^[6-9]\d{9}$/',
             'notes'               => 'nullable|string',
             'no_cutlery'          => 'boolean',
         ]);
@@ -530,7 +530,7 @@ class InvoiceController extends Controller
             'discount_value' => 'nullable|numeric|min:0',
             'amount_paid'    => 'required|numeric|min:0',
             'customer_name'  => 'nullable|string|max:100',
-            'customer_phone' => 'nullable|string|max:20',
+            'customer_phone' => 'nullable|regex:/^[6-9]\d{9}$/',
             'split_payments' => 'nullable|array',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
@@ -624,7 +624,7 @@ class InvoiceController extends Controller
             'payment_method' => 'required|in:cash,card,upi,split',
             'amount_paid'    => 'required|numeric|min:0',
             'customer_name'  => 'nullable|string|max:100',
-            'customer_phone' => 'nullable|string|max:20',
+            'customer_phone' => 'nullable|regex:/^[6-9]\d{9}$/',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 

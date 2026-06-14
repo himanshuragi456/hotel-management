@@ -40,7 +40,7 @@ export const isEmail = (label = 'Email') =>
   (v) => (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? `${label} is not a valid email` : undefined)
 
 export const isPhone = (label = 'Phone') =>
-  (v) => (v && !/^[+\d\s\-()]{7,16}$/.test(v.trim()) ? `${label} is not a valid number` : undefined)
+  (v) => (v && !/^[6-9]\d{9}$/.test(v.trim()) ? `${label} must be a 10-digit Indian mobile number` : undefined)
 
 export const isGstin = () =>
   (v) => (v && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(v.trim().toUpperCase())

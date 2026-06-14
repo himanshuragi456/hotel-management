@@ -30,7 +30,7 @@ class GuestController extends Controller
     {
         $data = $request->validate([
             'name'            => 'required|string|max:100',
-            'phone'           => 'required|string|max:20',
+            'phone'           => 'required|regex:/^[6-9]\d{9}$/',
             'email'           => 'nullable|email',
             'id_proof_type'   => 'nullable|in:aadhaar,passport,driving_license,voter_id,pan',
             'id_proof_number' => 'nullable|string|max:50',
@@ -56,7 +56,7 @@ class GuestController extends Controller
 
         $data = $request->validate([
             'name'            => 'sometimes|string|max:100',
-            'phone'           => 'sometimes|string|max:20',
+            'phone'           => 'sometimes|regex:/^[6-9]\d{9}$/',
             'email'           => 'nullable|email',
             'id_proof_type'   => 'nullable|in:aadhaar,passport,driving_license,voter_id,pan',
             'id_proof_number' => 'nullable|string|max:50',

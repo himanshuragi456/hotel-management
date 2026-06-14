@@ -159,7 +159,7 @@ function ContactForm() {
   const validateContact = (email, phone) => {
     if (!email.trim() && !phone.trim()) return 'Please provide at least an email or phone number.'
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email address.'
-    if (phone.trim() && !/^[+]?[\d\s\-().]{7,15}$/.test(phone.trim())) return 'Please enter a valid phone number.'
+    if (phone.trim() && !/^[6-9]\d{9}$/.test(phone.trim())) return 'Please enter a valid 10-digit Indian mobile number.'
     return null
   }
 
@@ -243,10 +243,10 @@ function ContactForm() {
         <label htmlFor="f-phone" className="block text-sm font-medium text-slate-700 mb-1.5">
           Phone <span className="text-slate-400 font-normal text-xs">(or email)</span>
         </label>
-        <input id="f-phone" type="tel" autoComplete="tel"
-          placeholder="+91 93014 20919"
+        <input id="f-phone" type="tel" autoComplete="tel" inputMode="numeric" maxLength={10}
+          placeholder="10-digit mobile number"
           className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
-          value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+          value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} />
       </div>
       <div>
         <label htmlFor="f-message" className="block text-sm font-medium text-slate-700 mb-1.5">Current Google Rating (if known)</label>
@@ -290,7 +290,7 @@ function CalendarBooking() {
   const validateContact = (email, phone) => {
     if (!email.trim() && !phone.trim()) return 'Please provide at least an email or phone number.'
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email address.'
-    if (phone.trim() && !/^[+]?[\d\s\-().]{7,15}$/.test(phone.trim())) return 'Please enter a valid phone number.'
+    if (phone.trim() && !/^[6-9]\d{9}$/.test(phone.trim())) return 'Please enter a valid 10-digit Indian mobile number.'
     return null
   }
 
@@ -350,9 +350,9 @@ function CalendarBooking() {
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Phone <span className="text-slate-400 font-normal">(or email)</span></label>
-          <input type="tel" autoComplete="tel" placeholder="+91 93014 20919"
+          <input type="tel" autoComplete="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number"
             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
-            value={userInfo.phone} onChange={e => setUserInfo(u => ({ ...u, phone: e.target.value }))} />
+            value={userInfo.phone} onChange={e => setUserInfo(u => ({ ...u, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} />
         </div>
         {error && <p className="text-rose-500 text-xs">{error}</p>}
         <button onClick={handleConfirm} disabled={loading}

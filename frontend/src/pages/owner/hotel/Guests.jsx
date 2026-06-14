@@ -91,11 +91,14 @@ function GuestForm({ guest, onSuccess }) {
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
           <input
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
             value={form.phone}
-            onChange={e => set('phone', e.target.value)}
+            onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
             onBlur={() => blur('phone')}
             className={inp('phone')}
-            placeholder="+91 98765 43210"
+            placeholder="10-digit mobile number"
           />
           {Err('phone')}
         </div>

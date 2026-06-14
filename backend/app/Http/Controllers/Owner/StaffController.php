@@ -33,7 +33,7 @@ class StaffController extends Controller
         $v = Validator::make($request->all(), [
             'name'  => 'required|string|max:100',
             'email' => 'required|email|unique:users,email',
-            'phone' => 'nullable|string|max:20',
+            'phone' => 'nullable|regex:/^[6-9]\d{9}$/',
             'role'  => ['required', Rule::in(self::STAFF_ROLES)],
             'password' => ['required', 'string', 'min:8', 'regex:/[A-Z]/', 'regex:/[0-9]/', 'regex:/[@$!%*#?&]/'],
         ]);
@@ -65,7 +65,7 @@ class StaffController extends Controller
         $v = Validator::make($request->all(), [
             'name'     => 'sometimes|string|max:100',
             'email'    => ['sometimes', 'email', Rule::unique('users', 'email')->ignore($user->id)],
-            'phone'    => 'nullable|string|max:20',
+            'phone'    => 'nullable|regex:/^[6-9]\d{9}$/',
             'role'     => ['sometimes', Rule::in(self::STAFF_ROLES)],
             'password' => ['nullable', 'string', 'min:8', 'regex:/[A-Z]/', 'regex:/[0-9]/', 'regex:/[@$!%*#?&]/'],
             'is_active'=> 'sometimes|boolean',

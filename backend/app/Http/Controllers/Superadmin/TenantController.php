@@ -46,7 +46,7 @@ class TenantController extends Controller
         $validator = Validator::make($request->all(), [
             'name'     => 'required|string|max:255',
             'email'    => 'required|email|unique:tenants,email',
-            'phone'    => 'required|string|max:20',
+            'phone'    => 'required|regex:/^[6-9]\d{9}$/',
             'address'  => 'nullable|string',
             'city'     => 'nullable|string|max:100',
             'state'    => 'nullable|string|max:100',
@@ -161,7 +161,7 @@ class TenantController extends Controller
         $validator = Validator::make($request->all(), [
             'name'     => 'sometimes|string|max:255',
             'email'    => "sometimes|email|unique:tenants,email,{$tenant->id}",
-            'phone'    => 'nullable|string|max:20',
+            'phone'    => 'nullable|regex:/^[6-9]\d{9}$/',
             'address'  => 'nullable|string',
             'city'     => 'nullable|string|max:100',
             'state'    => 'nullable|string|max:100',

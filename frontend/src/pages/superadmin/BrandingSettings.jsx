@@ -198,9 +198,11 @@ export default function BrandingSettings() {
             <Field label="Phone Number" icon={PhoneIcon}>
               <Input
                 value={form.contact_phone}
-                onChange={e => setField('contact_phone', e.target.value)}
-                placeholder="+91 98765 43210"
+                onChange={e => setField('contact_phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="10-digit mobile number"
                 type="tel"
+                inputMode="numeric"
+                maxLength={10}
               />
               {fieldErrors.contact_phone && <p className="text-xs text-red-500 mt-1">{fieldErrors.contact_phone}</p>}
             </Field>
@@ -211,9 +213,11 @@ export default function BrandingSettings() {
               hint="Include country code, no spaces.">
               <Input
                 value={form.contact_whatsapp}
-                onChange={e => setField('contact_whatsapp', e.target.value)}
-                placeholder="+919876543210"
+                onChange={e => setField('contact_whatsapp', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="10-digit mobile number"
                 type="tel"
+                inputMode="numeric"
+                maxLength={10}
               />
               {fieldErrors.contact_whatsapp && <p className="text-xs text-red-500 mt-1">{fieldErrors.contact_whatsapp}</p>}
             </Field>

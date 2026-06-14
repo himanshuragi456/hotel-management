@@ -114,7 +114,7 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLoc
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Phone *</label>
-          <input value={form.phone} onChange={e => set('phone', e.target.value)} onBlur={() => blur('phone')} className={inp('phone')} placeholder="+91 98765 43210" />
+          <input type="tel" inputMode="numeric" maxLength={10} value={form.phone} onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} onBlur={() => blur('phone')} className={inp('phone')} placeholder="10-digit mobile number" />
           <FieldError message={fieldErrors.phone} />
         </div>
         <div>

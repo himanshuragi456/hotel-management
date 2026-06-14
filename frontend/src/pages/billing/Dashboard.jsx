@@ -216,7 +216,7 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Customer name (opt.)" className={inp} />
-              <input type="tel" value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} placeholder="Phone (opt.)" className={inp} />
+              <input type="tel" inputMode="numeric" maxLength={10} value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile (opt.)" className={inp} />
             </div>
             <div className="flex gap-2">
               <select value={form.discount_type} onChange={e => setForm(f => ({ ...f, discount_type: e.target.value }))} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
@@ -837,7 +837,7 @@ function BillAllModal({ table, total, onClose, onDone }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Customer name (opt.)" className={inp} />
-            <input type="tel" value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} placeholder="Phone (opt.)" className={inp} />
+            <input type="tel" inputMode="numeric" maxLength={10} value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile (opt.)" className={inp} />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
@@ -981,14 +981,14 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
     if (!tenantId) return
     const cfg = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
     if (import.meta.env.VITE_PUSHER_HOST) {
-      cfg.wsHost      = import.meta.env.VITE_PUSHER_HOST
-      cfg.wsPort      = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      cfg.wssPort     = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      cfg.forceTLS    = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
+      cfg.wsHost = import.meta.env.VITE_PUSHER_HOST
+      cfg.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      cfg.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
+      cfg.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
       cfg.disableStats = true
       cfg.enabledTransports = ['ws']
     }
-    const pusher  = new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
     const channel = pusher.subscribe(`tenant.${tenantId}.kitchen`)
     channel.bind('order.updated', () => {
       qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
@@ -998,7 +998,7 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
 
   const readyOrders = orders.filter(o => o.status === 'ready')
 
-  // Ding when new ready orders appear
+  // Sound when new ready orders appear
   useEffect(() => {
     if (!readyOrders.length) return
     const newlyReady = readyOrders.filter(o => !prevReadyIds.current.has(o.id))
@@ -1407,18 +1407,18 @@ const CHANNELS = [
   { key: 'swiggy',   label: 'Swiggy',   icon: '🟠', cls: 'bg-[#fc8019] hover:bg-[#e0700f] border-[#fc8019]' },
 ]
 
-function ChannelButtons({ onPick, zomatoOnline = true, swiggyOnline = true }) {
+function ChannelButtons({ onPick, zomatoOnline = true, swiggyOnline = true, vertical = false }) {
   const isOnline = { takeaway: true, zomato: zomatoOnline, swiggy: swiggyOnline }
   return (
-    <>
+    <div className={vertical ? 'flex flex-col gap-1' : 'flex flex-row gap-2'}>
       {CHANNELS.filter(c => isOnline[c.key] !== false).map(c => (
         <button key={c.key} onClick={() => onPick(c.key)}
-          className={`inline-flex items-center gap-1.5 text-sm font-semibold text-white px-3 py-1.5 rounded-xl transition-colors shadow-sm border ${c.cls}`}>
+          className={`inline-flex items-center gap-1.5 font-semibold text-white rounded-xl transition-colors shadow-sm border ${c.cls} ${vertical ? 'text-xs px-2 py-2 w-full' : 'text-sm px-3 py-1.5'}`}>
           <span>{c.icon}</span>
-          <span className="hidden sm:inline">{c.label}</span>
+          <span>{c.label}</span>
         </button>
       ))}
-    </>
+    </div>
   )
 }
 
@@ -2116,70 +2116,131 @@ export default function BillingDashboard({ embedded = false }) {
     <div className={embedded ? '' : 'min-h-screen bg-gray-50'}>
       {!embedded && <SubscriptionAlert />}
       {!embedded && (
-        <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-sm">
-              <BanknotesIcon className="w-5 h-5 text-white" />
+        <header className="bg-white border-b sticky top-0 z-10 shadow-sm">
+          {/* Title row */}
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-sm">
+                <BanknotesIcon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-gray-900">Billing Counter</h1>
+                <p className="text-xs text-gray-400">{user?.name}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-base font-bold text-gray-900">Billing Counter</h1>
-              <p className="text-xs text-gray-400">{user?.name}</p>
+            <div className="flex items-center gap-2">
+              {/* Open / Closed toggle */}
+              <button
+                onClick={() => toggleOpen.mutate(!isOpen)}
+                disabled={toggleOpen.isPending}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-colors border ${
+                  isOpen
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                <span className="hidden sm:inline">{isOpen ? 'Open' : 'Closed'}</span>
+              </button>
+              {/* Desktop-only: channel + utility buttons inline */}
+              {hasRestaurant && (
+                <div className="hidden sm:flex items-center gap-2">
+                  <ChannelButtons onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />
+                  <button onClick={() => setShowUnbilledTakeaway(true)}
+                    className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
+                    🛍️ Unbilled Takeaway
+                  </button>
+                </div>
+              )}
+              <button onClick={() => setShowRecentBills(true)}
+                className="hidden sm:inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
+                <DocumentTextIcon className="w-4 h-4" />
+                Recent Bills
+              </button>
+              <button onClick={handleLogout}
+                className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors">
+                <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Open / Closed toggle */}
-            <button
-              onClick={() => toggleOpen.mutate(!isOpen)}
-              disabled={toggleOpen.isPending}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold transition-colors border ${
-                isOpen
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                  : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${isOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
-              <span className="hidden sm:inline">{isOpen ? 'Open' : 'Closed'}</span>
-            </button>
-            {hasRestaurant && <ChannelButtons onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />}
-            {hasRestaurant && (
-              <button onClick={() => setShowUnbilledTakeaway(true)}
-                className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
-                🛍️<span className="hidden sm:inline">Unbilled Takeaway</span>
+          {/* Mobile-only: 2-column action grid */}
+          <div className="sm:hidden px-4 pb-3">
+            {hasRestaurant ? (
+              <div className="grid grid-cols-2 gap-2">
+                <ChannelButtons vertical onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />
+                <div className="flex flex-col gap-1">
+                  <button onClick={() => setShowUnbilledTakeaway(true)}
+                    className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:bg-gray-100 px-2 py-2 rounded-xl transition-colors border border-gray-200 w-full">
+                    🛍️ Unbilled Takeaway
+                  </button>
+                  <button onClick={() => setShowRecentBills(true)}
+                    className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:bg-gray-100 px-2 py-2 rounded-xl transition-colors border border-gray-200 w-full">
+                    <DocumentTextIcon className="w-3.5 h-3.5" />
+                    Recent Bills
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setShowRecentBills(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:bg-gray-100 px-2 py-2 rounded-xl transition-colors border border-gray-200">
+                <DocumentTextIcon className="w-3.5 h-3.5" />
+                Recent Bills
               </button>
             )}
-            <button onClick={() => setShowRecentBills(true)}
-              className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
-              <DocumentTextIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">Recent Bills</span>
-            </button>
-            <button onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors">
-              <ArrowRightOnRectangleIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
           </div>
         </header>
       )}
 
       {embedded && (
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">Billing Counter</h2>
-            <p className="text-sm text-gray-400 mt-0.5">Manage tables, orders, and invoices</p>
+        <div className="mb-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Billing Counter</h2>
+              <p className="text-sm text-gray-400 mt-0.5">Manage tables, orders, and invoices</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Desktop-only: inline buttons */}
+              {hasRestaurant && (
+                <div className="hidden sm:flex items-center gap-2">
+                  <ChannelButtons onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />
+                  <button onClick={() => setShowUnbilledTakeaway(true)}
+                    className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
+                    🛍️ Unbilled Takeaway
+                  </button>
+                </div>
+              )}
+              <button onClick={() => setShowRecentBills(true)}
+                className="hidden sm:inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
+                <DocumentTextIcon className="w-4 h-4" />
+                Recent Bills
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {hasRestaurant && <ChannelButtons onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />}
-            {hasRestaurant && (
-              <button onClick={() => setShowUnbilledTakeaway(true)}
-                className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
-                🛍️ Unbilled Takeaway
+          {/* Mobile-only: 2-column action grid */}
+          <div className="sm:hidden mt-3">
+            {hasRestaurant ? (
+              <div className="grid grid-cols-2 gap-2">
+                <ChannelButtons vertical onPick={setChannelPanel} zomatoOnline={zomatoOnline} swiggyOnline={swiggyOnline} />
+                <div className="flex flex-col gap-1">
+                  <button onClick={() => setShowUnbilledTakeaway(true)}
+                    className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:bg-gray-100 px-2 py-2 rounded-xl transition-colors border border-gray-200 w-full">
+                    🛍️ Unbilled Takeaway
+                  </button>
+                  <button onClick={() => setShowRecentBills(true)}
+                    className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:bg-gray-100 px-2 py-2 rounded-xl transition-colors border border-gray-200 w-full">
+                    <DocumentTextIcon className="w-3.5 h-3.5" />
+                    Recent Bills
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setShowRecentBills(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:bg-gray-100 px-2 py-2 rounded-xl transition-colors border border-gray-200">
+                <DocumentTextIcon className="w-3.5 h-3.5" />
+                Recent Bills
               </button>
             )}
-            <button onClick={() => setShowRecentBills(true)}
-              className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors border border-gray-200">
-              <DocumentTextIcon className="w-4 h-4" />
-              Recent Bills
-            </button>
           </div>
         </div>
       )}

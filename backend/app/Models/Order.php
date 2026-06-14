@@ -14,7 +14,7 @@ class Order extends Model
         'payment_status', 'razorpay_order_id', 'razorpay_payment_id',
         'status', 'preparing_at', 'notes', 'no_cutlery',
         'subtotal', 'tax', 'discount', 'total',
-        'customer_name', 'customer_phone',
+        'customer_name', 'customer_phone', 'customer_email',
     ];
 
     protected $casts = [

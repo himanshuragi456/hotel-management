@@ -95,8 +95,9 @@ class MenuController extends Controller
             'items.*.addon_ids'      => 'nullable|array',
             'items.*.addon_ids.*'    => 'integer',
             'items.*.notes'          => 'nullable|string',
-            'customer_name'          => 'nullable|string|max:100',
-            'customer_phone'         => 'nullable|string|max:20',
+            'customer_name'          => 'required|string|max:100',
+            'customer_phone'         => 'required|regex:/^[6-9]\d{9}$/',
+            'customer_email'         => 'required|email|max:150',
             'notes'                  => 'nullable|string',
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
@@ -118,6 +119,7 @@ class MenuController extends Controller
                     'notes'               => $request->notes,
                     'customer_name'       => $request->customer_name,
                     'customer_phone'      => $request->customer_phone,
+                    'customer_email'      => $request->customer_email,
                 ],
             );
 
