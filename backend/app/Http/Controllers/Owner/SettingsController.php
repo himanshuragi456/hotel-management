@@ -17,6 +17,11 @@ class SettingsController extends Controller
     {
         return [
             'slug'                          => $tenant->slug,
+            'name'                          => $tenant->name,
+            'address'                       => $tenant->address,
+            'city'                          => $tenant->city,
+            'state'                         => $tenant->state,
+            'gstin'                         => $tenant->gstin,
             'gst_rate'                      => (float) ($tenant->gst_rate ?? 5),
             'gst_inclusive'                 => (bool)  ($tenant->gst_inclusive ?? false),
             'hotel_gst_rate'                => (float) ($tenant->hotel_gst_rate ?? 0),
@@ -47,6 +52,10 @@ class SettingsController extends Controller
     {
         $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
         $request->validate([
+            'address'                       => 'sometimes|nullable|string|max:255',
+            'city'                          => 'sometimes|nullable|string|max:100',
+            'state'                         => 'sometimes|nullable|string|max:100',
+            'gstin'                         => 'sometimes|nullable|string|max:20',
             'gst_rate'                      => 'sometimes|numeric|min:0|max:100',
             'gst_inclusive'                 => 'sometimes|boolean',
             'hotel_gst_rate'                => 'sometimes|numeric|min:0|max:100',
@@ -65,6 +74,10 @@ class SettingsController extends Controller
             'active_contact_phone'          => 'sometimes|nullable|string|regex:/^[6-9]\d{9}$/',
         ]);
         $tenant->update($request->only([
+            'address',
+            'city',
+            'state',
+            'gstin',
             'gst_rate',
             'gst_inclusive',
             'hotel_gst_rate',

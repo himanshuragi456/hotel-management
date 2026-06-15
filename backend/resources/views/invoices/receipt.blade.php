@@ -22,8 +22,12 @@
 </head>
 <body>
   <div class="center bold" style="font-size:14px;">{{ $invoice->tenant->name }}</div>
-  @if($invoice->tenant->address)
-  <div class="center">{{ $invoice->tenant->address }}, {{ $invoice->tenant->city }}</div>
+  @php
+    $addrLine = collect([$invoice->tenant->address, $invoice->tenant->city, $invoice->tenant->state])
+      ->filter()->implode(', ');
+  @endphp
+  @if($addrLine)
+  <div class="center">{{ $addrLine }}</div>
   @endif
   @if($invoice->tenant->gstin)
   <div class="center">GSTIN: {{ $invoice->tenant->gstin }}</div>

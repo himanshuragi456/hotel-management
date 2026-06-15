@@ -538,7 +538,7 @@ export default function LandingPage() {
           </button>
         </div>
         {navOpen && (
-          <div className="md:hidden glass px-4 py-4 space-y-1">
+          <div className="md:hidden bg-white border-t border-slate-100 shadow-lg px-4 py-4 space-y-1">
             {[['features','Features'],['pricing','Pricing'],['reviews','Reviews'],['contact','Contact']].map(([id,label]) => (
               <button key={id} onClick={() => scrollTo(id)}
                 className="w-full text-left px-4 py-3 text-slate-700 font-medium hover:bg-orange-50 hover:text-orange-600 rounded-xl transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500">

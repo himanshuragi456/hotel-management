@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   KeyIcon, PrinterIcon, CheckCircleIcon, ExclamationCircleIcon,
   QrCodeIcon, CreditCardIcon, PhoneIcon, PlusIcon, TrashIcon,
-  PowerIcon, ClockIcon, QuestionMarkCircleIcon,
+  PowerIcon, ClockIcon, QuestionMarkCircleIcon, BuildingStorefrontIcon,
 } from '@heroicons/react/24/outline'
 import { getOwnerSettings, updateOwnerSettings, changeOwnPassword, getFeedbackQrCodes, getOutlet, toggleOutletChannel, setOutletHours } from '@/services/restaurantService'
 import { validate, validateField, required, isStrongPassword } from '@/utils/validate'
@@ -160,6 +160,90 @@ function KotSettingsCard({ settings, onUpdate, isPending, hasFeedback, feedbackR
             </div>
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+function BusinessDetailsCard({ settings, onUpdate, isPending }) {
+  const [form, setForm]   = useState({ name: '', address: '', city: '', state: '', gstin: '' })
+  const [saved, setSaved] = useState(false)
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (settings) {
+      setForm({
+        name:    settings.name    ?? '',
+        address: settings.address ?? '',
+        city:    settings.city    ?? '',
+        state:   settings.state   ?? '',
+        gstin:   settings.gstin   ?? '',
+      })
+    }
+  }, [settings?.name, settings?.address, settings?.city, settings?.state, settings?.gstin])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const handleSave = () => {
+    onUpdate({
+      name:    form.name.trim(),
+      address: form.address.trim(),
+      city:    form.city.trim(),
+      state:   form.state.trim(),
+      gstin:   form.gstin.trim(),
+    })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  const inp = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400'
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+          <BuildingStorefrontIcon className="w-4 h-4 text-orange-500" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-900 text-sm">Business Details</h3>
+          <p className="text-xs text-gray-400">Name, address &amp; GSTIN — printed on the bill header</p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">Business Name</label>
+          <input value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setSaved(false) }}
+            placeholder="e.g. Spice Garden Restaurant" className={inp}/>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">Address</label>
+          <input value={form.address} onChange={e => { setForm(f => ({ ...f, address: e.target.value })); setSaved(false) }}
+            placeholder="Street, area, landmark" className={inp}/>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">City</label>
+            <input value={form.city} onChange={e => { setForm(f => ({ ...f, city: e.target.value })); setSaved(false) }}
+              placeholder="City" className={inp}/>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">State</label>
+            <input value={form.state} onChange={e => { setForm(f => ({ ...f, state: e.target.value })); setSaved(false) }}
+              placeholder="State" className={inp}/>
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">GSTIN</label>
+          <input value={form.gstin} onChange={e => { setForm(f => ({ ...f, gstin: e.target.value.toUpperCase() })); setSaved(false) }}
+            placeholder="15-digit GST number (optional)" maxLength={20} className={inp}/>
+        </div>
+        <button onClick={handleSave} disabled={isPending}
+          className={`w-full px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${saved ? 'bg-green-500 text-white' : 'bg-orange-500 text-white hover:bg-orange-600'} disabled:opacity-50`}>
+          {saved ? 'Saved!' : 'Save Business Details'}
+        </button>
+        <p className="text-xs text-gray-400">
+          Shown as <span className="font-medium">Name → Address, City → GSTIN</span> at the top of every printed bill.
+        </p>
       </div>
     </div>
   )
@@ -746,6 +830,11 @@ export default function OwnerSettings() {
       </div>
 
       <div className="space-y-4">
+        <BusinessDetailsCard
+          settings={settings}
+          onUpdate={(patch) => updateMutation.mutate(patch)}
+          isPending={updateMutation.isPending}
+        />
         {hasRestaurant && (
           <>
             <OutletCard />

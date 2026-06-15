@@ -31,6 +31,10 @@ class InvoiceController extends Controller
                     'customer_name'  => $order->customer_name,
                     'customer_phone' => $order->customer_phone,
                 ] : null;
+                $qrCustomer = ($order && $order->source === 'qr' && $order->customer_name) ? [
+                    'customer_name'  => $order->customer_name,
+                    'customer_phone' => $order->customer_phone,
+                ] : null;
 
                 // Auto-clear alerts after their display window so badges disappear everywhere
                 $updates = [];
@@ -53,6 +57,7 @@ class InvoiceController extends Controller
                     'waiter_called_at'    => $t->waiter_called_at,
                     'bill_paid_at'        => $t->bill_paid_at,
                     'magic_tables_customer' => $mtCustomer,
+                    'qr_customer'           => $qrCustomer,
                 ];
             });
         return $this->success($tables);

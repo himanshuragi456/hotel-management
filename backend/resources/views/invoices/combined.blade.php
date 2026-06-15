@@ -19,8 +19,13 @@
 </head>
 <body>
   <div class="center bold" style="font-size:14px;">{{ $invoices->first()->tenant->name }}</div>
-  @if($invoices->first()->tenant->address)
-  <div class="center">{{ $invoices->first()->tenant->address }}, {{ $invoices->first()->tenant->city }}</div>
+  @php
+    $hdrTenant = $invoices->first()->tenant;
+    $addrLine  = collect([$hdrTenant->address, $hdrTenant->city, $hdrTenant->state])
+      ->filter()->implode(', ');
+  @endphp
+  @if($addrLine)
+  <div class="center">{{ $addrLine }}</div>
   @endif
   @if($invoices->first()->tenant->gstin)
   <div class="center">GSTIN: {{ $invoices->first()->tenant->gstin }}</div>

@@ -21,8 +21,9 @@
 
   {{-- Hotel header --}}
   <div class="center bold" style="font-size:14px;">{{ $tenant->name }}</div>
-  @if($tenant->address)
-  <div class="center" style="font-size:10px;">{{ $tenant->address }}@if($tenant->city), {{ $tenant->city }}@endif</div>
+  @php $addrLine = collect([$tenant->address, $tenant->city, $tenant->state])->filter()->implode(', '); @endphp
+  @if($addrLine)
+  <div class="center" style="font-size:10px;">{{ $addrLine }}</div>
   @endif
   @if($tenant->phone)
   <div class="center" style="font-size:10px;">Ph: {{ $tenant->phone }}</div>

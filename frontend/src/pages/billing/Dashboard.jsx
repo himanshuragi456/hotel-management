@@ -138,8 +138,8 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
     discount_type: 'flat',
     discount_value: '',
     payment_method: 'cash',
-    customer_name: '',
-    customer_phone: '',
+    customer_name: order.customer_name || '',
+    customer_phone: order.customer_phone || '',
   })
   const [error, setError] = useState('')
 
@@ -560,6 +560,14 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                 <span className="text-xs text-indigo-500">+91 {table.magic_tables_customer.customer_phone}</span>
               </div>
             )}
+            {table.qr_customer && !table.magic_tables_customer && (
+              <div className="flex items-center gap-3 mt-1.5 bg-orange-50 border border-orange-100 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-orange-700 font-medium">{table.qr_customer.customer_name}</span>
+                {table.qr_customer.customer_phone && (
+                  <span className="text-xs text-orange-500">+91 {table.qr_customer.customer_phone}</span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -803,7 +811,12 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
 
 // ─── Bill All Modal ───────────────────────────────────────────────────────────
 function BillAllModal({ table, total, onClose, onDone }) {
-  const [form, setForm] = useState({ payment_method: 'cash', customer_name: '', customer_phone: '' })
+  const prefill = table.qr_customer || table.magic_tables_customer
+  const [form, setForm] = useState({
+    payment_method: 'cash',
+    customer_name:  prefill?.customer_name  || '',
+    customer_phone: prefill?.customer_phone || '',
+  })
   const [error, setError] = useState('')
 
   const submit = useMutation({

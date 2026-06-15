@@ -70,9 +70,31 @@ function CartBar({ cart, onOpen, onViewOrders, sessionOrders, onRequestBill, bil
   )
 }
 
+// ── Saved customer profile (localStorage, shared across restaurants/tables) ─────
+const CUSTOMER_PROFILE_KEY = 'qr_customer_profile'
+
+const loadCustomerProfile = () => {
+  try {
+    const raw = localStorage.getItem(CUSTOMER_PROFILE_KEY)
+    if (!raw) return { name: '', phone: '', email: '' }
+    const p = JSON.parse(raw)
+    return { name: p.name || '', phone: p.phone || '', email: p.email || '' }
+  } catch {
+    return { name: '', phone: '', email: '' }
+  }
+}
+
+const saveCustomerProfile = (info) => {
+  try {
+    localStorage.setItem(CUSTOMER_PROFILE_KEY, JSON.stringify({
+      name: info.name, phone: info.phone, email: info.email,
+    }))
+  } catch { /* ignore quota/availability errors */ }
+}
+
 // ── Customer Details Sheet ────────────────────────────────────────────────────
 function CustomerDetailsSheet({ onConfirm, onClose, placing }) {
-  const [form, setForm]     = useState({ name: '', phone: '', email: '' })
+  const [form, setForm]     = useState(() => loadCustomerProfile())
   const [errors, setErrors] = useState({})
 
   const validate = () => {
@@ -707,6 +729,7 @@ export default function CustomerMenuPage() {
     }))
 
   const doPlaceOrder = (info) => {
+    saveCustomerProfile(info)
     placeOrder.mutate({
       slug,
       token,
