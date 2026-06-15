@@ -76,7 +76,10 @@ class InvoiceController extends Controller
         $orders = Order::where('tenant_id', auth()->user()->tenant_id)
             ->where('restaurant_table_id', $tableId)
             ->where(fn($q) => $q->where('status', '!=', 'cancelled')->orWhereNotNull('rejection_code'))
-            ->when($table->occupied_since, fn($q) => $q->where('created_at', '>=', $table->occupied_since))
+            // Scope to the current session, but allow a small grace window: the order is
+            // created an instant before occupy() stamps occupied_since=now(), so a strict
+            // `>=` would hide the very order that occupied the table.
+            ->when($table->occupied_since, fn($q) => $q->where('created_at', '>=', $table->occupied_since->copy()->subSeconds(5)))
             ->with(['items', 'table', 'invoice'])
             ->oldest()
             ->get()
@@ -125,8 +128,11 @@ class InvoiceController extends Controller
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
-        $fresh = app(\App\Services\OrderService::class)->addLinesToOrder($order, $request->items);
-        try { broadcast(new \App\Events\OrderStatusUpdated($fresh))->toOthers(); } catch (\Exception $e) {}
+        $svc   = app(\App\Services\OrderService::class);
+        $fresh = $svc->addLinesToOrder($order, $request->items);
+        // Biller added items to an existing order — kitchen needs the new KOT,
+        // but the biller raised it themselves so no counter alert.
+        $svc->announce($fresh, 'order.items_added', [], notifyBiller: false);
         return $this->success($fresh, 'Items added');
     }
 
@@ -171,10 +177,13 @@ class InvoiceController extends Controller
                 'source'              => 'pos',
             ]);
 
-            if ($table->status === 'free') $table->occupy();
+            if ($table->status === 'free') $table->occupy($createdOrders[0]->created_at ?? null);
 
+            $svc = app(\App\Services\OrderService::class);
             foreach ($createdOrders as $o) {
-                try { broadcast(new \App\Events\OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
+                // Biller placed this dine-in order — kitchen needs the KOT,
+                // but the biller already knows so no counter alert.
+                $svc->announce($o, 'order.placed', ['table' => $table->number], notifyBiller: false);
             }
 
             return $this->created($createdOrders, 'Order added');
@@ -214,7 +223,7 @@ class InvoiceController extends Controller
                 $svc->announce($o, 'order.placed', [
                     'type'     => 'takeaway',
                     'customer' => $request->customer_name ?? 'Walk-in',
-                ]);
+                ], notifyBiller: false);
             }
 
             return $this->created($createdOrders, 'Takeaway order placed');
@@ -269,7 +278,7 @@ class InvoiceController extends Controller
                 $svc->announce($o, 'order.placed', [
                     'type'     => $request->platform,
                     'external' => $request->external_order_id ?? '—',
-                ]);
+                ], notifyBiller: false);
             }
 
             return $this->created($createdOrders, ucfirst($request->platform) . ' order placed');

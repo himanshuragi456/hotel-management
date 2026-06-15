@@ -40,7 +40,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::prefix('auth')->group(function () {
-    Route::post('login', [AuthController::class, 'login']);
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:auth-login');
 });
 
 /*
@@ -53,6 +53,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('notifications', [NotificationController::class, 'index']);
     Route::post('notifications/mark-read', [NotificationController::class, 'markRead']);
     Route::post('notifications/{id}/mark-read', [NotificationController::class, 'markRead']);
+    Route::delete('notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id');
     Route::delete('notifications', [NotificationController::class, 'clearAll']);
 
     Route::prefix('auth')->group(function () {
@@ -155,6 +156,7 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::get('tables/{restaurantTable}/qr', [TableController::class, 'qrCode']);
                 Route::get('orders/report', [RevenueController::class, 'ordersReport']);
                 Route::get('orders/export/pdf', [RevenueController::class, 'exportPdf']);
+                Route::get('orders/export/excel', [RevenueController::class, 'exportExcel']);
                 // Outlet management — hours, per-channel on/off, offline reason
                 Route::get('outlet', [\App\Http\Controllers\Owner\OutletController::class, 'show']);
                 Route::post('outlet/toggle-channel', [\App\Http\Controllers\Owner\OutletController::class, 'toggleChannel']);
@@ -358,23 +360,27 @@ Route::middleware(['auth:api'])->group(function () {
 |--------------------------------------------------------------------------
 */
 // Landing page public endpoints (no auth)
-Route::post('landing/contact',   [LandingController::class, 'contact']);
-Route::post('landing/book-demo', [LandingController::class, 'bookDemo']);
+Route::middleware('throttle:public')->group(function () {
+    Route::post('landing/contact',   [LandingController::class, 'contact']);
+    Route::post('landing/book-demo', [LandingController::class, 'bookDemo']);
+});
 
 Route::prefix('public')->group(function () {
     // System branding (no auth — shown on all public pages)
     Route::get('branding', [PublicBrandingController::class, 'show']);
 
-    // Customer QR menu + ordering (no auth)
+    // Customer QR menu + ordering (no auth) — reads open, writes throttled
     Route::get('menu/{tenantSlug}/{qrToken}', [CustomerMenuController::class, 'menu']);
-    Route::post('menu/{tenantSlug}/{qrToken}/order', [CustomerMenuController::class, 'placeOrder']);
-    Route::post('menu/{tenantSlug}/{qrToken}/request-bill', [CustomerMenuController::class, 'requestBill']);
-    Route::post('menu/{tenantSlug}/{qrToken}/call-waiter', [CustomerMenuController::class, 'callWaiter']);
-    Route::post('menu/{tenantSlug}/{qrToken}/notify-bill-paid', [CustomerMenuController::class, 'notifyBillPaid']);
+    Route::middleware('throttle:public')->group(function () {
+        Route::post('menu/{tenantSlug}/{qrToken}/order', [CustomerMenuController::class, 'placeOrder']);
+        Route::post('menu/{tenantSlug}/{qrToken}/request-bill', [CustomerMenuController::class, 'requestBill']);
+        Route::post('menu/{tenantSlug}/{qrToken}/call-waiter', [CustomerMenuController::class, 'callWaiter']);
+        Route::post('menu/{tenantSlug}/{qrToken}/notify-bill-paid', [CustomerMenuController::class, 'notifyBillPaid']);
+    });
     Route::get('orders/{orderNumber}/status', [CustomerMenuController::class, 'orderStatus']);
     // Room service QR menu (no auth)
     Route::get('room/{tenantSlug}/{qrToken}', [RoomMenuController::class, 'menu']);
-    Route::post('room/{tenantSlug}/{qrToken}/order', [RoomMenuController::class, 'placeOrder']);
+    Route::post('room/{tenantSlug}/{qrToken}/order', [RoomMenuController::class, 'placeOrder'])->middleware('throttle:public');
     // Feedback submission (public — no auth)
     // Google OAuth callback (redirects to frontend after token exchange)
     Route::get('auth/google/gmb/callback', [GmbController::class, 'connectCallback']);
@@ -383,8 +389,8 @@ Route::prefix('public')->group(function () {
     Route::post('webhooks/gmb-reviews', [GmbWebhookController::class, 'handle']);
 
     Route::get('feedback/{token}', [FeedbackSubmissionController::class, 'show']);
-    Route::post('feedback/{token}/submit', [FeedbackSubmissionController::class, 'submit']);
-    Route::post('feedback/{token}/ai-suggestions', [FeedbackSubmissionController::class, 'aiSuggestions']);
+    Route::post('feedback/{token}/submit', [FeedbackSubmissionController::class, 'submit'])->middleware('throttle:public');
+    Route::post('feedback/{token}/ai-suggestions', [FeedbackSubmissionController::class, 'aiSuggestions'])->middleware('throttle:public-ai');
 });
 
 /*
@@ -399,14 +405,16 @@ Route::prefix('magic-tables')->group(function () {
     Route::get('restaurants/{slug}', [MagicTablesController::class, 'show']);
     Route::get('restaurants/{slug}/tables', [MagicTablesController::class, 'tables']);
     Route::get('restaurants/{slug}/menu', [MagicTablesController::class, 'menu']);
-    Route::post('restaurants/{slug}/orders', [MagicTablesController::class, 'createOrder']);
-    Route::post('restaurants/{slug}/orders/verify-payment', [MagicTablesController::class, 'verifyPayment']);
-    Route::post('restaurants/{slug}/orders/submit-upi', [MagicTablesController::class, 'submitUpiOrder']);
     Route::get('restaurants/{slug}/my-orders', [MagicTablesController::class, 'myOrders']);
-    Route::post('restaurants/{slug}/call-waiter', [MagicTablesController::class, 'callWaiter']);
-    Route::post('restaurants/{slug}/request-bill', [MagicTablesController::class, 'requestBill']);
-    Route::post('restaurants/{slug}/orders/{orderId}/cancel', [MagicTablesController::class, 'cancelOrder']);
-    Route::post('restaurants/{slug}/tables/{tableId}/notify-paid', [MagicTablesController::class, 'notifyBillPaid']);
+    Route::middleware('throttle:public')->group(function () {
+        Route::post('restaurants/{slug}/orders', [MagicTablesController::class, 'createOrder']);
+        Route::post('restaurants/{slug}/orders/verify-payment', [MagicTablesController::class, 'verifyPayment']);
+        Route::post('restaurants/{slug}/orders/submit-upi', [MagicTablesController::class, 'submitUpiOrder']);
+        Route::post('restaurants/{slug}/call-waiter', [MagicTablesController::class, 'callWaiter']);
+        Route::post('restaurants/{slug}/request-bill', [MagicTablesController::class, 'requestBill']);
+        Route::post('restaurants/{slug}/orders/{orderId}/cancel', [MagicTablesController::class, 'cancelOrder']);
+        Route::post('restaurants/{slug}/tables/{tableId}/notify-paid', [MagicTablesController::class, 'notifyBillPaid']);
+    });
 });
 
 // Payment webhooks (no auth, verified by signature)

@@ -651,7 +651,9 @@ export default function CustomerMenuPage() {
   const { data, isLoading, error, refetch: refetchMenu } = useQuery({
     queryKey: ['customer-menu', slug, token],
     queryFn:  () => getCustomerMenu(slug, token).then(r => r.data.data),
-    refetchInterval: 8000,
+    // Public customer phone — no Pusher. Menu rarely changes mid-session
+    // (mostly to pick up item OOS toggles), so a relaxed poll is plenty.
+    refetchInterval: 15000,
     staleTime: 0,
   })
 
@@ -894,7 +896,6 @@ export default function CustomerMenuPage() {
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-colors min-h-[36px] ${
                 view === 'orders' ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-50 text-orange-600 border-orange-200'
               }`}>
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"/>
               {view === 'orders' ? '← Menu' : 'My Orders'}
             </button>
           )}
@@ -911,22 +912,31 @@ export default function CustomerMenuPage() {
             {/* Veg / Non-Veg filter pills */}
             <div className="flex items-center gap-2 mt-2.5 mb-0.5">
               {[
-                { label: 'All',     value: null,       dot: null },
-                { label: 'Veg',     value: 'veg',      dot: VEG_DOT },
-                { label: 'Non-Veg', value: 'non-veg',  dot: NONVEG_DOT },
-              ].map(opt => (
+                { label: 'All',     value: null,      color: null },
+                { label: 'Veg',     value: 'veg',     color: 'green' },
+                { label: 'Non-Veg', value: 'non-veg', color: 'red' },
+              ].map(opt => {
+                const active = dietFilter === opt.value
+                // On the colored active background, render the dot in white so it stays visible
+                const dotColor = active ? 'border-white' : opt.color === 'green' ? 'border-green-600' : 'border-red-600'
+                const fillColor = active ? 'bg-white' : opt.color === 'green' ? 'bg-green-600' : 'bg-red-600'
+                return (
                 <button key={String(opt.value)} onClick={() => setDietFilter(opt.value)}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
-                    dietFilter === opt.value
+                    active
                       ? opt.value === 'veg'     ? 'bg-green-600 text-white border-green-600'
                       : opt.value === 'non-veg' ? 'bg-red-600 text-white border-red-600'
                       : 'bg-gray-800 text-white border-gray-800'
                       : 'bg-white text-gray-600 border-gray-200'
                   }`}>
-                  {opt.dot && <span className="scale-90">{opt.dot}</span>}
+                  {opt.color && (
+                    <span className={`w-3.5 h-3.5 rounded-sm border-2 ${dotColor} flex items-center justify-center shrink-0`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${fillColor}`}/>
+                    </span>
+                  )}
                   {opt.label}
                 </button>
-              ))}
+              )})}
             </div>
 
             {!debouncedSearch.trim() && (

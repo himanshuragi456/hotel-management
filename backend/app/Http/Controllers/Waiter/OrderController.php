@@ -80,7 +80,7 @@ class OrderController extends Controller
                 'notes'               => $request->notes,
             ]);
 
-            $table->occupy();
+            $table->occupy($createdOrders[0]->created_at ?? null);
 
             foreach ($createdOrders as $o) {
                 $svc->announce($o, 'order.placed', ['table' => $table->number]);
@@ -111,7 +111,9 @@ class OrderController extends Controller
         $orders = Order::where('tenant_id', auth()->user()->tenant_id)
             ->where('restaurant_table_id', $tableId)
             ->where('status', '!=', 'cancelled')
-            ->when($table->occupied_since, fn($q) => $q->where('created_at', '>=', $table->occupied_since))
+            // Grace window: the order that occupies a table is created an instant before
+            // occupy() stamps occupied_since, so a strict `>=` would hide it.
+            ->when($table->occupied_since, fn($q) => $q->where('created_at', '>=', $table->occupied_since->copy()->subSeconds(5)))
             ->with(['items', 'table', 'invoice'])
             ->oldest()
             ->get()

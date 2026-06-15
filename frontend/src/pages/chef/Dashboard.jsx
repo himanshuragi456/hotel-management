@@ -4,8 +4,9 @@ import { getKitchenOrders, updateOrderStatus, getTenantSettings, getRejectionRea
 import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
-import Pusher from 'pusher-js'
 import { printKot } from '@/utils/kotPrint'
+import NotificationBell from '@/components/shared/NotificationBell'
+import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 import {
   ClockIcon,
   FireIcon,
@@ -265,13 +266,13 @@ function Column({ title, colorClass, pillClass, count, orders, onStatusChange, e
 }
 
 export default function ChefDashboard() {
-  const { user, logout: clearAuth, getTenantId } = useAuthStore()
+  const { user, logout: clearAuth } = useAuthStore()
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const audioRef = useRef(null)
-  const [soundEnabled, setSoundEnabled] = useState(true)
-  const tenantId = getTenantId?.()
   const knownOrderIds = useRef(new Set())
+
+  // Central notification engine — rings new-KOT sound + drives the bell.
+  const sound = useNotificationCenter({ extraInvalidateKeys: [['kitchen-orders']] })
 
   const { data: settings } = useQuery({
     queryKey: ['tenant-settings'],
@@ -287,7 +288,10 @@ export default function ChefDashboard() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['kitchen-orders'],
     queryFn: () => getKitchenOrders().then(r => r.data.data),
-    refetchInterval: 15000,
+    // Freshness is driven by Pusher (useNotificationCenter invalidates
+    // 'kitchen-orders' on every order event). This is just a slow safety
+    // backstop in case a websocket event is missed.
+    refetchInterval: 60000,
   })
 
   // Auto-print KOT for new pending orders when setting is on
@@ -318,37 +322,6 @@ export default function ChefDashboard() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['kitchen-orders'] }); setRejectTarget(null) },
   })
 
-  // Pusher realtime
-  useEffect(() => {
-    if (!tenantId) return
-
-    const pusherConfig = {
-      cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1',
-    }
-    if (import.meta.env.VITE_PUSHER_HOST) {
-      pusherConfig.wsHost = import.meta.env.VITE_PUSHER_HOST
-      pusherConfig.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      pusherConfig.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      pusherConfig.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-      pusherConfig.disableStats = true
-      pusherConfig.enabledTransports = ['ws']
-    }
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, pusherConfig)
-
-    const channel = pusher.subscribe(`tenant.${tenantId}.kitchen`)
-    channel.bind('order.updated', () => {
-      qc.invalidateQueries({ queryKey: ['kitchen-orders'] })
-      if (soundEnabled && audioRef.current) {
-        audioRef.current.play().catch(() => {})
-      }
-    })
-
-    return () => {
-      channel.unbind_all()
-      pusher.unsubscribe(`tenant.${tenantId}.kitchen`)
-    }
-  }, [tenantId, soundEnabled, qc])
-
   const handleLogout = async () => {
     try { await logoutApi() } catch { /* ignore */ }
     clearAuth()
@@ -378,26 +351,35 @@ export default function ChefDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Hidden audio ping */}
-          <audio ref={audioRef} preload="auto">
-            <source src="/sounds/new kitchen order.MP3" type="audio/mpeg" />
-          </audio>
+          {/* Stop sound — only while a KOT alert is ringing */}
+          {sound.playing && (
+            <button
+              onClick={sound.stopSound}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/40 hover:bg-orange-500/30 transition-colors animate-pulse"
+            >
+              <SpeakerXMarkIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Stop</span>
+            </button>
+          )}
 
-          {/* Sound toggle */}
+          {/* Sound toggle (this device) */}
           <button
-            onClick={() => setSoundEnabled(s => !s)}
-            title={soundEnabled ? 'Sound on' : 'Sound off'}
+            onClick={sound.toggleMute}
+            title={sound.muted ? 'Sound off' : 'Sound on'}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              soundEnabled
+              !sound.muted
                 ? 'bg-green-900/50 text-green-300 ring-1 ring-green-700/50 hover:bg-green-900/80'
                 : 'bg-slate-800 text-slate-500 ring-1 ring-slate-700 hover:bg-slate-700'
             }`}
           >
-            {soundEnabled
+            {!sound.muted
               ? <SpeakerWaveIcon className="w-4 h-4" />
               : <SpeakerXMarkIcon className="w-4 h-4" />}
-            <span className="hidden sm:inline">{soundEnabled ? 'Sound on' : 'Sound off'}</span>
+            <span className="hidden sm:inline">{!sound.muted ? 'Sound on' : 'Sound off'}</span>
           </button>
+
+          {/* Notification bell */}
+          <NotificationBell sound={sound} />
 
           {/* Logout */}
           <button

@@ -255,7 +255,7 @@ Superadmin, Owner, Waiter, Chef, Billing Counter, Customer
 #### 6.4 Report Filters & Exports
 - [x] Date range, category, role filters on all reports
 - [x] PDF export (DomPDF)
-- [ ] Excel export (Maatwebsite)
+- [x] Excel export (Maatwebsite) — OrdersExport class + RevenueController::exportExcel + route; "Export Excel" button beside Export PDF on Reports page
 
 #### 6.5 Audit Log (Owner view)
 - [x] Tenant-scoped audit trail

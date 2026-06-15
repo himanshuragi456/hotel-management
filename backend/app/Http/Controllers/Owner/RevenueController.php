@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Owner;
 
+use App\Exports\OrdersExport;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Expense;
@@ -175,6 +176,27 @@ class RevenueController extends Controller
         ]);
 
         return $pdf->download("orders-{$request->from}-to-{$request->to}.pdf");
+    }
+
+    public function exportExcel(Request $request): mixed
+    {
+        $v = Validator::make($request->all(), [
+            'from' => 'required|date',
+            'to'   => 'required|date|after_or_equal:from',
+        ]);
+        if ($v->fails()) return $this->validationError($v->errors());
+
+        $orders = Order::where('tenant_id', auth()->user()->tenant_id)
+            ->whereBetween('created_at', [$request->from, $request->to . ' 23:59:59'])
+            ->with(['items', 'table', 'invoice'])
+            ->withCount('items')
+            ->latest()
+            ->get();
+
+        return Excel::download(
+            new OrdersExport($orders),
+            "orders-{$request->from}-to-{$request->to}.xlsx"
+        );
     }
 
     // Expenses

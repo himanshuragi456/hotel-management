@@ -117,8 +117,10 @@ class RoomMenuController extends Controller
                 ],
             );
 
+            $svc = app(\App\Services\OrderService::class);
             foreach ($createdOrders as $o) {
-                try { broadcast(new OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
+                // Guest self-ordered room service via QR — alert kitchen + counter.
+                $svc->announce($o, 'order.placed');
             }
 
             $allNumbers = collect($createdOrders)->pluck('order_number')->implode(',');

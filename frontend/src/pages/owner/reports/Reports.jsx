@@ -4,7 +4,7 @@ import {
   ArrowDownTrayIcon, DocumentTextIcon, ShoppingBagIcon,
   BanknotesIcon, ReceiptPercentIcon, ChartBarIcon,
 } from '@heroicons/react/24/outline'
-import { getOrdersReport, exportOrdersPdf } from '@/services/restaurantService'
+import { getOrdersReport, exportOrdersPdf, exportOrdersExcel } from '@/services/restaurantService'
 
 const PAYMENT_COLORS = {
   cash:  'bg-green-100 text-green-700',
@@ -17,7 +17,7 @@ export default function Reports() {
   const today = new Date().toISOString().split('T')[0]
   const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
-  const [exporting, setExporting] = useState(false)
+  const [exporting, setExporting] = useState(null) // 'pdf' | 'excel' | null
 
   const { data: report, isLoading } = useQuery({
     queryKey: ['orders-report', from, to],
@@ -25,18 +25,20 @@ export default function Reports() {
     enabled: !!(from && to),
   })
 
-  const handleExport = async () => {
-    setExporting(true)
+  const handleExport = async (format) => {
+    setExporting(format)
     try {
-      const res = await exportOrdersPdf({ from, to })
+      const res = format === 'excel'
+        ? await exportOrdersExcel({ from, to })
+        : await exportOrdersPdf({ from, to })
       const url = URL.createObjectURL(res.data)
       const a = document.createElement('a')
       a.href = url
-      a.download = `orders-report-${from}-to-${to}.pdf`
+      a.download = `orders-report-${from}-to-${to}.${format === 'excel' ? 'xlsx' : 'pdf'}`
       a.click()
       URL.revokeObjectURL(url)
     } finally {
-      setExporting(false)
+      setExporting(null)
     }
   }
 
@@ -56,11 +58,18 @@ export default function Reports() {
           <h2 className="text-xl font-semibold text-gray-900">Orders Report</h2>
           <p className="text-sm text-gray-400 mt-0.5">Revenue and order analytics by date range</p>
         </div>
-        <button onClick={handleExport} disabled={exporting || !report?.orders?.length}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow self-start sm:self-auto">
-          <ArrowDownTrayIcon className="w-4 h-4" />
-          {exporting ? 'Exporting…' : 'Export PDF'}
-        </button>
+        <div className="flex gap-2 self-start sm:self-auto">
+          <button onClick={() => handleExport('excel')} disabled={!!exporting || !report?.orders?.length}
+            className="inline-flex items-center gap-2 bg-white border border-green-600 text-green-700 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 hover:bg-green-50 transition-colors">
+            <ArrowDownTrayIcon className="w-4 h-4" />
+            {exporting === 'excel' ? 'Exporting…' : 'Export Excel'}
+          </button>
+          <button onClick={() => handleExport('pdf')} disabled={!!exporting || !report?.orders?.length}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
+            <ArrowDownTrayIcon className="w-4 h-4" />
+            {exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
+          </button>
+        </div>
       </div>
 
       {/* Date range */}

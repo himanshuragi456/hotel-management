@@ -22,7 +22,12 @@ Server: `45.199.139.15`
 SSH: `ssh -i ~/.ssh/id_rsa -p 22 magicman1@45.199.139.15`
 Project path: `/var/www/7cdb3aaf-9f78-4a90-bba7-14c7d98d26f8/magicmanagement.in`
 Live URL: `https://magicmanagement.in`
-Web server: Apache 2.4 (Ubuntu)
+Web server: **LiteSpeed** (Ubuntu 24.04, PHP 8.2, MariaDB 11.4) — verified live 2026-06-15 via the
+`server:` response header. (Earlier notes said "Apache 2.4" — that was wrong.) Because it's LiteSpeed,
+the symlink / `.htaccess` gotchas in "Mistakes Made" #4 and #12 apply to this server too.
+Host is a shared website container: you do NOT own the box (it reports 128 cores / 503GB but those
+are shared), and `crontab` is unavailable ("Command unavailable in website container") — so there is
+no OS-level cron or queue worker here. Realtime works only because broadcasts use `ShouldBroadcastNow`.
 DB host: `localhost`
 DB name: `magicman1_hoteldb`
 DB user: `magicman1`

@@ -120,12 +120,13 @@ export default function OwnerDashboard() {
   const { data: rev, isLoading: revLoading } = useQuery({
     queryKey: ['today-revenue'],
     queryFn: () => getTodayRevenue().then(r => r.data.data),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   })
   const { data: orders } = useQuery({
     queryKey: ['live-orders'],
     queryFn: () => getLiveOrders().then(r => r.data.data),
-    refetchInterval: 10000,
+    // Owner overview is not Pusher-subscribed — poll at a relaxed cadence.
+    refetchInterval: 30000,
   })
 
   const isOffPremise = o => o.source === 'aggregator' || o.type === 'takeaway' || o.source === 'takeaway'

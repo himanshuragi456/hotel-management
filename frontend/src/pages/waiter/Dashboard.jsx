@@ -10,6 +10,8 @@ import useAuthStore from '@/store/authStore'
 import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
 import { formatOccupied } from '@/utils/time'
+import NotificationBell from '@/components/shared/NotificationBell'
+import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 import Pusher from 'pusher-js'
 import {
   TableCellsIcon,
@@ -27,6 +29,8 @@ import {
   CurrencyRupeeIcon,
   ListBulletIcon,
   MagnifyingGlassIcon,
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
 } from '@heroicons/react/24/outline'
 
 // ─── Skeleton Shimmer ────────────────────────────────────────────────────────
@@ -39,7 +43,8 @@ function TableGrid({ onSelect }) {
   const { data: tables, isLoading } = useQuery({
     queryKey: ['waiter-tables'],
     queryFn: () => getWaiterTables().then(r => r.data.data),
-    refetchInterval: 10000,
+    // Pusher-driven (useNotificationCenter invalidates 'waiter-tables'); slow backstop only.
+    refetchInterval: 60000,
   })
 
   if (isLoading) return (
@@ -136,7 +141,8 @@ function TableOrderPanel({ table, onClose }) {
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ['waiter-table-orders', table.id],
     queryFn: () => getWaiterTableOrders(table.id).then(r => r.data.data),
-    refetchInterval: 8000,
+    // Pusher-driven via 'waiter-table-orders' prefix; slow backstop only.
+    refetchInterval: 60000,
   })
 
   // Realtime refresh via Pusher
@@ -762,7 +768,8 @@ function ActiveOrders({ onSelectTable }) {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['waiter-orders'],
     queryFn: () => getWaiterOrders().then(r => r.data.data),
-    refetchInterval: 8000,
+    // Pusher-driven via useNotificationCenter; slow backstop only.
+    refetchInterval: 60000,
   })
 
   const served = useMutation({
@@ -915,6 +922,13 @@ export default function WaiterDashboard() {
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [tab, setTab] = useState('tables')
 
+  // Central notification engine — rings when an assigned table calls / requests bill.
+  const sound = useNotificationCenter({
+    // 'waiter-table-orders' is a prefix — React Query invalidates every open
+    // table panel (keyed ['waiter-table-orders', tableId]) on any order event.
+    extraInvalidateKeys: [['waiter-tables'], ['waiter-orders'], ['waiter-table-orders']],
+  })
+
   const openTable = (t) => {
     qc.invalidateQueries({ queryKey: ['waiter-table-orders', t.id] })
     setSelectedTable(t)
@@ -939,13 +953,33 @@ export default function WaiterDashboard() {
           <h1 className="text-sm font-semibold text-white">{user?.name}</h1>
           <span className="text-xs text-slate-400 font-medium">· Waiter</span>
         </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2 py-1.5 rounded-lg hover:bg-slate-800"
-        >
-          <ArrowRightOnRectangleIcon className="w-4 h-4" />
-          Logout
-        </button>
+        <div className="flex items-center gap-2">
+          {sound.playing && (
+            <button
+              onClick={sound.stopSound}
+              className="flex items-center gap-1.5 text-xs font-semibold text-orange-300 bg-orange-500/20 ring-1 ring-orange-500/40 px-2.5 py-1.5 rounded-lg hover:bg-orange-500/30 transition-colors animate-pulse"
+            >
+              <SpeakerXMarkIcon className="w-4 h-4" /> Stop
+            </button>
+          )}
+          <button
+            onClick={sound.toggleMute}
+            title={sound.muted ? 'Sound off' : 'Sound on'}
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
+              sound.muted ? 'text-slate-400 hover:bg-slate-800' : 'text-green-300 hover:bg-slate-800'
+            }`}
+          >
+            {sound.muted ? <SpeakerXMarkIcon className="w-4 h-4" /> : <SpeakerWaveIcon className="w-4 h-4" />}
+          </button>
+          <NotificationBell sound={sound} />
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2 py-1.5 rounded-lg hover:bg-slate-800"
+          >
+            <ArrowRightOnRectangleIcon className="w-4 h-4" />
+            Logout
+          </button>
+        </div>
       </header>
 
       {/* My Active Orders — always visible */}

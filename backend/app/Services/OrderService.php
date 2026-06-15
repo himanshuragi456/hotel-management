@@ -183,8 +183,12 @@ class OrderService
 
     /**
      * Broadcast + audit a freshly created order (best-effort broadcast).
+     *
+     * @param bool $notifyBiller  whether to raise a "new order" alert at the
+     *   billing counter. Suppressed for the biller's own manual entry (they
+     *   already know about it), enabled for waiter/customer/online orders.
      */
-    public function announce(Order $order, string $auditAction = 'order.placed', array $extraAudit = []): void
+    public function announce(Order $order, string $auditAction = 'order.placed', array $extraAudit = [], bool $notifyBiller = true): void
     {
         try {
             broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
@@ -192,10 +196,66 @@ class OrderService
             // broadcasting is best-effort; never block an order on it
         }
 
+        $this->notifyNewOrder($order, $notifyBiller);
+
         \App\Models\AuditLog::record($auditAction, $order, [], array_merge([
             'order_number' => $order->order_number,
             'items'        => $order->items->map(fn ($i) => $i->quantity . '× ' . $i->item_name)->implode(', '),
             'total'        => $order->total,
         ], $extraAudit));
+    }
+
+    /**
+     * Raise the new-order alerts: a KOT ping for the kitchen, and (optionally)
+     * a new-order ping for the billing counter. Best-effort — never blocks.
+     */
+    private function notifyNewOrder(Order $order, bool $notifyBiller): void
+    {
+        try {
+            $where = $this->orderLocationLabel($order);
+            $items = $order->items->map(fn ($i) => $i->quantity . '× ' . $i->item_name)->implode(', ');
+            $svc   = app(\App\Services\NotificationService::class);
+
+            // Kitchen — every confirmed order is a new ticket.
+            $svc->toRoles(
+                tenantId: $order->tenant_id,
+                roles: ['chef'],
+                kind: 'new_kot',
+                title: "New KOT — {$where}",
+                body: $items,
+                data: ['order_number' => $order->order_number],
+                tableId: $order->restaurant_table_id,
+            );
+
+            if ($notifyBiller) {
+                $svc->toRoles(
+                    tenantId: $order->tenant_id,
+                    roles: ['billing'],
+                    kind: 'new_order',
+                    title: "New order — {$where}",
+                    body: $items,
+                    data: ['order_number' => $order->order_number, 'amount' => (float) $order->total],
+                    tableId: $order->restaurant_table_id,
+                );
+            }
+        } catch (\Throwable $e) {
+            // notifications are best-effort
+        }
+    }
+
+    private function orderLocationLabel(Order $order): string
+    {
+        if ($order->type === 'takeaway' || $order->source === 'aggregator') {
+            return $order->platform
+                ? ucfirst($order->platform)
+                : ($order->customer_name ?: 'Takeaway');
+        }
+        if ($order->table?->number) {
+            return 'Table ' . $order->table->number;
+        }
+        if ($order->room?->number ?? $order->room_id) {
+            return 'Room ' . ($order->room?->number ?? $order->room_id);
+        }
+        return $order->order_number;
     }
 }

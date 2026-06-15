@@ -23,3 +23,21 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Security headers (honored by Apache mod_headers and LiteSpeed).
+# NOTE: no Content-Security-Policy here on purpose — the SPA loads Pusher
+# websockets, Stripe/Razorpay, Google review + image hosts, so a CSP must be
+# built and tested against the live app before enabling, or it will break it.
+<IfModule mod_headers.c>
+    # Force HTTPS for a year, including subdomains (set after confirming all
+    # subdomains serve HTTPS — tables.magicmanagement.in does).
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    # Block MIME-type sniffing.
+    Header always set X-Content-Type-Options "nosniff"
+    # Disallow framing (clickjacking protection).
+    Header always set X-Frame-Options "SAMEORIGIN"
+    # Don't leak full URLs to third parties.
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # Drop access to powerful browser features the app doesn't use.
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>

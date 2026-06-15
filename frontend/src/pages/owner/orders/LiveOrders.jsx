@@ -129,7 +129,8 @@ export default function LiveOrders() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['live-orders'],
     queryFn: () => getLiveOrders().then(r => r.data.data),
-    refetchInterval: 8000,
+    // Owner board is not Pusher-subscribed — poll, but at a relaxed cadence.
+    refetchInterval: 20000,
   })
 
   const byStatus = {

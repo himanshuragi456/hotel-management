@@ -1,18 +1,37 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getNotifications, markNotifRead, clearNotifications } from '@/services/restaurantService'
+import {
+  getNotifications, markNotifRead, clearNotifications, deleteNotification,
+} from '@/services/restaurantService'
 import useAuthStore from '@/store/authStore'
+import {
+  BellIcon, BellAlertIcon, SpeakerWaveIcon, SpeakerXMarkIcon, XMarkIcon,
+} from '@heroicons/react/24/outline'
 
 const TYPE_ICON = {
-  order_new:    '🍽',
-  order_ready:  '✅',
-  booking_new:  '📅',
-  checkout_due: '🔔',
-  low_stock:    '⚠️',
-  default:      '📣',
+  new_order:       '🍽️',
+  new_kot:         '👨‍🍳',
+  order_new:       '🍽️',
+  order_ready:     '✅',
+  bill_requested:  '🧾',
+  payment_claimed: '💸',
+  mt_order:        '📲',
+  mt_paid:         '💸',
+  waiter_called:   '🙋',
+  booking_new:     '📅',
+  checkout_due:    '🔔',
+  low_stock:       '⚠️',
+  default:         '📣',
 }
 
-export default function NotificationBell() {
+/**
+ * Notification center bell.
+ *
+ * @param {object} [sound]  controls from useNotificationCenter:
+ *   { muted, toggleMute, stopSound, playing }. When passed, the drawer shows a
+ *   sound on/off switch (this device) and a Stop button while a sound is ringing.
+ */
+export default function NotificationBell({ sound }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const qc  = useQueryClient()
@@ -21,15 +40,33 @@ export default function NotificationBell() {
   const { data } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => getNotifications().then(r => r.data.data),
+    // Pusher refetches this on every event (useNotificationCenter); the poll is
+    // a backstop so the unread count still decays as items hit their TTL.
     refetchInterval: 30000,
     enabled: isAuthenticated(),
   })
 
-  const notifications = data?.notifications ?? []
-  const unread        = data?.unread_count  ?? 0
+  // Re-evaluate age every 30s so expired items vanish between server polls too.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  // Notifications auto-expire after 10 minutes (mirrors the backend TTL).
+  const TTL_MS = 10 * 60 * 1000
+  const fresh = (n) => Date.now() - new Date(n.created_at).getTime() < TTL_MS
+
+  const notifications = (data?.notifications ?? []).filter(fresh)
+  const unread        = notifications.filter(n => !n.is_read).length
 
   const markRead = useMutation({
     mutationFn: (id) => markNotifRead(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+  })
+
+  const cut = useMutation({
+    mutationFn: (id) => deleteNotification(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   })
 
@@ -45,19 +82,35 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const ringing = sound?.playing
+
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative flex items-center gap-2" ref={ref}>
+      {/* Autoplay was blocked — clicking anything is itself the gesture that
+          unlocks audio, so this pill just needs to be visible + clickable. */}
+      {sound?.blocked && !sound?.muted && (
+        <button
+          onClick={() => { /* the click itself unlocks audio via the global listener */ }}
+          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 ring-1 ring-amber-300 animate-pulse"
+          title="Click anywhere to enable notification sounds"
+        >
+          <SpeakerWaveIcon className="w-3.5 h-3.5" /> Enable sound
+        </button>
+      )}
       <button
         onClick={() => {
           setOpen(o => !o)
           if (!open && unread > 0) markRead.mutate(null)
         }}
-        className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+        className={`relative p-2 rounded-lg transition-colors ${
+          ringing ? 'text-orange-500 animate-pulse' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+        }`}
+        title="Notifications"
       >
-        <span className="text-lg">🔔</span>
+        {ringing ? <BellAlertIcon className="w-5 h-5" /> : <BellIcon className="w-5 h-5" />}
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none">
-            {unread > 9 ? '9+' : unread}
+          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full min-w-[1.1rem] h-[1.1rem] px-1 flex items-center justify-center font-bold leading-none">
+            {unread > 99 ? '99+' : unread}
           </span>
         )}
       </button>
@@ -66,17 +119,44 @@ export default function NotificationBell() {
         <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <span className="font-semibold text-gray-900 text-sm">Notifications</span>
-            {notifications.length > 0 && (
-              <button
-                onClick={() => clear.mutate()}
-                className="text-xs text-gray-400 hover:text-red-500"
-              >
-                Clear all
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {sound && (
+                <button
+                  onClick={sound.toggleMute}
+                  title={sound.muted ? 'Sound off (this device)' : 'Sound on (this device)'}
+                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-colors ${
+                    sound.muted
+                      ? 'bg-gray-100 text-gray-400'
+                      : 'bg-green-50 text-green-600'
+                  }`}
+                >
+                  {sound.muted
+                    ? <SpeakerXMarkIcon className="w-3.5 h-3.5" />
+                    : <SpeakerWaveIcon className="w-3.5 h-3.5" />}
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={() => clear.mutate()}
+                  className="text-xs text-gray-400 hover:text-red-500"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="max-h-80 overflow-y-auto">
+          {/* Ringing banner — quick stop without dismissing */}
+          {ringing && (
+            <button
+              onClick={sound.stopSound}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 text-xs font-semibold border-b border-orange-100 hover:bg-orange-100"
+            >
+              <SpeakerXMarkIcon className="w-4 h-4" /> Stop sound
+            </button>
+          )}
+
+          <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="py-10 text-center text-gray-400">
                 <div className="text-3xl mb-2">🔕</div>
@@ -86,21 +166,30 @@ export default function NotificationBell() {
               notifications.map(n => (
                 <div
                   key={n.id}
-                  className={`px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 cursor-pointer ${!n.is_read ? 'bg-orange-50' : ''}`}
-                  onClick={() => !n.is_read && markRead.mutate(n.id)}
+                  className={`group flex items-start gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 ${!n.is_read ? 'bg-orange-50/60' : ''}`}
                 >
-                  <div className="flex items-start gap-3">
-                    <span className="text-lg mt-0.5">{TYPE_ICON[n.type] ?? TYPE_ICON.default}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-medium ${n.is_read ? 'text-gray-600' : 'text-gray-900'}`}>
-                        {n.title}
-                      </div>
-                      {n.body && <div className="text-xs text-gray-500 mt-0.5 truncate">{n.body}</div>}
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
+                  <span className="text-lg mt-0.5 shrink-0">{TYPE_ICON[n.type] ?? TYPE_ICON.default}</span>
+                  <div
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => !n.is_read && markRead.mutate(n.id)}
+                  >
+                    <div className={`text-sm font-medium ${n.is_read ? 'text-gray-600' : 'text-gray-900'}`}>
+                      {n.title}
                     </div>
-                    {!n.is_read && <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5 shrink-0" />}
+                    {n.body && <div className="text-xs text-gray-500 mt-0.5">{n.body}</div>}
+                    <div className="text-xs text-gray-400 mt-1">
+                      {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {!n.is_read && <span className="w-2 h-2 rounded-full bg-orange-500 mt-1" />}
+                    <button
+                      onClick={() => cut.mutate(n.id)}
+                      title="Dismiss"
+                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity"
+                    >
+                      <XMarkIcon className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               ))

@@ -123,10 +123,12 @@ class MenuController extends Controller
                 ],
             );
 
-            if ($table->status !== 'occupied') $table->occupy();
+            if ($table->status !== 'occupied') $table->occupy($createdOrders[0]->created_at ?? null);
 
+            $svc = app(\App\Services\OrderService::class);
             foreach ($createdOrders as $o) {
-                try { broadcast(new OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
+                // Customer self-ordered via QR — alert both kitchen and counter.
+                $svc->announce($o, 'order.placed');
             }
 
             $allNumbers = collect($createdOrders)->pluck('order_number')->implode(',');
@@ -181,6 +183,16 @@ class MenuController extends Controller
 
         $table->requestBill();
 
+        app(\App\Services\NotificationService::class)->toFloor(
+            tenantId: $tenant->id,
+            kind: 'bill_requested',
+            title: "Table {$table->number} requested the bill",
+            body: 'Customer is ready to pay.',
+            data: ['table_number' => $table->number],
+            tableId: $table->id,
+            waiterId: $table->activeOrder?->waiter_id,
+        );
+
         return $this->success(null, 'Bill request sent. Staff will assist you shortly.');
     }
 
@@ -194,6 +206,16 @@ class MenuController extends Controller
         }
 
         $table->callWaiter();
+
+        app(\App\Services\NotificationService::class)->toFloor(
+            tenantId: $tenant->id,
+            kind: 'waiter_called',
+            title: "Table {$table->number} is calling a waiter",
+            body: 'Customer requested assistance.',
+            data: ['table_number' => $table->number],
+            tableId: $table->id,
+            waiterId: $table->activeOrder?->waiter_id,
+        );
 
         return $this->success(null, 'Waiter has been called. Someone will be with you shortly.');
     }
@@ -258,6 +280,15 @@ class MenuController extends Controller
             ->firstOrFail();
 
         $table->notifyBillPaid();
+
+        app(\App\Services\NotificationService::class)->toFloor(
+            tenantId: $tenant->id,
+            kind: 'payment_claimed',
+            title: "Table {$table->number} says they paid via UPI",
+            body: 'Confirm receipt and close the table.',
+            data: ['table_number' => $table->number],
+            tableId: $table->id,
+        );
 
         return $this->success([
             'table_number' => $table->number,

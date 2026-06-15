@@ -106,6 +106,7 @@ class RoomServiceController extends Controller
 
             DB::commit();
 
+            $notifier = app(\App\Services\NotificationService::class);
             foreach ($createdOrders as $o) {
                 try { broadcast(new OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
                 AuditLog::record('order.room_service_placed', $o, [], [
@@ -115,6 +116,11 @@ class RoomServiceController extends Controller
                     'items'        => $o->items->map(fn($i) => $i->quantity . '× ' . $i->item_name)->implode(', '),
                     'total'        => $o->total,
                 ]);
+
+                $itemsLabel = $o->items->map(fn($i) => $i->quantity . '× ' . $i->item_name)->implode(', ');
+                $where      = 'Room ' . ($booking->room?->number ?? '—');
+                $notifier->toRoles($o->tenant_id, ['chef'], 'new_kot', "New KOT — {$where}", $itemsLabel, ['order_number' => $o->order_number]);
+                $notifier->toRoles($o->tenant_id, ['billing'], 'new_order', "Room service — {$where}", $itemsLabel, ['order_number' => $o->order_number, 'amount' => (float) $o->total]);
             }
 
             return $this->created([

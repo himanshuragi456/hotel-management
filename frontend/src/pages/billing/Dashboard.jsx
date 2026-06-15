@@ -65,6 +65,8 @@ import { useNavigate } from 'react-router-dom'
 import HotelBookings, { CheckOutModal, BookingDetail } from '@/pages/owner/hotel/Bookings'
 import { formatOccupied } from '@/utils/time'
 import { printKot } from '@/utils/kotPrint'
+import NotificationBell from '@/components/shared/NotificationBell'
+import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 
 const PAYMENT_METHODS = ['cash', 'upi']
 
@@ -468,7 +470,8 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['billing-table-orders', table.id],
     queryFn: () => getBillingTableOrders(table.id).then(r => r.data.data),
-    refetchInterval: 8000,
+    // Pusher-driven via 'billing-table-orders' prefix; slow backstop only.
+    refetchInterval: 60000,
   })
 
   // Realtime refresh via Pusher
@@ -956,7 +959,6 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
   const { getTenantId } = useAuthStore()
   const tenantId = getTenantId?.()
   const [open, setOpen] = useState(false)
-  const prevReadyIds = useRef(new Set())
 
   const dismiss = useMutation({
     mutationFn: (id) => dismissOrder(id),
@@ -1010,14 +1012,6 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
   }, [tenantId, qc])
 
   const readyOrders = orders.filter(o => o.status === 'ready')
-
-  // Sound when new ready orders appear
-  useEffect(() => {
-    if (!readyOrders.length) return
-    const newlyReady = readyOrders.filter(o => !prevReadyIds.current.has(o.id))
-    if (newlyReady.length) { try { new Audio('/sounds/ding.wav').play() } catch { /* ignore */ } }
-    prevReadyIds.current = new Set(readyOrders.map(o => o.id))
-  }, [readyOrders])
 
   if (!orders.length) return null
 
@@ -2118,6 +2112,18 @@ export default function BillingDashboard({ embedded = false }) {
     navigate('/login', { replace: true })
   }
 
+  // Central notification engine — rings on floor/order activity + drives the bell.
+  const sound = useNotificationCenter({
+    // 'billing-table-orders' is a prefix — invalidates every open table panel
+    // (keyed ['billing-table-orders', tableId]) on any order event.
+    extraInvalidateKeys: [
+      ['billing-tables'],
+      ['billing-active-orders'],
+      ['billing-unbilled-takeaway'],
+      ['billing-table-orders'],
+    ],
+  })
+
   const sections = tables?.reduce((acc, t) => {
     const s = t.section || 'Other'
     if (!acc[s]) acc[s] = []
@@ -2170,6 +2176,7 @@ export default function BillingDashboard({ embedded = false }) {
                 <DocumentTextIcon className="w-4 h-4" />
                 Recent Bills
               </button>
+              <NotificationBell sound={sound} />
               <button onClick={handleLogout}
                 className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors">
                 <ArrowRightOnRectangleIcon className="w-4 h-4" />

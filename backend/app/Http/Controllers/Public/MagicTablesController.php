@@ -266,6 +266,18 @@ class MagicTablesController extends Controller
             ], 'Order placed! Your food is on its way.');
         }
 
+        // Pending-payment MT order — the biller must confirm receipt before it
+        // goes to the kitchen, so alert the counter with a distinct sound.
+        app(\App\Services\NotificationService::class)->toRoles(
+            tenantId: $tenant->id,
+            roles: ['billing'],
+            kind: 'mt_order',
+            title: "Magic Tables order — Table {$table->number}",
+            body: ($request->customer_name ? $request->customer_name . ' · ' : '') . '₹' . number_format($total, 0) . ' — confirm payment to send to kitchen.',
+            data: ['table_number' => $table->number, 'order_number' => $order->order_number, 'amount' => (float) $total],
+            tableId: $table->id,
+        );
+
         $upiId   = $tenant->upi_id;
         $upiLink = null;
         if ($upiId) {
@@ -325,6 +337,18 @@ class MagicTablesController extends Controller
         } catch (\Exception $e) {
             // Pusher unavailable locally — order is confirmed in DB regardless
         }
+
+        // Biller just confirmed payment — the order now hits the kitchen, so
+        // raise a KOT for the chef. (Biller acted, so no counter alert.)
+        app(\App\Services\NotificationService::class)->toRoles(
+            tenantId: $tenant->id,
+            roles: ['chef'],
+            kind: 'new_kot',
+            title: "New KOT — Table {$table->number}",
+            body: $order->items->map(fn($i) => $i->quantity . '× ' . $i->item_name)->implode(', '),
+            data: ['order_number' => $order->order_number],
+            tableId: $table->id,
+        );
 
         return $this->success([
             'order_number'   => $order->order_number,
@@ -651,6 +675,16 @@ class MagicTablesController extends Controller
 
         $table->callWaiter();
 
+        app(\App\Services\NotificationService::class)->toFloor(
+            tenantId: $tenant->id,
+            kind: 'waiter_called',
+            title: "Table {$table->number} is calling a waiter",
+            body: 'Customer requested assistance.',
+            data: ['table_number' => $table->number],
+            tableId: $table->id,
+            waiterId: $table->activeOrder?->waiter_id,
+        );
+
         return $this->success(null, 'Waiter called. Someone will be with you shortly.');
     }
 
@@ -672,6 +706,16 @@ class MagicTablesController extends Controller
         }
 
         $table->requestBill();
+
+        app(\App\Services\NotificationService::class)->toFloor(
+            tenantId: $tenant->id,
+            kind: 'bill_requested',
+            title: "Table {$table->number} requested the bill",
+            body: 'Customer is ready to pay.',
+            data: ['table_number' => $table->number],
+            tableId: $table->id,
+            waiterId: $table->activeOrder?->waiter_id,
+        );
 
         return $this->success(null, 'Bill request sent. Staff will be with you shortly.');
     }
@@ -708,6 +752,15 @@ class MagicTablesController extends Controller
         }
 
         $table->notifyBillPaid();
+
+        app(\App\Services\NotificationService::class)->toFloor(
+            tenantId: $tenant->id,
+            kind: 'payment_claimed',
+            title: "Table {$table->number} says they paid via UPI",
+            body: '₹' . number_format((float) $request->amount, 0) . ' — confirm receipt and close the table.',
+            data: ['table_number' => $table->number, 'amount' => (float) $request->amount],
+            tableId: $table->id,
+        );
 
         return $this->success([
             'table_number' => $table->number,

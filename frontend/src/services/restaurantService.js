@@ -46,6 +46,7 @@ export const getLiveOrders = () => api.get('/owner/orders/live')
 export const getTodayRevenue = () => api.get('/owner/revenue/today')
 export const getOrdersReport = (params) => api.get('/owner/orders/report', { params })
 export const exportOrdersPdf = (params) => api.get('/owner/orders/export/pdf', { params, responseType: 'blob' })
+export const exportOrdersExcel = (params) => api.get('/owner/orders/export/excel', { params, responseType: 'blob' })
 
 // Owner — Expenses
 export const getExpenses = (params) => api.get('/owner/expenses', { params })
@@ -128,6 +129,7 @@ export const getOwnerAuditLog     = (params) => api.get('/owner/analytics/audit-
 export const getNotifications  = ()    => api.get('/notifications')
 export const markNotifRead     = (id)  => id ? api.post(`/notifications/${id}/mark-read`) : api.post('/notifications/mark-read')
 export const clearNotifications= ()    => api.delete('/notifications')
+export const deleteNotification= (id)  => api.delete(`/notifications/${id}`)
 
 // Owner — Feedback
 export const getFeedbackQrCodes      = ()         => api.get('/owner/feedback/qr-codes')
