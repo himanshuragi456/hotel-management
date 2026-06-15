@@ -14,6 +14,7 @@ const SOUND = {
   mt_order:        '/sounds/mt-order.mp3',
   waiter_called:   '/sounds/new-order.mp3', // no dedicated sound — generic floor ping
   mt_paid:         '/sounds/payment-claimed.mp3',
+  order_ready:     '/sounds/new-order.mp3', // no dedicated sound — generic floor ping
 }
 
 // Which kinds each role should actually be alerted (ring + count) about.
@@ -21,9 +22,9 @@ const SOUND = {
 // here so e.g. a chef doesn't ring for a bill-request that isn't theirs.
 // Owner is intentionally absent — owners do not get floor/order alerts.
 const ROLE_KINDS = {
-  billing: ['new_order', 'bill_requested', 'payment_claimed', 'mt_order', 'mt_paid', 'waiter_called'],
+  billing: ['new_order', 'bill_requested', 'payment_claimed', 'mt_order', 'mt_paid', 'waiter_called', 'order_ready'],
   chef:    ['new_kot'],
-  waiter:  ['waiter_called', 'bill_requested'],
+  waiter:  ['waiter_called', 'bill_requested', 'order_ready'],
 }
 
 const MUTE_KEY = (role) => `notif_muted_${role || 'all'}`
@@ -60,9 +61,22 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
   const tenantId = getTenantId?.()
   const role = user?.role
 
-  const audioRef = useRef(null)
+  const audioRef = useRef(null)      // the single reused <audio> element
+  const audioCtxRef = useRef(null)   // shared WebAudio context (unlocked on gesture)
   const mutedRef = useRef(false)
   const unlockedRef = useRef(false)
+
+  // One reused <audio> element for the whole session. Reusing the SAME element
+  // that was unlocked by a gesture is what lets mobile play later, event-driven
+  // sounds — a fresh `new Audio()` per alert stays blocked on iOS.
+  const getAudioEl = useCallback(() => {
+    if (!audioRef.current) {
+      const el = new Audio()
+      el.preload = 'auto'
+      audioRef.current = el
+    }
+    return audioRef.current
+  }, [])
   const [muted, setMuted] = useState(() => {
     try { return localStorage.getItem(MUTE_KEY(role)) === '1' } catch { return false }
   })
@@ -73,32 +87,52 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
 
   useEffect(() => { mutedRef.current = muted }, [muted])
 
-  // Browsers block programmatic audio until the user interacts with the page.
-  // On the first click/keydown/touch, play+pause a silent buffer to "unlock"
-  // audio so later websocket-triggered sounds are allowed.
+  // Browsers (especially iOS Safari / Android Chrome) block programmatic audio
+  // until the user has interacted with the page. We unlock on the first gesture
+  // by (a) resuming a shared AudioContext and (b) play+pausing a silent buffer
+  // on a REUSED <audio> element. Later websocket-triggered sounds reuse that
+  // same unlocked element (see playFor), which is what mobile actually requires
+  // — a fresh `new Audio()` per alert stays blocked on iOS.
   useEffect(() => {
     const unlock = () => {
-      if (unlockedRef.current) return
-      const a = new Audio('/sounds/new-order.mp3')
-      a.volume = 0
-      a.play().then(() => {
-        a.pause(); a.currentTime = 0
+      // Resume a shared WebAudio context (mobile needs this on a gesture).
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext
+        if (Ctx) {
+          if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
+          if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume().catch(() => {})
+        }
+      } catch { /* ignore */ }
+
+      // Prime the reusable <audio> element within the gesture.
+      const el = getAudioEl()
+      const prevVol = el.volume
+      el.volume = 0
+      el.muted = true
+      el.play().then(() => {
+        el.pause(); el.currentTime = 0; el.muted = false; el.volume = prevVol
         unlockedRef.current = true
         setBlocked(false)
-      }).catch(() => { /* will retry on next gesture */ })
+      }).catch(() => {
+        el.muted = false; el.volume = prevVol
+        // not unlocked yet — listeners stay attached, retry on next gesture
+      })
     }
     window.addEventListener('pointerdown', unlock)
+    window.addEventListener('touchend', unlock)
     window.addEventListener('keydown', unlock)
     return () => {
       window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('touchend', unlock)
       window.removeEventListener('keydown', unlock)
     }
   }, [])
 
   const stopSound = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
+    const el = audioRef.current
+    if (el) {
+      el.pause()
+      el.currentTime = 0
     }
     setPlaying(false)
   }, [])
@@ -107,18 +141,21 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
     if (mutedRef.current) return
     const src = SOUND[kind]
     if (!src) return
-    stopSound()
-    const audio = new Audio(src)
-    audioRef.current = audio
-    audio.onended = () => setPlaying(false)
-    audio.play()
-      .then(() => { setPlaying(true); setBlocked(false) })
+    // Reuse the same element that the gesture unlocked (critical for mobile).
+    const el = getAudioEl()
+    el.pause(); el.currentTime = 0
+    el.src = src
+    el.volume = 1
+    el.muted = false
+    el.onended = () => setPlaying(false)
+    el.play()
+      .then(() => { setPlaying(true); setBlocked(false); unlockedRef.current = true })
       .catch((err) => {
         // Autoplay denied (no user gesture yet) — flag it so the UI can prompt.
         if (err?.name === 'NotAllowedError') setBlocked(true)
         setPlaying(false)
       })
-  }, [stopSound])
+  }, [getAudioEl])
 
   const toggleMute = useCallback(() => {
     setMuted(m => {
@@ -128,6 +165,28 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
       return next
     })
   }, [role, stopSound])
+
+  // Called from an explicit user tap (e.g. the "enable sound" banner) — this IS
+  // a valid gesture, so resume the context and play a short confirmation ping.
+  // After this, websocket-triggered sounds are allowed on mobile.
+  const enableSound = useCallback(() => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      if (Ctx) {
+        if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
+        if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume().catch(() => {})
+      }
+    } catch { /* ignore */ }
+    const el = getAudioEl()
+    el.pause(); el.currentTime = 0
+    el.src = SOUND.new_order
+    el.volume = 1
+    el.muted = false
+    el.onended = () => setPlaying(false)
+    el.play()
+      .then(() => { unlockedRef.current = true; setBlocked(false); setPlaying(true) })
+      .catch(() => { /* still blocked — banner stays */ })
+  }, [getAudioEl])
 
   // keep stable refs for the keys so the effect doesn't re-subscribe each render
   const extraKeysRef = useRef(extraInvalidateKeys)
@@ -148,6 +207,8 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
       refreshOrders()
 
       const shouldRing = kind && allowed.includes(kind) &&
+        // The user who triggered the action doesn't get alerted about their own action.
+        !(data?.exclude_user_id && data.exclude_user_id === user?.id) &&
         // Waiter alerts may target a specific waiter; if so, only that waiter rings.
         !(role === 'waiter' && data?.waiter_id && data.waiter_id !== user?.id)
 
@@ -170,5 +231,5 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
     }
   }, [tenantId, role, user?.id, qc, playFor])
 
-  return { muted, toggleMute, stopSound, playing, blocked }
+  return { muted, toggleMute, stopSound, playing, blocked, enableSound }
 }

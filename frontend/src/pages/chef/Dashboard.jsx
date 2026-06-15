@@ -393,6 +393,18 @@ export default function ChefDashboard() {
         </div>
       </header>
 
+      {/* Sound blocked — mobile browsers mute audio until the screen is tapped.
+          A websocket alert can't unlock it, so prompt the chef to tap once. */}
+      {sound.blocked && !sound.muted && (
+        <button
+          onClick={sound.enableSound}
+          className="w-full flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-3 text-sm font-bold sticky top-[57px] z-10 animate-pulse"
+        >
+          <SpeakerWaveIcon className="w-5 h-5" />
+          Tap here to enable new-order sound
+        </button>
+      )}
+
       {/* Board */}
       {isLoading ? (
         <div className="flex items-center justify-center h-64">

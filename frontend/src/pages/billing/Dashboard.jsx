@@ -32,7 +32,7 @@ import Pusher from 'pusher-js'
 import {
   XMarkIcon, PlusIcon, MinusIcon, PrinterIcon, ArrowDownTrayIcon,
   ArrowRightOnRectangleIcon, UserIcon, PhoneIcon,
-  BanknotesIcon, DocumentTextIcon, MagnifyingGlassIcon,
+  BanknotesIcon, DocumentTextIcon, MagnifyingGlassIcon, SpeakerWaveIcon,
 } from '@heroicons/react/24/outline'
 import {
   getBillingTables, getBillingTableOrders, getBillingTableHistory, closeBillingTable, billAllOrders,
@@ -2210,6 +2210,18 @@ export default function BillingDashboard({ embedded = false }) {
             )}
           </div>
         </header>
+      )}
+
+      {/* Sound blocked — mobile browsers mute audio until the screen is tapped.
+          A websocket alert can't unlock it, so prompt the biller to tap once. */}
+      {!embedded && sound.blocked && !sound.muted && (
+        <button
+          onClick={sound.enableSound}
+          className="w-full flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-3 text-sm font-bold sticky top-0 z-10 animate-pulse"
+        >
+          <SpeakerWaveIcon className="w-5 h-5" />
+          Tap here to enable alert sounds
+        </button>
       )}
 
       {embedded && (

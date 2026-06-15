@@ -31,6 +31,8 @@ class TableActivity implements ShouldBroadcastNow
      * @param array    $payload    display data (title, body, table number, amount, etc.)
      * @param int|null $tableId    restaurant table involved, if any
      * @param int|null $waiterId   assigned waiter, when the alert is waiter-targeted
+     * @param int|null $excludeUserId  user who triggered the action — clients for
+     *   this user skip the ring (they don't need to be alerted about their own action)
      */
     public function __construct(
         public int $tenantId,
@@ -38,6 +40,7 @@ class TableActivity implements ShouldBroadcastNow
         public array $payload = [],
         public ?int $tableId = null,
         public ?int $waiterId = null,
+        public ?int $excludeUserId = null,
     ) {}
 
     public function broadcastOn(): array
@@ -53,11 +56,12 @@ class TableActivity implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'kind'      => $this->kind,
-            'table_id'  => $this->tableId,
-            'waiter_id' => $this->waiterId,
-            'payload'   => $this->payload,
-            'at'        => now()->toIso8601String(),
+            'kind'            => $this->kind,
+            'table_id'        => $this->tableId,
+            'waiter_id'       => $this->waiterId,
+            'exclude_user_id' => $this->excludeUserId,
+            'payload'         => $this->payload,
+            'at'              => now()->toIso8601String(),
         ];
     }
 }

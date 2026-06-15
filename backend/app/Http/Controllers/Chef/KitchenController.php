@@ -6,6 +6,7 @@ use App\Events\OrderStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Order;
+use App\Services\NotificationService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -73,6 +74,47 @@ class KitchenController extends Controller
         try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Exception $e) {}
         AuditLog::record('order.status_changed', $order, ['status' => $prev], ['status' => $next, 'order_number' => $order->order_number]);
 
+        // Order just became ready — alert the floor so it gets served: billers +
+        // the assigned waiter (toFloor targets both).
+        if ($next === 'ready' && $prev !== 'ready') {
+            $this->notifyReady($order);
+        }
+
         return $this->success(['status' => $order->fresh()->status], 'Status updated');
+    }
+
+    private function notifyReady(Order $order): void
+    {
+        try {
+            $where = $this->orderLocationLabel($order);
+            app(NotificationService::class)->toFloor(
+                tenantId: $order->tenant_id,
+                kind: 'order_ready',
+                title: "Ready to serve — {$where}",
+                body: "Order {$order->order_number} is ready",
+                data: ['order_number' => $order->order_number],
+                tableId: $order->restaurant_table_id,
+                waiterId: $order->waiter_id,
+                // Whoever marked it ready (often a biller) doesn't need to be
+                // alerted about their own action.
+                excludeUserId: auth()->id(),
+            );
+        } catch (\Throwable $e) {
+            // notifications are best-effort
+        }
+    }
+
+    private function orderLocationLabel(Order $order): string
+    {
+        if ($order->table?->number) {
+            return 'Table ' . $order->table->number;
+        }
+        if ($order->room?->number ?? $order->room_id) {
+            return 'Room ' . ($order->room?->number ?? $order->room_id);
+        }
+        if ($order->type === 'takeaway' || $order->source === 'aggregator') {
+            return $order->platform ? ucfirst($order->platform) : ($order->customer_name ?: 'Takeaway');
+        }
+        return $order->order_number;
     }
 }

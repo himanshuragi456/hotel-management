@@ -45,6 +45,9 @@ class NotificationService
     /**
      * Dispatch an alert to all billers, plus the assigned waiter if there is one.
      * Used for floor signals (waiter call, bill request, payment claimed).
+     *
+     * @param int|null $excludeUserId  the user who triggered the action — they
+     *   don't need to be alerted about their own action (no DB row, no ring).
      */
     public function toFloor(
         int $tenantId,
@@ -54,6 +57,7 @@ class NotificationService
         array $data = [],
         ?int $tableId = null,
         ?int $waiterId = null,
+        ?int $excludeUserId = null,
     ): void {
         $query = User::where('tenant_id', $tenantId)
             ->where('is_active', true)
@@ -64,7 +68,11 @@ class NotificationService
                 }
             });
 
-        $this->deliver($tenantId, $query->pluck('id')->all(), $kind, $title, $body, $data, $tableId, $waiterId);
+        if ($excludeUserId) {
+            $query->where('id', '!=', $excludeUserId);
+        }
+
+        $this->deliver($tenantId, $query->pluck('id')->all(), $kind, $title, $body, $data, $tableId, $waiterId, $excludeUserId);
     }
 
     /**
@@ -81,6 +89,7 @@ class NotificationService
         array $data,
         ?int $tableId,
         ?int $waiterId,
+        ?int $excludeUserId = null,
     ): void {
         $now = now();
         $rows = [];
@@ -110,6 +119,7 @@ class NotificationService
                 payload: array_merge(['title' => $title, 'body' => $body], $data),
                 tableId: $tableId,
                 waiterId: $waiterId,
+                excludeUserId: $excludeUserId,
             ));
         } catch (\Throwable $e) {
             // broadcasting is best-effort

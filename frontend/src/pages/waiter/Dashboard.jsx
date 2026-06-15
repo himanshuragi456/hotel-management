@@ -982,6 +982,18 @@ export default function WaiterDashboard() {
         </div>
       </header>
 
+      {/* Sound blocked — mobile browsers mute audio until the screen is tapped.
+          A websocket alert can't unlock it, so prompt the waiter to tap once. */}
+      {sound.blocked && !sound.muted && (
+        <button
+          onClick={sound.enableSound}
+          className="w-full flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-3 text-sm font-bold sticky top-[53px] z-10 animate-pulse"
+        >
+          <SpeakerWaveIcon className="w-5 h-5" />
+          Tap here to enable alert sounds
+        </button>
+      )}
+
       {/* My Active Orders — always visible */}
       <div className="px-6 pt-5">
         <ActiveOrders onSelectTable={t => { setSelectedTable(t); setTab('tables') }} />
