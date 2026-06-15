@@ -202,15 +202,17 @@ function TableOrderPanel({ table, onClose }) {
     ? allItems.filter(i => i.name.toLowerCase().includes(debouncedMenuSearch.toLowerCase()))
     : activeCatItems
 
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['waiter-table-orders', table.id] })
-    qc.invalidateQueries({ queryKey: ['waiter-tables'] })
-    qc.invalidateQueries({ queryKey: ['waiter-orders'] })
-  }
+  // Returns a promise so callers can keep a mutation pending (spinner spinning)
+  // until the refetch lands and the UI actually reflects the change.
+  const invalidate = () => Promise.all([
+    qc.invalidateQueries({ queryKey: ['waiter-table-orders', table.id] }),
+    qc.invalidateQueries({ queryKey: ['waiter-tables'] }),
+    qc.invalidateQueries({ queryKey: ['waiter-orders'] }),
+  ])
 
   const createOrder = useMutation({
     mutationFn: placeOrder,
-    onSuccess: () => { invalidate(); setCart([]); setShowMenu(false) },
+    onSuccess: () => { setCart([]); setShowMenu(false); return invalidate() },
   })
 
   const served = useMutation({
@@ -587,7 +589,7 @@ function RoomServiceForm({ booking, onClose }) {
 
   const create = useMutation({
     mutationFn: placeRoomService,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['waiter-orders'] }); onClose() },
+    onSuccess: () => { onClose(); return qc.invalidateQueries({ queryKey: ['waiter-orders'] }) },
   })
 
   const cartKeyRS = (itemId, variantId, addonIds) =>
@@ -778,10 +780,10 @@ function ActiveOrders({ onSelectTable }) {
 
   const served = useMutation({
     mutationFn: (orderId) => markServed(orderId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['waiter-orders'] })
-      qc.invalidateQueries({ queryKey: ['waiter-tables'] })
-    },
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['waiter-orders'] }),
+      qc.invalidateQueries({ queryKey: ['waiter-tables'] }),
+    ]),
   })
 
   if (isLoading) return (

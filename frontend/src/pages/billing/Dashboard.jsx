@@ -511,20 +511,21 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
 
   const markServed = useMutation({
     mutationFn: (orderId) => billingMarkServed(orderId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] })
-      qc.invalidateQueries({ queryKey: ['billing-tables'] })
-      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
-    },
+    // await + return so the spinner keeps spinning until the refetch lands.
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] }),
+      qc.invalidateQueries({ queryKey: ['billing-tables'] }),
+      qc.invalidateQueries({ queryKey: ['billing-active-orders'] }),
+    ]),
   })
 
   const advanceStatus = useMutation({
     mutationFn: ({ orderId, status }) => billingUpdateStatus(orderId, status),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] })
-      qc.invalidateQueries({ queryKey: ['billing-tables'] })
-      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
-    },
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] }),
+      qc.invalidateQueries({ queryKey: ['billing-tables'] }),
+      qc.invalidateQueries({ queryKey: ['billing-active-orders'] }),
+    ]),
   })
 
   const allServed      = orders?.length > 0 && orders.every(o => ['served', 'cancelled'].includes(o.status))
@@ -2075,9 +2076,11 @@ export default function BillingDashboard({ embedded = false }) {
     mutationFn: ({ orderId, status }) =>
       status === 'served' ? billingMarkServed(orderId) : billingUpdateStatus(orderId, status),
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
-      qc.invalidateQueries({ queryKey: ['billing-unbilled-takeaway'] })
       setSelectedTakeawayOrder(prev => prev ? { ...prev, status: vars.status } : prev)
+      return Promise.all([
+        qc.invalidateQueries({ queryKey: ['billing-active-orders'] }),
+        qc.invalidateQueries({ queryKey: ['billing-unbilled-takeaway'] }),
+      ])
     },
   })
 
@@ -2618,18 +2621,18 @@ function BillingRoomOrdersPanel({ booking, onClose, onPlaceOrder }) {
 
   const markServed = useMutation({
     mutationFn: billingMarkServedRoom,
-    onSuccess: () => {
-      refetch()
-      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
-    },
+    onSuccess: () => Promise.all([
+      refetch(),
+      qc.invalidateQueries({ queryKey: ['billing-active-orders'] }),
+    ]),
   })
 
   const advanceStatus = useMutation({
     mutationFn: ({ orderId, status }) => billingUpdateStatus(orderId, status),
-    onSuccess: () => {
-      refetch()
-      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
-    },
+    onSuccess: () => Promise.all([
+      refetch(),
+      qc.invalidateQueries({ queryKey: ['billing-active-orders'] }),
+    ]),
   })
 
   const orders  = data?.orders ?? []

@@ -51,6 +51,7 @@ function StatusTimeline({ order }) {
 function OrderCard({ order, cfg }) {
   const qc = useQueryClient()
 
+  // Return the promise so the spinner stays until the refetch repaints the board.
   const invalidate = () => qc.invalidateQueries({ queryKey: ['live-orders'] })
 
   const advance = useMutation({

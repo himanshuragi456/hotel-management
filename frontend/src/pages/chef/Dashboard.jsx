@@ -314,6 +314,8 @@ export default function ChefDashboard() {
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }) => updateOrderStatus(id, status),
+    // Return the invalidation promise so the mutation stays pending (spinner
+    // keeps spinning) until the refetch lands and the card actually moves.
     onSuccess: () => qc.invalidateQueries({ queryKey: ['kitchen-orders'] }),
   })
   // The order currently being moved (for a per-card spinner).
