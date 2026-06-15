@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import Pusher from 'pusher-js'
 import useAuthStore from '@/store/authStore'
+import { getTenantSettings } from '@/services/restaurantService'
 
 // ─── Sound mapping ──────────────────────────────────────────────────────────
 // Each alert kind maps to a dedicated MP3 dropped in /public/sounds. Kinds
@@ -60,6 +61,18 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
   const { user, getTenantId } = useAuthStore()
   const tenantId = getTenantId?.()
   const role = user?.role
+
+  // Owner-configured per-(role,kind) ring preferences. Absent key => ring (the
+  // default), so restaurants that never touch settings keep ringing for all.
+  const { data: tenantSettings } = useQuery({
+    queryKey: ['tenant-settings'],
+    queryFn: () => getTenantSettings().then(r => r.data.data),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!user,
+  })
+  const ringPrefs = tenantSettings?.ring_prefs ?? {}
+  const ringPrefsRef = useRef(ringPrefs)
+  useEffect(() => { ringPrefsRef.current = ringPrefs })
 
   const audioRef = useRef(null)      // the single reused <audio> element
   const audioCtxRef = useRef(null)   // shared WebAudio context (unlocked on gesture)
@@ -206,7 +219,11 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
       const kind = data?.kind
       refreshOrders()
 
-      const shouldRing = kind && allowed.includes(kind) &&
+      // Owner may have switched this (role, kind) ring off in settings.
+      // Absent key defaults to true (ring).
+      const ringAllowedByOwner = ringPrefsRef.current[`${role}.${kind}`] !== false
+
+      const shouldRing = kind && allowed.includes(kind) && ringAllowedByOwner &&
         // The user who triggered the action doesn't get alerted about their own action.
         !(data?.exclude_user_id && data.exclude_user_id === user?.id) &&
         // Waiter alerts may target a specific waiter; if so, only that waiter rings.

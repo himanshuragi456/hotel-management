@@ -126,16 +126,45 @@ class NotificationService
         }
 
         // OS-level push — wakes a sleeping/backgrounded phone. Same recipients
-        // as the DB rows (the acting user is already excluded from $userIds).
+        // as the DB rows (the acting user is already excluded from $userIds),
+        // minus any whose owner turned this (role, kind) ring off in settings.
         try {
-            app(WebPushService::class)->sendToUsers(
-                $userIds,
-                $title,
-                $body,
-                array_merge($data, ['kind' => $kind]),
-            );
+            $pushUserIds = $this->filterByRingPrefs($tenantId, $userIds, $kind);
+            if ($pushUserIds) {
+                app(WebPushService::class)->sendToUsers(
+                    $pushUserIds,
+                    $title,
+                    $body,
+                    array_merge($data, ['kind' => $kind]),
+                );
+            }
         } catch (\Throwable $e) {
             // push is best-effort
         }
+    }
+
+    /**
+     * Drop recipients whose owner disabled this (role, kind) ring. Keeps the
+     * phone push in sync with the in-app sound toggle. Absent pref => keep.
+     *
+     * @param int[] $userIds
+     * @return int[]
+     */
+    private function filterByRingPrefs(int $tenantId, array $userIds, string $kind): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        $prefs = \App\Models\Tenant::find($tenantId)?->ring_prefs ?? [];
+        if (empty($prefs)) {
+            return $userIds; // nothing turned off — push to everyone
+        }
+
+        return User::whereIn('id', $userIds)
+            ->get(['id', 'role'])
+            ->reject(fn ($u) => ($prefs[$u->role . '.' . $kind] ?? true) === false)
+            ->pluck('id')
+            ->all();
     }
 }

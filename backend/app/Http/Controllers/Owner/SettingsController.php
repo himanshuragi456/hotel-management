@@ -39,6 +39,7 @@ class SettingsController extends Controller
             'active_contact_phone'          => $tenant->active_contact_phone,
             'zomato_online'                 => (bool) ($tenant->zomato_online ?? true),
             'swiggy_online'                 => (bool) ($tenant->swiggy_online ?? true),
+            'ring_prefs'                    => (object) ($tenant->ring_prefs ?? []),
         ];
     }
 
@@ -72,6 +73,8 @@ class SettingsController extends Controller
             'contact_phones'                => 'sometimes|array|max:5',
             'contact_phones.*'              => 'string|regex:/^[6-9]\d{9}$/',
             'active_contact_phone'          => 'sometimes|nullable|string|regex:/^[6-9]\d{9}$/',
+            'ring_prefs'                    => 'sometimes|array',
+            'ring_prefs.*'                  => 'boolean',
         ]);
         $tenant->update($request->only([
             'address',
@@ -93,6 +96,7 @@ class SettingsController extends Controller
             'upi_id',
             'contact_phones',
             'active_contact_phone',
+            'ring_prefs',
         ]));
         return $this->success($this->tenantData($tenant), 'Settings updated');
     }

@@ -4,6 +4,7 @@ import {
   KeyIcon, PrinterIcon, CheckCircleIcon, ExclamationCircleIcon,
   QrCodeIcon, CreditCardIcon, PhoneIcon, PlusIcon, TrashIcon,
   PowerIcon, ClockIcon, QuestionMarkCircleIcon, BuildingStorefrontIcon,
+  SpeakerWaveIcon,
 } from '@heroicons/react/24/outline'
 import { getOwnerSettings, updateOwnerSettings, changeOwnPassword, getFeedbackQrCodes, getOutlet, toggleOutletChannel, setOutletHours } from '@/services/restaurantService'
 import { validate, validateField, required, isStrongPassword } from '@/utils/validate'
@@ -557,6 +558,79 @@ const PWD_RULES = {
   password:         [required('New password'), isStrongPassword()],
 }
 
+// Which alerts can ring, grouped by the staff screen that hears them. The key
+// is "<role>.<kind>" — it must match the (role, kind) pairs in
+// useNotificationCenter's ROLE_KINDS, and the backend NotificationService kinds.
+const ALERT_GROUPS = [
+  {
+    role: 'Kitchen (Chef)',
+    items: [
+      { key: 'chef.new_kot', label: 'New kitchen order (KOT)', desc: 'A new ticket arrives in the kitchen' },
+    ],
+  },
+  {
+    role: 'Billing Counter',
+    items: [
+      { key: 'billing.new_order',       label: 'New order',          desc: 'A new order is placed' },
+      { key: 'billing.order_ready',     label: 'Order ready to serve', desc: 'Kitchen marked an order ready' },
+      { key: 'billing.bill_requested',  label: 'Bill requested',     desc: 'A table/customer requested the bill' },
+      { key: 'billing.waiter_called',   label: 'Waiter called',      desc: 'A customer called for a waiter' },
+      { key: 'billing.payment_claimed', label: 'Payment claimed',    desc: 'Customer says they paid via UPI' },
+      { key: 'billing.mt_order',        label: 'Magic Tables order', desc: 'Order from the Magic Tables app' },
+    ],
+  },
+  {
+    role: 'Waiter',
+    items: [
+      { key: 'waiter.order_ready',    label: 'Order ready to serve', desc: 'Kitchen marked their order ready' },
+      { key: 'waiter.bill_requested', label: 'Bill requested',       desc: "Their table requested the bill" },
+      { key: 'waiter.waiter_called',  label: 'Waiter called',        desc: 'A customer called for a waiter' },
+    ],
+  },
+]
+
+function AlertSoundsCard({ settings, onUpdate, isPending }) {
+  const prefs = settings?.ring_prefs ?? {}
+  // Absent key => rings (default true).
+  const isOn = (key) => prefs[key] !== false
+
+  const toggle = (key) => {
+    onUpdate({ ring_prefs: { ...prefs, [key]: !isOn(key) } })
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2.5 mb-1">
+        <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+          <SpeakerWaveIcon className="w-4 h-4 text-orange-500" />
+        </div>
+        <h3 className="font-semibold text-gray-900 text-sm">Alert Sounds</h3>
+      </div>
+      <p className="text-xs text-gray-400 mb-2">
+        Choose which alerts ring on each screen. Turning one off stops the sound and phone push for that alert.
+      </p>
+
+      {ALERT_GROUPS.map((group) => (
+        <div key={group.role} className="mt-3">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{group.role}</p>
+          <div className="divide-y divide-gray-50">
+            {group.items.map((item) => (
+              <Toggle
+                key={item.key}
+                label={item.label}
+                description={item.desc}
+                checked={isOn(item.key)}
+                onChange={() => toggle(item.key)}
+                disabled={isPending}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ChangePasswordCard() {
   const [form, setForm] = useState({ current_password: '', password: '', password_confirmation: '' })
   const [errors, setErrors] = useState({})
@@ -861,6 +935,11 @@ export default function OwnerSettings() {
               isPending={updateMutation.isPending}
             />
             <ContactPhonesCard
+              settings={settings}
+              onUpdate={(patch) => updateMutation.mutate(patch)}
+              isPending={updateMutation.isPending}
+            />
+            <AlertSoundsCard
               settings={settings}
               onUpdate={(patch) => updateMutation.mutate(patch)}
               isPending={updateMutation.isPending}
