@@ -147,6 +147,16 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
   })
   const [error, setError] = useState('')
 
+  // Whether GST is baked into menu prices. Reuses the cached tenant-settings
+  // query (no extra request). Must mirror the backend total math, else the
+  // amount_paid we send is wrong (was double-counting GST when inclusive).
+  const { data: tenantSettings } = useQuery({
+    queryKey: ['tenant-settings'],
+    queryFn: () => getTenantSettings().then(r => r.data.data),
+    staleTime: 5 * 60 * 1000,
+  })
+  const inclusive = !!tenantSettings?.gst_inclusive
+
   const discountAmt = form.discount_type === 'flat'
     ? (parseFloat(form.discount_value) || 0)
     : (order.subtotal * (parseFloat(form.discount_value) || 0) / 100)
@@ -154,7 +164,9 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
   const taxRate = order.tax ? (order.tax / order.subtotal) : 0
   const afterDiscount = Math.max(0, order.subtotal - discountAmt)
   const taxAmt = afterDiscount * taxRate
-  const total = afterDiscount + taxAmt
+  // Inclusive: GST is already inside the subtotal → total is just the
+  // discounted subtotal. Exclusive: add GST on top.
+  const total = inclusive ? afterDiscount : afterDiscount + taxAmt
 
   const create = useMutation({
     mutationFn: createInvoice,
@@ -244,7 +256,9 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
             </div>
             <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
               {discountAmt > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>−₹{discountAmt.toFixed(2)}</span></div>}
-              <div className="flex justify-between text-gray-600"><span>Tax</span><span>₹{taxAmt.toFixed(2)}</span></div>
+              <div className="flex justify-between text-gray-600">
+                <span>{inclusive ? 'GST (incl.)' : 'Tax'}</span><span>₹{taxAmt.toFixed(2)}</span>
+              </div>
               <div className="flex justify-between font-bold text-gray-900 border-t pt-1.5">
                 <span>Total</span><span>₹{total.toFixed(2)}</span>
               </div>
