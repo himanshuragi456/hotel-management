@@ -66,6 +66,7 @@ import HotelBookings, { CheckOutModal, BookingDetail } from '@/pages/owner/hotel
 import { formatOccupied } from '@/utils/time'
 import { printKot } from '@/utils/kotPrint'
 import NotificationBell from '@/components/shared/NotificationBell'
+import PushToggle from '@/components/shared/PushToggle'
 import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 
 const PAYMENT_METHODS = ['cash', 'upi']
@@ -2176,6 +2177,7 @@ export default function BillingDashboard({ embedded = false }) {
                 <DocumentTextIcon className="w-4 h-4" />
                 Recent Bills
               </button>
+              <PushToggle />
               <NotificationBell sound={sound} />
               <button onClick={handleLogout}
                 className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors">

@@ -41,3 +41,10 @@
     # Drop access to powerful browser features the app doesn't use.
     Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
 </IfModule>
+
+# Correct MIME type for the PWA manifest (needed for install / iOS Add to Home
+# Screen, which is in turn required for web push on iOS). Without this it serves
+# as application/octet-stream and, with nosniff, some browsers reject it.
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>

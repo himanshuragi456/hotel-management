@@ -11,6 +11,7 @@ import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
 import { formatOccupied } from '@/utils/time'
 import NotificationBell from '@/components/shared/NotificationBell'
+import PushToggle from '@/components/shared/PushToggle'
 import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 import Pusher from 'pusher-js'
 import {
@@ -971,6 +972,7 @@ export default function WaiterDashboard() {
           >
             {sound.muted ? <SpeakerXMarkIcon className="w-4 h-4" /> : <SpeakerWaveIcon className="w-4 h-4" />}
           </button>
+          <PushToggle dark />
           <NotificationBell sound={sound} />
           <button
             onClick={handleLogout}

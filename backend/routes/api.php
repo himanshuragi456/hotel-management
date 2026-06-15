@@ -56,6 +56,11 @@ Route::middleware(['auth:api'])->group(function () {
     Route::delete('notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id');
     Route::delete('notifications', [NotificationController::class, 'clearAll']);
 
+    // Web Push (OS-level notifications so a sleeping phone still rings)
+    Route::get('push/vapid-key', [\App\Http\Controllers\PushSubscriptionController::class, 'vapidKey']);
+    Route::post('push/subscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'store']);
+    Route::post('push/unsubscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'destroy']);
+
     Route::prefix('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);

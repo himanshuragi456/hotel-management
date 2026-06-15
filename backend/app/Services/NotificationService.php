@@ -124,5 +124,18 @@ class NotificationService
         } catch (\Throwable $e) {
             // broadcasting is best-effort
         }
+
+        // OS-level push — wakes a sleeping/backgrounded phone. Same recipients
+        // as the DB rows (the acting user is already excluded from $userIds).
+        try {
+            app(WebPushService::class)->sendToUsers(
+                $userIds,
+                $title,
+                $body,
+                array_merge($data, ['kind' => $kind]),
+            );
+        } catch (\Throwable $e) {
+            // push is best-effort
+        }
     }
 }

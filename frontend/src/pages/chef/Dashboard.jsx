@@ -6,6 +6,7 @@ import { logout as logoutApi } from '@/services/authService'
 import { useNavigate } from 'react-router-dom'
 import { printKot } from '@/utils/kotPrint'
 import NotificationBell from '@/components/shared/NotificationBell'
+import PushToggle from '@/components/shared/PushToggle'
 import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 import {
   ClockIcon,
@@ -377,6 +378,9 @@ export default function ChefDashboard() {
               : <SpeakerXMarkIcon className="w-4 h-4" />}
             <span className="hidden sm:inline">{!sound.muted ? 'Sound on' : 'Sound off'}</span>
           </button>
+
+          {/* Phone alerts (OS push — works when screen is off) */}
+          <PushToggle dark />
 
           {/* Notification bell */}
           <NotificationBell sound={sound} />
