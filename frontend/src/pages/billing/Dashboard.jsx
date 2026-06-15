@@ -67,6 +67,7 @@ import { formatOccupied } from '@/utils/time'
 import { printKot } from '@/utils/kotPrint'
 import NotificationBell from '@/components/shared/NotificationBell'
 import PushToggle from '@/components/shared/PushToggle'
+import Spinner from '@/components/shared/Spinner'
 import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 
 const PAYMENT_METHODS = ['cash', 'upi']
@@ -447,7 +448,8 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
                 quantity,
               })))}
               disabled={addItems.isPending}
-              className="w-full mt-3 bg-orange-500 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50">
+              className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-orange-500 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-wait">
+              {addItems.isPending && <Spinner />}
               {addItems.isPending ? 'Sending…' : 'Send to Kitchen'}
             </button>
           </div>
@@ -592,8 +594,9 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
               <button
                 onClick={() => closeTable.mutate()}
                 disabled={closeTable.isPending}
-                className="bg-red-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-1.5 bg-red-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 disabled:cursor-wait"
               >
+                {closeTable.isPending && <Spinner size="w-3.5 h-3.5" />}
                 Close Table
               </button>
             )}
@@ -721,8 +724,9 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                       <button
                         onClick={() => advanceStatus.mutate({ orderId: order.id, status: 'preparing' })}
                         disabled={advanceStatus.isPending}
-                        className="flex-1 text-xs bg-blue-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-blue-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait"
                       >
+                        {advanceStatus.isPending && advanceStatus.variables?.orderId === order.id && <Spinner size="w-3.5 h-3.5" />}
                         → Preparing
                       </button>
                     </>
@@ -731,8 +735,9 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                     <button
                       onClick={() => advanceStatus.mutate({ orderId: order.id, status: 'ready' })}
                       disabled={advanceStatus.isPending}
-                      className="flex-1 text-xs bg-green-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-green-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait"
                     >
+                      {advanceStatus.isPending && advanceStatus.variables?.orderId === order.id && <Spinner size="w-3.5 h-3.5" />}
                       → Mark Ready
                     </button>
                   )}
@@ -740,8 +745,9 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
                     <button
                       onClick={() => markServed.mutate(order.id)}
                       disabled={markServed.isPending}
-                      className="flex-1 text-xs bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait"
                     >
+                      {markServed.isPending && markServed.variables === order.id && <Spinner size="w-3.5 h-3.5" />}
                       Mark Served
                     </button>
                   )}
@@ -882,7 +888,8 @@ function BillAllModal({ table, total, onClose, onDone }) {
             </div>
           )}
           <button onClick={() => submit.mutate()} disabled={submit.isPending}
-            className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
+            className="w-full inline-flex items-center justify-center gap-2 bg-green-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-wait">
+            {submit.isPending && <Spinner />}
             {submit.isPending ? 'Processing…' : 'Confirm & Close Table'}
           </button>
         </div>
@@ -942,11 +949,13 @@ function DownloadBar({ invoiceIds, upiId, onDismiss }) {
     <div className="fixed bottom-4 right-4 bg-green-600 text-white rounded-2xl shadow-lg px-5 py-3 flex items-center gap-3 z-[70]">
       <span className="text-sm font-medium">{isMulti ? 'Combined invoice ready!' : 'Invoice created!'}</span>
       <button onClick={handlePrint} disabled={!!loading}
-        className="bg-white text-green-700 text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50">
+        className="inline-flex items-center gap-1.5 bg-white text-green-700 text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-wait">
+        {loading === 'print' && <Spinner size="w-3.5 h-3.5" />}
         {loading === 'print' ? 'Printing…' : 'Print'}
       </button>
       <button onClick={handleDownload} disabled={!!loading}
-        className="bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50">
+        className="inline-flex items-center gap-1.5 bg-green-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-wait">
+        {loading === 'download' && <Spinner size="w-3.5 h-3.5" />}
         {loading === 'download' ? 'Downloading…' : 'Download PDF'}
       </button>
       <button onClick={onDismiss} className="text-green-200 hover:text-white"><XMarkIcon className="w-4 h-4" /></button>
@@ -1661,8 +1670,9 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
             <button
               onClick={handlePlace}
               disabled={place.isPending}
-              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50 hover:shadow-md transition-shadow"
+              className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50 disabled:cursor-wait hover:shadow-md transition-shadow"
             >
+              {place.isPending && <Spinner />}
               {place.isPending ? 'Placing…' : `Place ${isAggregator ? channelMeta?.label : 'Takeaway'} Order · ₹${total}`}
             </button>
           </div>
@@ -1831,8 +1841,9 @@ function PendingMtPanel({ tenantSlug, freeTables = [], tenantSettings }) {
               <button
                 onClick={() => discard.mutate(discardingId)}
                 disabled={discard.isPending}
-                className="flex-1 bg-red-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-red-700 disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-red-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-wait"
               >
+                {discard.isPending && <Spinner />}
                 {discard.isPending ? 'Discarding…' : 'Yes, Discard'}
               </button>
             </div>
@@ -1903,8 +1914,9 @@ function PendingMtPanel({ tenantSlug, freeTables = [], tenantSettings }) {
                     tableId: tableOccupied ? (selectedTableId || null) : null,
                   })}
                   disabled={confirm.isPending || (tableOccupied && !selectedTableId)}
-                  className="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-green-700 disabled:opacity-40"
+                  className="flex-1 inline-flex items-center justify-center gap-2 bg-green-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-green-700 disabled:opacity-40 disabled:cursor-wait"
                 >
+                  {confirm.isPending && <Spinner />}
                   {confirm.isPending ? 'Confirming…' : 'Confirm & Send to Kitchen'}
                 </button>
               </div>
@@ -1982,8 +1994,9 @@ function BillPaidPanel() {
               <button
                 onClick={() => reject.mutate(table.table_id)}
                 disabled={reject.isPending}
-                className="flex-1 bg-white border border-red-300 text-red-600 hover:bg-red-50 text-sm font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-red-300 text-red-600 hover:bg-red-50 text-sm font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-wait"
               >
+                {reject.isPending && reject.variables === table.table_id && <Spinner size="w-3.5 h-3.5" />}
                 ✕ Not Paid
               </button>
             </div>
@@ -2010,8 +2023,9 @@ function BillPaidPanel() {
               <button
                 onClick={() => confirm.mutate(confirmingId)}
                 disabled={confirm.isPending}
-                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-emerald-700 disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-wait"
               >
+                {confirm.isPending && <Spinner />}
                 {confirm.isPending ? 'Closing…' : 'Yes, Close Table'}
               </button>
             </div>
@@ -2440,17 +2454,17 @@ export default function BillingDashboard({ embedded = false }) {
                     {selectedTakeawayOrder.status === 'pending' && (
                       <button onClick={() => takeawayAdvance.mutate({ orderId: selectedTakeawayOrder.id, status: 'preparing' })}
                         disabled={takeawayAdvance.isPending}
-                        className="flex-1 text-xs bg-blue-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50">Start Preparing</button>
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-blue-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait">{takeawayAdvance.isPending && <Spinner size="w-3.5 h-3.5" />}Start Preparing</button>
                     )}
                     {selectedTakeawayOrder.status === 'preparing' && (
                       <button onClick={() => takeawayAdvance.mutate({ orderId: selectedTakeawayOrder.id, status: 'ready' })}
                         disabled={takeawayAdvance.isPending}
-                        className="flex-1 text-xs bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50">Mark Ready</button>
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait">{takeawayAdvance.isPending && <Spinner size="w-3.5 h-3.5" />}Mark Ready</button>
                     )}
                     {selectedTakeawayOrder.status === 'ready' && (
                       <button onClick={() => takeawayAdvance.mutate({ orderId: selectedTakeawayOrder.id, status: 'served' })}
                         disabled={takeawayAdvance.isPending}
-                        className="flex-1 text-xs bg-gray-800 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50">Mark Served</button>
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-gray-800 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait">{takeawayAdvance.isPending && <Spinner size="w-3.5 h-3.5" />}Mark Served</button>
                     )}
                   </div>
                 </div>
@@ -2712,8 +2726,9 @@ function BillingRoomOrdersPanel({ booking, onClose, onPlaceOrder }) {
                   <button
                     onClick={() => advanceStatus.mutate({ orderId: order.id, status: 'preparing' })}
                     disabled={advanceStatus.isPending}
-                    className="flex-1 text-xs bg-blue-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-blue-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait"
                   >
+                    {advanceStatus.isPending && advanceStatus.variables?.orderId === order.id && <Spinner size="w-3.5 h-3.5" />}
                     → Preparing
                   </button>
                 )}
@@ -2721,8 +2736,9 @@ function BillingRoomOrdersPanel({ booking, onClose, onPlaceOrder }) {
                   <button
                     onClick={() => advanceStatus.mutate({ orderId: order.id, status: 'ready' })}
                     disabled={advanceStatus.isPending}
-                    className="flex-1 text-xs bg-green-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-green-500 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait"
                   >
+                    {advanceStatus.isPending && advanceStatus.variables?.orderId === order.id && <Spinner size="w-3.5 h-3.5" />}
                     → Mark Ready
                   </button>
                 )}
@@ -2730,8 +2746,9 @@ function BillingRoomOrdersPanel({ booking, onClose, onPlaceOrder }) {
                   <button
                     onClick={() => markServed.mutate(order.id)}
                     disabled={markServed.isPending}
-                    className="flex-1 text-xs bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait"
                   >
+                    {markServed.isPending && markServed.variables === order.id && <Spinner size="w-3.5 h-3.5" />}
                     Mark Served
                   </button>
                 )}

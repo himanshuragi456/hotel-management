@@ -8,6 +8,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { getRooms, createRoom, updateRoom, deleteRoom, getRoomQr } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
+import Spinner from '@/components/shared/Spinner'
 import { formatOccupied } from '@/utils/time'
 import { validate, validateField, required, isPositive, isNonNeg, minValue, isInteger } from '@/utils/validate'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
@@ -222,7 +223,8 @@ function RoomForm({ room, onSuccess }) {
       </div>
       <div className="flex justify-end pt-1">
         <button type="submit" disabled={mutation.isPending}
-          className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
+          className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
+          {mutation.isPending && <Spinner size="w-4 h-4" />}
           {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Room'}
         </button>
       </div>
@@ -375,6 +377,7 @@ export default function RoomManager() {
           title={`Delete Room ${deleteTarget?.number}?`}
           message="This will permanently delete the room. This cannot be undone."
           confirmLabel={del.isPending ? 'Deleting…' : 'Delete'}
+          loading={del.isPending}
           confirmClass="bg-red-500 hover:bg-red-600 text-white"
           onConfirm={() => del.mutate(deleteTarget?.id)}
           onCancel={() => setDeleteTarget(null)}

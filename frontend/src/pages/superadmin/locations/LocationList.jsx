@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import Spinner from '@/components/shared/Spinner'
 import { getLocations, createLocation, updateLocation, deleteLocation } from '@/services/superadminService'
 import { MapPinIcon, PlusIcon, PencilIcon, TrashIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 
@@ -67,7 +68,8 @@ function LocationModal({ location, onClose, onSaved }) {
               Cancel
             </button>
             <button type="submit" disabled={mutation.isPending}
-              className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              className="inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {mutation.isPending && <Spinner size="w-4 h-4" />}
               {mutation.isPending ? 'Saving…' : isEdit ? 'Save' : 'Add Location'}
             </button>
           </div>
@@ -187,7 +189,8 @@ export default function LocationList() {
                 Cancel
               </button>
               <button onClick={() => deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                className="inline-flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                {deleteMutation.isPending && <Spinner size="w-4 h-4" />}
                 {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
               </button>
             </div>

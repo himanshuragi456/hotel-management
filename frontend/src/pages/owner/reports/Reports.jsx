@@ -5,6 +5,7 @@ import {
   BanknotesIcon, ReceiptPercentIcon, ChartBarIcon,
 } from '@heroicons/react/24/outline'
 import { getOrdersReport, exportOrdersPdf, exportOrdersExcel } from '@/services/restaurantService'
+import Spinner from '@/components/shared/Spinner'
 
 const PAYMENT_COLORS = {
   cash:  'bg-green-100 text-green-700',
@@ -60,13 +61,13 @@ export default function Reports() {
         </div>
         <div className="flex gap-2 self-start sm:self-auto">
           <button onClick={() => handleExport('excel')} disabled={!!exporting || !report?.orders?.length}
-            className="inline-flex items-center gap-2 bg-white border border-green-600 text-green-700 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 hover:bg-green-50 transition-colors">
-            <ArrowDownTrayIcon className="w-4 h-4" />
+            className="inline-flex items-center gap-2 bg-white border border-green-600 text-green-700 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-wait hover:bg-green-50 transition-colors">
+            {exporting === 'excel' ? <Spinner size="w-4 h-4" /> : <ArrowDownTrayIcon className="w-4 h-4" />}
             {exporting === 'excel' ? 'Exporting…' : 'Export Excel'}
           </button>
           <button onClick={() => handleExport('pdf')} disabled={!!exporting || !report?.orders?.length}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
-            <ArrowDownTrayIcon className="w-4 h-4" />
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-wait hover:shadow-md transition-shadow">
+            {exporting === 'pdf' ? <Spinner size="w-4 h-4" /> : <ArrowDownTrayIcon className="w-4 h-4" />}
             {exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
           </button>
         </div>

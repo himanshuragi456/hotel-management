@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import Spinner from '@/components/shared/Spinner'
 import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import { createTenant, updateTenant, assignPlan, getLocations } from '@/services/superadminService'
 import { validate, validateField, required, isEmail, isPhone, isGstin, isNonNeg, maxValue, atLeastOne } from '@/utils/validate'
@@ -332,7 +333,8 @@ export function SubscriptionTab({ tenant, plans, onSuccess }) {
 
         <div className="flex justify-end">
           <button type="submit" disabled={assignMutation.isPending}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow disabled:opacity-50">
+            className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:shadow-md transition-shadow disabled:opacity-50">
+            {assignMutation.isPending && <Spinner size="w-4 h-4" />}
             {assignMutation.isPending ? 'Assigning…' : sub ? 'Reassign Plan' : 'Assign Plan'}
           </button>
         </div>
@@ -410,7 +412,8 @@ export default function TenantForm({ tenant, onSuccess }) {
         <DetailsTab form={form} setForm={setForm} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} isEdit={isEdit} allLocations={allLocations} />
         <div className="flex justify-end gap-3 pt-2">
           <button type="submit" disabled={mutation.isPending}
-            className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+            {mutation.isPending && <Spinner size="w-4 h-4" />}
             {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Tenant'}
           </button>
         </div>

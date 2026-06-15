@@ -9,6 +9,7 @@ import {
 import { getOwnerSettings, updateOwnerSettings, changeOwnPassword, getFeedbackQrCodes, getOutlet, toggleOutletChannel, setOutletHours } from '@/services/restaurantService'
 import { validate, validateField, required, isStrongPassword } from '@/utils/validate'
 import useAuthStore from '@/store/authStore'
+import Spinner from '@/components/shared/Spinner'
 
 function Toggle({ label, description, checked, onChange, disabled }) {
   return (
@@ -722,8 +723,9 @@ function ChangePasswordCard() {
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow mt-1"
+          className="inline-flex items-center justify-center gap-2 w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow mt-1"
         >
+          {mutation.isPending && <Spinner size="w-4 h-4" />}
           {mutation.isPending ? 'Changing…' : 'Change Password'}
         </button>
       </form>

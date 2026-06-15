@@ -8,6 +8,7 @@ import {
   downloadBookingBill,
 } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
+import Spinner from '@/components/shared/Spinner'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import {
   PlusIcon, CalendarDaysIcon, ExclamationTriangleIcon, ChatBubbleBottomCenterTextIcon,
@@ -310,7 +311,8 @@ function NewBookingForm({ onSuccess, svc }) {
       </div>
 
       <button onClick={handleSubmit} disabled={book.isPending || makeGuest.isPending}
-        className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+        className="inline-flex items-center justify-center gap-2 w-full bg-orange-500 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+        {book.isPending && <Spinner size="w-4 h-4" />}
         {book.isPending ? 'Creating Booking…' : 'Create Booking'}
       </button>
     </div>
@@ -408,8 +410,9 @@ export function CheckOutModal({ booking, onSuccess, svc }) {
               <button
                 onClick={() => extend.mutate()}
                 disabled={!newCheckOut || extend.isPending}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 whitespace-nowrap"
               >
+                {extend.isPending && <Spinner size="w-4 h-4" />}
                 {extend.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>
@@ -525,7 +528,8 @@ export function CheckOutModal({ booking, onSuccess, svc }) {
             {printing ? 'Preparing…' : '🖨 Print Bill'}
           </button>
           <button onClick={() => checkout.mutate()} disabled={checkout.isPending || summaryLoading}
-            className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+            className="inline-flex items-center justify-center gap-2 flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+            {checkout.isPending && <Spinner size="w-4 h-4" />}
             {checkout.isPending ? 'Processing…' : 'Confirm Check-out'}
           </button>
         </div>
@@ -823,7 +827,8 @@ function EditBookingForm({ booking, onSuccess, svc }) {
       </div>
 
       <button type="submit" disabled={mutation.isPending}
-        className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+        className="inline-flex items-center justify-center gap-2 w-full bg-orange-500 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+        {mutation.isPending && <Spinner size="w-4 h-4" />}
         {mutation.isPending ? 'Saving…' : 'Save Changes'}
       </button>
     </form>
@@ -1077,6 +1082,7 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
         title="Confirm Check-In"
         message={`Check in ${checkInTarget?.guest?.name} to Room ${checkInTarget?.room?.number}?`}
         confirmLabel={checkIn.isPending ? 'Checking in…' : 'Check In'}
+        loading={checkIn.isPending}
         confirmClass="bg-green-600 hover:bg-green-700 text-white"
         onConfirm={() => checkIn.mutate(checkInTarget)}
         onCancel={() => setCheckInTarget(null)}
@@ -1087,6 +1093,7 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
         title="Cancel Booking?"
         message={`Cancel booking ${cancelTarget?.booking_number}? The room will be freed up.`}
         confirmLabel={cancel.isPending ? 'Cancelling…' : 'Cancel Booking'}
+        loading={cancel.isPending}
         confirmClass="bg-red-500 hover:bg-red-600 text-white"
         onConfirm={() => cancel.mutate(cancelTarget)}
         onCancel={() => setCancelTarget(null)}

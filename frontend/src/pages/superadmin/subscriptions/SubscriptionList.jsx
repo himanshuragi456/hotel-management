@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import Spinner from '@/components/shared/Spinner'
 import { CalendarDaysIcon, ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { getSubscriptions, extendSubscription, cancelSubscription } from '@/services/superadminService'
 import Badge from '@/components/shared/Badge'
@@ -160,8 +161,9 @@ export default function SubscriptionList() {
             </button>
             <button onClick={() => extendMutation.mutate({ id: extending.id, months: extendMonths })}
               disabled={extendMutation.isPending}
-              className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+              className="inline-flex items-center justify-center gap-2 flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
               <CalendarDaysIcon className="w-4 h-4" />
+              {extendMutation.isPending && <Spinner size="w-4 h-4" />}
               {extendMutation.isPending ? 'Extending…' : 'Add Time'}
             </button>
           </div>
@@ -173,6 +175,7 @@ export default function SubscriptionList() {
         title="Cancel Subscription?"
         message={`This will cancel the subscription for "${cancelTarget?.tenant?.name}". They will lose access when their current period ends.`}
         confirmLabel={cancelMutation.isPending ? 'Cancelling…' : 'Cancel Subscription'}
+        loading={cancelMutation.isPending}
         confirmClass="bg-red-500 hover:bg-red-600 text-white"
         onConfirm={() => cancelMutation.mutate(cancelTarget?.id)}
         onCancel={() => setCancelTarget(null)}

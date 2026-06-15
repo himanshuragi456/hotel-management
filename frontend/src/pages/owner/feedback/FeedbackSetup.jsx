@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Spinner from '@/components/shared/Spinner'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircleIcon, ArrowTopRightOnSquareIcon,
@@ -507,7 +508,7 @@ export default function FeedbackSetup() {
             type="submit" disabled={create.isPending}
             className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow whitespace-nowrap"
           >
-            <PlusIcon className="w-4 h-4" />
+            {create.isPending ? <Spinner size="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
             {create.isPending ? 'Creating…' : 'Create QR'}
           </button>
         </form>

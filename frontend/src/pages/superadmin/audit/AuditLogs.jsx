@@ -162,6 +162,7 @@ export default function AuditLogs() {
         title="Purge Old Audit Logs?"
         message="This will permanently delete all audit logs older than 90 days. This action cannot be undone."
         confirmLabel={purgeMutation.isPending ? 'Purging…' : 'Purge'}
+        loading={purgeMutation.isPending}
         confirmClass="bg-red-500 hover:bg-red-600 text-white"
         onConfirm={() => purgeMutation.mutate()}
         onCancel={() => setShowPurgeConfirm(false)}

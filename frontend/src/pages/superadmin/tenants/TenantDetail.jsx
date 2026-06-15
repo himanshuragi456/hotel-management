@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import Spinner from '@/components/shared/Spinner'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getTenant, updateTenantModules, exportTenantData, updateTenantAiSettings, loginAsStaff, changeUserPassword, getPlans } from '@/services/superadminService'
 import Badge from '@/components/shared/Badge'
@@ -87,8 +88,9 @@ function AiSettingsCard({ tenant, mutation }) {
               <button
                 onClick={save}
                 disabled={mutation.isPending}
-                className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
               >
+                {mutation.isPending && <Spinner size="w-4 h-4" />}
                 {mutation.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>
@@ -164,7 +166,8 @@ function ChangePasswordModal({ user, onClose }) {
         </div>
         <div className="flex gap-2 pt-1">
           <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 text-sm py-2.5 rounded-xl hover:bg-gray-50">Cancel</button>
-          <button type="submit" disabled={mutation.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm py-2.5 rounded-xl font-semibold disabled:opacity-50">
+          <button type="submit" disabled={mutation.isPending} className="inline-flex items-center justify-center gap-2 flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm py-2.5 rounded-xl font-semibold disabled:opacity-50">
+            {mutation.isPending && <Spinner size="w-4 h-4" />}
             {mutation.isPending ? 'Saving…' : 'Set Password'}
           </button>
         </div>
@@ -368,8 +371,9 @@ export default function TenantDetail() {
                       <button
                         onClick={saveDomain}
                         disabled={!resolvedDomain || (resolvedDomain === 'other' && !feedbackDomainOther?.trim()) || modulesMutation.isPending}
-                        className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors"
+                        className="inline-flex items-center justify-center gap-2 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors"
                       >
+                        {modulesMutation.isPending && <Spinner size="w-4 h-4" />}
                         {modulesMutation.isPending ? '…' : 'Save'}
                       </button>
                     </div>

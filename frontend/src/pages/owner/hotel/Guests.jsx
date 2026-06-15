@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { getGuests, createGuest, updateGuest, getGuest } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
+import Spinner from '@/components/shared/Spinner'
 import { validate, validateField, required, isEmail, isPhone, requiredIfOtherSet } from '@/utils/validate'
 
 const ID_TYPES = ['aadhaar', 'passport', 'driving_license', 'voter_id', 'pan']
@@ -157,7 +158,8 @@ function GuestForm({ guest, onSuccess }) {
         </div>
       </div>
       <div className="flex justify-end pt-2">
-        <button type="submit" disabled={mutation.isPending} className="bg-orange-500 text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+        <button type="submit" disabled={mutation.isPending} className="inline-flex items-center justify-center gap-2 bg-orange-500 text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+          {mutation.isPending && <Spinner size="w-4 h-4" />}
           {mutation.isPending ? 'Saving…' : isEdit ? 'Save' : 'Add Guest'}
         </button>
       </div>

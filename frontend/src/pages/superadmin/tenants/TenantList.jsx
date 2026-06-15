@@ -224,6 +224,7 @@ export default function TenantList() {
         title={`Delete "${deleteTarget?.name}"?`}
         message="This will permanently remove the tenant and all associated data. This cannot be undone."
         confirmLabel={deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+        loading={deleteMutation.isPending}
         confirmClass="bg-red-500 hover:bg-red-600 text-white"
         onConfirm={() => deleteMutation.mutate(deleteTarget?.id)}
         onCancel={() => setDeleteTarget(null)}

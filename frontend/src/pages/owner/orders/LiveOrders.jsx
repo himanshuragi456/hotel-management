@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import Spinner from '@/components/shared/Spinner'
 import { getLiveOrders } from '@/services/restaurantService'
 import { billingUpdateStatus, billingMarkServed } from '@/services/restaurantService'
 
@@ -97,27 +98,30 @@ function OrderCard({ order, cfg }) {
           <button
             onClick={() => advance.mutate('preparing')}
             disabled={busy}
-            className="flex-1 text-xs bg-blue-500 hover:bg-blue-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait transition-colors"
           >
-            {advance.isPending ? '…' : '→ Preparing'}
+            {advance.isPending && <Spinner size="w-3.5 h-3.5" />}
+            → Preparing
           </button>
         )}
         {order.status === 'preparing' && (
           <button
             onClick={() => advance.mutate('ready')}
             disabled={busy}
-            className="flex-1 text-xs bg-green-500 hover:bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-green-500 hover:bg-green-600 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait transition-colors"
           >
-            {advance.isPending ? '…' : '→ Mark Ready'}
+            {advance.isPending && <Spinner size="w-3.5 h-3.5" />}
+            → Mark Ready
           </button>
         )}
         {order.status === 'ready' && (
           <button
             onClick={() => served.mutate()}
             disabled={busy}
-            className="flex-1 text-xs bg-green-600 hover:bg-green-700 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait transition-colors"
           >
-            {served.isPending ? '…' : 'Mark Served'}
+            {served.isPending && <Spinner size="w-3.5 h-3.5" />}
+            Mark Served
           </button>
         )}
       </div>

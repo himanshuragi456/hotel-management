@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import { formatOccupied } from '@/utils/time'
 import NotificationBell from '@/components/shared/NotificationBell'
 import PushToggle from '@/components/shared/PushToggle'
+import Spinner from '@/components/shared/Spinner'
 import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 import Pusher from 'pusher-js'
 import {
@@ -342,9 +343,11 @@ function TableOrderPanel({ table, onClose }) {
                       <button
                         onClick={() => served.mutate(order.id)}
                         disabled={served.isPending}
-                        className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait transition-colors"
                       >
-                        <CheckCircleIcon className="w-3.5 h-3.5" />
+                        {served.isPending && served.variables === order.id
+                          ? <Spinner size="w-3.5 h-3.5" />
+                          : <CheckCircleIcon className="w-3.5 h-3.5" />}
                         Mark Served
                       </button>
                     )}
@@ -399,9 +402,9 @@ function TableOrderPanel({ table, onClose }) {
                 <button
                   onClick={handleSendToKitchen}
                   disabled={createOrder.isPending}
-                  className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm px-5 py-2.5 rounded-xl font-semibold disabled:opacity-50 shadow-sm shadow-orange-200 transition-all"
+                  className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm px-5 py-2.5 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-wait shadow-sm shadow-orange-200 transition-all"
                 >
-                  <FireIcon className="w-4 h-4" />
+                  {createOrder.isPending ? <Spinner /> : <FireIcon className="w-4 h-4" />}
                   {createOrder.isPending ? 'Sending…' : 'Send to Kitchen'}
                 </button>
               </div>
@@ -720,9 +723,9 @@ function RoomServiceForm({ booking, onClose }) {
               <button
                 onClick={() => create.mutate({ booking_id: booking.id, items: cart.map(({ menu_item_id, variant_id, addon_ids, quantity }) => ({ menu_item_id, ...(variant_id ? { variant_id } : {}), ...(addon_ids?.length ? { addon_ids } : {}), quantity })) })}
                 disabled={create.isPending}
-                className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 shadow-sm shadow-orange-200 transition-all"
+                className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-wait shadow-sm shadow-orange-200 transition-all"
               >
-                <FireIcon className="w-4 h-4" />
+                {create.isPending ? <Spinner /> : <FireIcon className="w-4 h-4" />}
                 {create.isPending ? 'Sending…' : 'Send to Kitchen'}
               </button>
             </div>
@@ -858,9 +861,11 @@ function ActiveOrders({ onSelectTable }) {
                   <button
                     onClick={() => served.mutate(order.id)}
                     disabled={served.isPending}
-                    className="flex items-center gap-1 text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-1 text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-wait transition-colors"
                   >
-                    <CheckCircleIcon className="w-3.5 h-3.5" />
+                    {served.isPending && served.variables === order.id
+                      ? <Spinner size="w-3.5 h-3.5" />
+                      : <CheckCircleIcon className="w-3.5 h-3.5" />}
                     Mark Served
                   </button>
                 ) : order.table ? (

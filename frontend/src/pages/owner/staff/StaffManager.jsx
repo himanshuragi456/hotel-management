@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Spinner from '@/components/shared/Spinner'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   PlusIcon, XMarkIcon, UserGroupIcon,
@@ -166,8 +167,9 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
           <button
             type="submit"
             disabled={mutation.isPending}
-            className="w-full bg-orange-500 text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 mt-1"
+            className="inline-flex items-center justify-center gap-2 w-full bg-orange-500 text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 mt-1"
           >
+            {mutation.isPending && <Spinner size="w-4 h-4" />}
             {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Staff Member'}
           </button>
         </form>
@@ -322,7 +324,8 @@ export default function StaffManager() {
               <button
                 onClick={() => deleteMutation.mutate(confirmDelete.id)}
                 disabled={deleteMutation.isPending}
-                className="flex-1 bg-red-500 text-white py-2 rounded-xl text-sm font-semibold disabled:opacity-50">
+                className="inline-flex items-center justify-center gap-2 flex-1 bg-red-500 text-white py-2 rounded-xl text-sm font-semibold disabled:opacity-50">
+                {deleteMutation.isPending && <Spinner size="w-4 h-4" />}
                 {deleteMutation.isPending ? 'Removing…' : 'Remove'}
               </button>
             </div>

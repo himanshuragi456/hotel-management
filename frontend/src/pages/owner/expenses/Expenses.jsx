@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Spinner from '@/components/shared/Spinner'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import {
@@ -138,6 +139,7 @@ export default function Expenses() {
           <button type="submit" disabled={create.isPending}
             className="col-span-full md:col-span-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
             <PlusIcon className="w-4 h-4" />
+            {create.isPending && <Spinner size="w-4 h-4" />}
             {create.isPending ? 'Adding…' : 'Add Expense'}
           </button>
         </form>

@@ -144,6 +144,7 @@ export default function PlanList() {
         title={`Delete "${deleteTarget?.name}"?`}
         message={deleteError || 'This plan will be permanently removed. Plans with active subscriptions cannot be deleted.'}
         confirmLabel={deleteMutation.isPending ? 'Deleting…' : 'Delete Plan'}
+        loading={deleteMutation.isPending}
         onConfirm={() => !deleteMutation.isPending && deleteMutation.mutate(deleteTarget.id)}
         onCancel={() => { setDeleteTarget(null); setDeleteError('') }}
       />

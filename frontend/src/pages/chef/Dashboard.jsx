@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { printKot } from '@/utils/kotPrint'
 import NotificationBell from '@/components/shared/NotificationBell'
 import PushToggle from '@/components/shared/PushToggle'
+import Spinner from '@/components/shared/Spinner'
 import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 import {
   ClockIcon,
@@ -49,7 +50,7 @@ const PLATFORM_BADGE = {
   swiggy: 'bg-[#fc8019]/20 text-[#ffb072] ring-1 ring-[#fc8019]/40',
 }
 
-function OrderCard({ order, onStatusChange, showKotButton, onKotPrint, onReject }) {
+function OrderCard({ order, onStatusChange, showKotButton, onKotPrint, onReject, statusPending }) {
   const next = STATUS_FLOW[order.status]
 
   return (
@@ -164,14 +165,17 @@ function OrderCard({ order, onStatusChange, showKotButton, onKotPrint, onReject 
         {next && (
           <button
             onClick={() => onStatusChange(order.id, next)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 active:opacity-75 ${
+            disabled={statusPending}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 active:opacity-75 disabled:opacity-60 disabled:cursor-wait inline-flex items-center justify-center ${
               next === 'preparing'
                 ? 'bg-gradient-to-r from-indigo-600 to-indigo-500'
                 : 'bg-gradient-to-r from-emerald-600 to-emerald-500'
             }`}
           >
-            {next === 'ready' && (
-              <CheckCircleIcon className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+            {statusPending ? (
+              <Spinner className="mr-1.5" />
+            ) : (
+              next === 'ready' && <CheckCircleIcon className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
             )}
             {STATUS_LABEL[order.status]}
           </button>
@@ -228,7 +232,8 @@ function RejectModal({ order, reasons, onClose, onConfirm, pending }) {
           <button
             disabled={!canSubmit || pending}
             onClick={() => onConfirm({ reason_code: code, note: note || undefined, rejected_item_ids: needsItems ? itemIds : undefined })}
-            className="px-5 py-2 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-40">
+            className="px-5 py-2 inline-flex items-center justify-center gap-2 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-40 disabled:cursor-wait">
+            {pending && <Spinner />}
             {pending ? 'Rejecting…' : 'Reject Order'}
           </button>
         </div>
@@ -246,7 +251,7 @@ function EmptyColumn({ message }) {
   )
 }
 
-function Column({ title, colorClass, pillClass, count, orders, onStatusChange, emptyMessage, showKotButton, onKotPrint, onReject }) {
+function Column({ title, colorClass, pillClass, count, orders, onStatusChange, emptyMessage, showKotButton, onKotPrint, onReject, statusPendingId }) {
   return (
     <div className="flex flex-col gap-3">
       {/* Column header */}
@@ -259,7 +264,7 @@ function Column({ title, colorClass, pillClass, count, orders, onStatusChange, e
 
       {/* Cards */}
       {orders.map(o => (
-        <OrderCard key={o.id} order={o} onStatusChange={onStatusChange} showKotButton={showKotButton} onKotPrint={onKotPrint} onReject={onReject} />
+        <OrderCard key={o.id} order={o} onStatusChange={onStatusChange} showKotButton={showKotButton} onKotPrint={onKotPrint} onReject={onReject} statusPending={statusPendingId === o.id} />
       ))}
       {!orders.length && <EmptyColumn message={emptyMessage} />}
     </div>
@@ -311,6 +316,8 @@ export default function ChefDashboard() {
     mutationFn: ({ id, status }) => updateOrderStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['kitchen-orders'] }),
   })
+  // The order currently being moved (for a per-card spinner).
+  const statusPendingId = updateStatus.isPending ? updateStatus.variables?.id : null
 
   const [rejectTarget, setRejectTarget] = useState(null)
   const { data: rejectionReasons } = useQuery({
@@ -430,6 +437,7 @@ export default function ChefDashboard() {
             showKotButton={showKotButton}
             onKotPrint={printKot}
             onReject={setRejectTarget}
+            statusPendingId={statusPendingId}
           />
 
           <Column
@@ -443,6 +451,7 @@ export default function ChefDashboard() {
             showKotButton={showKotButton}
             onKotPrint={printKot}
             onReject={setRejectTarget}
+            statusPendingId={statusPendingId}
           />
 
           <Column
@@ -456,6 +465,7 @@ export default function ChefDashboard() {
             showKotButton={showKotButton}
             onKotPrint={printKot}
             onReject={setRejectTarget}
+            statusPendingId={statusPendingId}
           />
         </div>
       )}

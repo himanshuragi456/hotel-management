@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { getCategories, createCategory, updateCategory, deleteCategory, reorderCategories, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, bulkToggleItems, setCategorySchedules } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
+import Spinner from '@/components/shared/Spinner'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import { validate, validateField, required, isPositive } from '@/utils/validate'
 import VariantsAddonsManager from './VariantsAddonsManager'
@@ -70,7 +71,8 @@ function ScheduleEditor({ category, onClose }) {
       <div className="flex justify-end gap-2 pt-2">
         <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">Cancel</button>
         <button onClick={() => save.mutate()} disabled={save.isPending}
-          className="px-5 py-2 text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-xl disabled:opacity-50">
+          className="inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-xl disabled:opacity-50">
+          {save.isPending && <Spinner size="w-4 h-4" />}
           {save.isPending ? 'Saving…' : 'Save Schedule'}
         </button>
       </div>
@@ -550,7 +552,8 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
 
       <div className="flex justify-end pt-1">
         <button type="submit" disabled={mutation.isPending}
-          className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
+          className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:shadow-md transition-shadow">
+          {mutation.isPending && <Spinner size="w-4 h-4" />}
           {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Item'}
         </button>
       </div>
@@ -825,6 +828,7 @@ export default function MenuManager() {
         title={`Delete "${deleteItemTarget?.name}"?`}
         message="This will permanently remove this menu item."
         confirmLabel={delItem.isPending ? 'Deleting…' : 'Delete'}
+        loading={delItem.isPending}
         confirmClass="bg-red-500 hover:bg-red-600 text-white"
         onConfirm={() => delItem.mutate(deleteItemTarget?.id)}
         onCancel={() => setDeleteItemTarget(null)}
