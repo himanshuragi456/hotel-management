@@ -141,6 +141,7 @@ Route::middleware(['auth:api'])->group(function () {
                 Route::put('menu/items/{menuItem}', [OwnerMenuController::class, 'updateItem']);
                 Route::delete('menu/items/{menuItem}', [OwnerMenuController::class, 'destroyItem']);
                 Route::post('menu/items/bulk-toggle', [OwnerMenuController::class, 'bulkToggle']);
+                Route::post('menu/items/{menuItem}/toggle-best-seller', [OwnerMenuController::class, 'toggleBestSeller']);
                 // Variants
                 Route::post('menu/items/{menuItem}/variants', [OwnerMenuController::class, 'storeVariant']);
                 Route::put('menu/variants/{variant}', [OwnerMenuController::class, 'updateVariant']);

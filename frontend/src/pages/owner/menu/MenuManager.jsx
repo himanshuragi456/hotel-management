@@ -5,7 +5,7 @@ import {
   PlusIcon, MagnifyingGlassIcon, TrashIcon, PencilSquareIcon,
   TagIcon, PhotoIcon, BoltIcon, ClockIcon, Bars3Icon,
 } from '@heroicons/react/24/outline'
-import { getCategories, createCategory, updateCategory, deleteCategory, reorderCategories, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, bulkToggleItems, setCategorySchedules } from '@/services/restaurantService'
+import { getCategories, createCategory, updateCategory, deleteCategory, reorderCategories, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, bulkToggleItems, setCategorySchedules, toggleBestSeller } from '@/services/restaurantService'
 import Modal from '@/components/shared/Modal'
 import Spinner from '@/components/shared/Spinner'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
@@ -258,6 +258,7 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
     price:             item?.price             ?? '',
     type:              item?.type              ?? 'veg',
     is_ready_made:     item?.is_ready_made     ?? false,
+    is_best_seller:    item?.is_best_seller    ?? false,
     prep_time_minutes: item?.prep_time_minutes ?? '',
     // Zomato fields
     gst_slab:          item?.gst_slab          ?? '',
@@ -416,6 +417,22 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
                 Ready-Made / Instant
               </span>
               <p className="text-xs text-gray-400 mt-0.5">Skips kitchen — served immediately</p>
+            </div>
+          </label>
+        </div>
+        <div className="col-span-2">
+          <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors">
+            <div className="relative">
+              <input type="checkbox" className="sr-only" checked={form.is_best_seller}
+                onChange={e => setField('is_best_seller', e.target.checked)} />
+              <div className={`w-10 h-5 rounded-full transition-colors ${form.is_best_seller ? 'bg-amber-500' : 'bg-gray-300'}`} />
+              <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.is_best_seller ? 'translate-x-5' : ''}`} />
+            </div>
+            <div>
+              <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                🔥 Best Seller
+              </span>
+              <p className="text-xs text-gray-400 mt-0.5">Highlighted on the customer menu with a Best Seller badge</p>
             </div>
           </label>
         </div>
@@ -596,6 +613,17 @@ export default function MenuManager() {
     },
   })
 
+  const bestSellerToggle = useMutation({
+    mutationFn: (id) => toggleBestSeller(id),
+    onSuccess: (res, id) => {
+      const val = res.data.data.is_best_seller
+      qc.setQueryData(['menu-items'], (old) => old
+        ? old.map(i => i.id === id ? { ...i, is_best_seller: val } : i)
+        : old
+      )
+    },
+  })
+
   const toggleSelect = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
 
   const [activeSub, setActiveSub] = useState(null)
@@ -772,6 +800,15 @@ export default function MenuManager() {
                             <ClockIcon className="w-3 h-3" />{item.prep_time_minutes} min
                           </span>
                         ) : null}
+                        {item.is_best_seller && (
+                          <button
+                            onClick={() => bestSellerToggle.mutate(item.id)}
+                            disabled={bestSellerToggle.isPending}
+                            title="Remove Best Seller"
+                            className="text-xs px-2.5 py-0.5 rounded-full w-fit font-medium bg-amber-100 text-amber-700">
+                            🔥 Best Seller
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3.5">

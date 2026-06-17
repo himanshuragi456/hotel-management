@@ -569,6 +569,11 @@ function MenuItemCard({ item, cartLine, onTap, onDirectAdd, onUpdateQty, orderin
           </div>
           {item.description && <p className="text-sm text-gray-400 line-clamp-2 mt-1 ml-6">{item.description}</p>}
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5 ml-6">
+            {item.is_best_seller && (
+              <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                🔥 Best Seller
+              </span>
+            )}
             {item.is_ready_made && (
               <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
                 <BoltIcon className="w-3 h-3"/>Instant
@@ -642,6 +647,7 @@ export default function CustomerMenuPage() {
   const [customerInfo, setCustomerInfo]   = useState(null) // { name, phone, email } — set once per session
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [dietFilter, setDietFilter]       = useState(null) // null | 'veg' | 'non-veg'
+  const [quickFilter, setQuickFilter]     = useState(null) // null | 'instant' | 'best_seller'
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(menuSearch), 250)
@@ -796,9 +802,12 @@ export default function CustomerMenuPage() {
   ])
 
   const filterDiet = (items) => {
-    if (!dietFilter) return items
-    if (dietFilter === 'veg') return items.filter(i => i.type === 'veg' || i.type === 'vegan')
-    return items.filter(i => i.type === dietFilter)
+    let result = items
+    if (dietFilter === 'veg') result = result.filter(i => i.type === 'veg' || i.type === 'vegan')
+    else if (dietFilter) result = result.filter(i => i.type === dietFilter)
+    if (quickFilter === 'instant') result = result.filter(i => i.is_ready_made)
+    else if (quickFilter === 'best_seller') result = result.filter(i => i.is_best_seller)
+    return result
   }
 
   const searchedItems = debouncedSearch.trim()
@@ -938,6 +947,33 @@ export default function CustomerMenuPage() {
                 </button>
               )})}
             </div>
+
+            {/* Instant / Best Seller quick filter pills */}
+            {(() => {
+              const hasInstant = allItems.some(i => i.is_ready_made)
+              const hasBestSeller = allItems.some(i => i.is_best_seller)
+              if (!hasInstant && !hasBestSeller) return null
+              return (
+                <div className="flex items-center gap-2 mt-2 mb-0.5">
+                  {hasInstant && (
+                    <button onClick={() => setQuickFilter(q => q === 'instant' ? null : 'instant')}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                        quickFilter === 'instant' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'
+                      }`}>
+                      <BoltIcon className="w-3.5 h-3.5" />Instant
+                    </button>
+                  )}
+                  {hasBestSeller && (
+                    <button onClick={() => setQuickFilter(q => q === 'best_seller' ? null : 'best_seller')}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                        quickFilter === 'best_seller' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200'
+                      }`}>
+                      🔥 Best Sellers
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
 
             {!debouncedSearch.trim() && (
               <div className="flex gap-0 pt-2 pb-0 overflow-x-auto border-b border-gray-100 scrollbar-hide -mx-5 px-5">

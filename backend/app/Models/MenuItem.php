@@ -12,6 +12,7 @@ class MenuItem extends Model
         'price', 'image', 'video', 'type', 'is_available', 'is_ready_made', 'prep_time_minutes', 'sort_order',
         'gst_slab', 'gst_cgst_sgst', 'packaging_charge',
         'is_beverage', 'meat_type', 'nutritional_info', 'serving_info',
+        'is_best_seller',
     ];
 
     protected $appends = ['image_url', 'video_url'];
@@ -19,7 +20,7 @@ class MenuItem extends Model
     protected function casts(): array
     {
         return [
-            'is_available' => 'boolean', 'is_ready_made' => 'boolean', 'price' => 'float',
+            'is_available' => 'boolean', 'is_ready_made' => 'boolean', 'is_best_seller' => 'boolean', 'price' => 'float',
             'prep_time_minutes' => 'integer',
             'gst_slab' => 'float', 'gst_cgst_sgst' => 'boolean', 'packaging_charge' => 'float',
             'is_beverage' => 'boolean', 'nutritional_info' => 'array',

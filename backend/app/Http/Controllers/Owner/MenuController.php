@@ -139,6 +139,7 @@ class MenuController extends Controller
             'description'      => 'nullable|string',
             'type'             => 'in:veg,non-veg,vegan',
             'is_ready_made'       => 'boolean',
+            'is_best_seller'      => 'boolean',
             'prep_time_minutes'   => 'nullable|integer|min:1|max:300',
             'image'               => 'nullable|max:5120|mimes:jpg,jpeg,png,gif,webp',
             'video'               => 'nullable|max:20480|mimes:mp4,webm',
@@ -172,6 +173,7 @@ class MenuController extends Controller
             'description'         => $request->description,
             'type'                => $request->type ?? 'veg',
             'is_ready_made'       => $isReadyMade,
+            'is_best_seller'      => $request->boolean('is_best_seller', false),
             'prep_time_minutes'   => $isReadyMade ? null : $request->prep_time_minutes,
             'image'               => $imagePath,
             'video'               => $videoPath,
@@ -197,6 +199,7 @@ class MenuController extends Controller
             'type'             => 'in:veg,non-veg,vegan',
             'is_available'        => 'boolean',
             'is_ready_made'       => 'boolean',
+            'is_best_seller'      => 'boolean',
             'prep_time_minutes'   => 'nullable|integer|min:1|max:300',
             'image'               => 'nullable|max:5120|mimes:jpg,jpeg,png,gif,webp',
             'video'               => 'nullable|max:20480|mimes:mp4,webm',
@@ -227,7 +230,7 @@ class MenuController extends Controller
 
         $updateData = $request->only([
             'name', 'price', 'description', 'type',
-            'is_available', 'is_ready_made', 'sort_order', 'menu_category_id',
+            'is_available', 'is_ready_made', 'is_best_seller', 'sort_order', 'menu_category_id',
             'gst_slab', 'gst_cgst_sgst', 'packaging_charge',
             'is_beverage', 'meat_type', 'nutritional_info', 'serving_info',
         ]);
@@ -266,6 +269,13 @@ class MenuController extends Controller
             ->update(['is_available' => $request->is_available]);
 
         return $this->success(null, 'Items updated');
+    }
+
+    public function toggleBestSeller(MenuItem $menuItem): JsonResponse
+    {
+        $this->authorizesTenant($menuItem);
+        $menuItem->update(['is_best_seller' => ! $menuItem->is_best_seller]);
+        return $this->success(['is_best_seller' => $menuItem->is_best_seller]);
     }
 
     // ── Variants ────────────────────────────────────────────────────────────

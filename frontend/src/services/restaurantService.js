@@ -12,6 +12,7 @@ export const createMenuItem = (data) => api.post('/owner/menu/items', data, { he
 export const updateMenuItem = (id, data) => api.post(`/owner/menu/items/${id}?_method=PUT`, data, { headers: { 'Content-Type': 'multipart/form-data' } })
 export const deleteMenuItem = (id) => api.delete(`/owner/menu/items/${id}`)
 export const bulkToggleItems = (ids, is_available) => api.post('/owner/menu/items/bulk-toggle', { ids, is_available })
+export const toggleBestSeller = (id) => api.post(`/owner/menu/items/${id}/toggle-best-seller`)
 
 // Owner — Menu: category day/time schedule
 export const setCategorySchedules = (categoryId, schedules) => api.put(`/owner/menu/categories/${categoryId}/schedules`, { schedules })
