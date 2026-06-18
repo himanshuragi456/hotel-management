@@ -72,6 +72,9 @@
     @if($totals['discount'] > 0)
     <tr><td>Discount</td><td class="right">-&#8377;{{ number_format($totals['discount'], 2) }}</td></tr>
     @endif
+    @if(!empty($totals['packing']) && $totals['packing'] > 0)
+    <tr><td>Packing Charges</td><td class="right">&#8377;{{ number_format($totals['packing'], 2) }}</td></tr>
+    @endif
     <tr class="total-row"><td>TOTAL</td><td class="right">&#8377;{{ number_format($totals['total'], 2) }}</td></tr>
     <tr><td>Paid ({{ strtoupper($invoices->first()->payment_method) }})</td><td class="right">&#8377;{{ number_format($totals['paid'], 2) }}</td></tr>
     @if($totals['due'] > 0)

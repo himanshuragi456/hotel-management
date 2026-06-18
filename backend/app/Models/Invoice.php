@@ -10,7 +10,7 @@ class Invoice extends Model
     protected $fillable = [
         'tenant_id', 'order_id', 'invoice_number', 'customer_name', 'customer_phone',
         'subtotal', 'gst_rate', 'gst_amount', 'discount_type', 'discount_value',
-        'discount_amount', 'total', 'payment_method', 'amount_paid', 'amount_due',
+        'discount_amount', 'packing_charge', 'total', 'payment_method', 'amount_paid', 'amount_due',
         'status', 'split_payments', 'created_by',
     ];
 

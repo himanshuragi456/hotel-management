@@ -13,7 +13,7 @@ class Order extends Model
         'rejection_code', 'rejection_note', 'rejected_item_ids', 'cancelled_at',
         'payment_status', 'razorpay_order_id', 'razorpay_payment_id',
         'status', 'preparing_at', 'notes', 'no_cutlery',
-        'subtotal', 'tax', 'discount', 'total',
+        'subtotal', 'tax', 'discount', 'packing_charge', 'total',
         'customer_name', 'customer_phone', 'customer_email',
     ];
 
@@ -61,13 +61,18 @@ class Order extends Model
         }
         $tax = round($tax, 2);
 
+        // Packing charge is a flat add-on (no GST applied here) — same whether prices are
+        // GST-inclusive or not.
+        $packing = (float) ($this->packing_charge ?? 0);
+
         // Inclusive: price already contains tax, so total = subtotal (not subtotal + tax).
         $this->update([
-            'subtotal' => $subtotal,
-            'tax'      => $tax,
-            'total'    => $inclusive
+            'subtotal'       => $subtotal,
+            'tax'            => $tax,
+            'packing_charge' => $packing,
+            'total'    => ($inclusive
                 ? $subtotal - $this->discount
-                : $subtotal + $tax - $this->discount,
+                : $subtotal + $tax - $this->discount) + $packing,
         ]);
     }
 }

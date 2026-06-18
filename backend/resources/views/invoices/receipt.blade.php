@@ -125,6 +125,9 @@
     @if($invoice->discount_amount > 0)
     <tr><td>Discount</td><td class="right">-&#8377;{{ number_format($invoice->discount_amount, 2) }}</td></tr>
     @endif
+    @if($invoice->packing_charge > 0)
+    <tr><td>Packing Charges</td><td class="right">&#8377;{{ number_format($invoice->packing_charge, 2) }}</td></tr>
+    @endif
     <tr class="total-row"><td>TOTAL</td><td class="right">&#8377;{{ number_format($invoice->total, 2) }}</td></tr>
     <tr><td>Paid ({{ strtoupper($invoice->payment_method) }})</td><td class="right">&#8377;{{ number_format($invoice->amount_paid, 2) }}</td></tr>
     @if($invoice->amount_due > 0)

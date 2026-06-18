@@ -4,7 +4,7 @@ import {
   KeyIcon, PrinterIcon, CheckCircleIcon, ExclamationCircleIcon,
   QrCodeIcon, CreditCardIcon, PhoneIcon, PlusIcon, TrashIcon,
   PowerIcon, ClockIcon, QuestionMarkCircleIcon, BuildingStorefrontIcon,
-  SpeakerWaveIcon,
+  SpeakerWaveIcon, ShoppingBagIcon,
 } from '@heroicons/react/24/outline'
 import { getOwnerSettings, updateOwnerSettings, changeOwnPassword, getFeedbackQrCodes, getOutlet, toggleOutletChannel, setOutletHours } from '@/services/restaurantService'
 import { validate, validateField, required, isStrongPassword } from '@/utils/validate'
@@ -70,6 +70,43 @@ function CustomerOrderingCard({ settings, onUpdate, isPending }) {
           disabled={isPending}
           onChange={() => onUpdate({ customer_bill_request_enabled: !billEnabled })}
         />
+      </div>
+    </div>
+  )
+}
+
+function PackingChargesCard({ settings, onUpdate, isPending }) {
+  const packingEnabled    = settings?.packing_charge_enabled       ?? false
+  const packingAggregator = settings?.packing_charge_on_aggregator ?? false
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2.5 mb-1">
+        <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+          <ShoppingBagIcon className="w-4 h-4 text-amber-500" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-900 text-sm">Packing Charges</h3>
+          <p className="text-xs text-gray-400">Add packing charges to takeaway orders</p>
+        </div>
+      </div>
+      <div className="divide-y divide-gray-50 mt-3">
+        <Toggle
+          label="Charge packing on takeaway"
+          description="Adds each item's packing charge to takeaway bills. Set per-item amounts in Menu Manager (Packaging Charge field)."
+          checked={packingEnabled}
+          disabled={isPending}
+          onChange={() => onUpdate({ packing_charge_enabled: !packingEnabled })}
+        />
+        {packingEnabled && (
+          <Toggle
+            label="Also charge on Swiggy / Zomato"
+            description="Apply packing charges to aggregator (Swiggy/Zomato) orders too. Leave off if those platforms handle packing separately."
+            checked={packingAggregator}
+            disabled={isPending}
+            onChange={() => onUpdate({ packing_charge_on_aggregator: !packingAggregator })}
+          />
+        )}
       </div>
     </div>
   )
@@ -920,6 +957,11 @@ export default function OwnerSettings() {
               isPending={updateMutation.isPending}
             />
             <CustomerOrderingCard
+              settings={settings}
+              onUpdate={(patch) => updateMutation.mutate(patch)}
+              isPending={updateMutation.isPending}
+            />
+            <PackingChargesCard
               settings={settings}
               onUpdate={(patch) => updateMutation.mutate(patch)}
               isPending={updateMutation.isPending}

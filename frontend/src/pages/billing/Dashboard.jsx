@@ -164,9 +164,11 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
   const taxRate = order.tax ? (order.tax / order.subtotal) : 0
   const afterDiscount = Math.max(0, order.subtotal - discountAmt)
   const taxAmt = afterDiscount * taxRate
+  // Packing charge snapshotted on the order (takeaway/aggregator only).
+  const packingCharge = Number(order.packing_charge ?? 0)
   // Inclusive: GST is already inside the subtotal → total is just the
-  // discounted subtotal. Exclusive: add GST on top.
-  const total = inclusive ? afterDiscount : afterDiscount + taxAmt
+  // discounted subtotal. Exclusive: add GST on top. Packing is added on top either way.
+  const total = (inclusive ? afterDiscount : afterDiscount + taxAmt) + packingCharge
 
   const create = useMutation({
     mutationFn: createInvoice,
@@ -259,6 +261,11 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
               <div className="flex justify-between text-gray-600">
                 <span>{inclusive ? 'GST (incl.)' : 'Tax'}</span><span>₹{taxAmt.toFixed(2)}</span>
               </div>
+              {packingCharge > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Packing Charges</span><span>₹{packingCharge.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-gray-900 border-t pt-1.5">
                 <span>Total</span><span>₹{total.toFixed(2)}</span>
               </div>
@@ -2492,6 +2499,9 @@ export default function BillingDashboard({ embedded = false }) {
                 <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>₹{Number(selectedTakeawayOrder.subtotal ?? 0).toFixed(2)}</span></div>
                 {Number(selectedTakeawayOrder.tax ?? 0) > 0 && (
                   <div className="flex justify-between text-gray-500"><span>GST</span><span>₹{Number(selectedTakeawayOrder.tax).toFixed(2)}</span></div>
+                )}
+                {Number(selectedTakeawayOrder.packing_charge ?? 0) > 0 && (
+                  <div className="flex justify-between text-gray-500"><span>Packing Charges</span><span>₹{Number(selectedTakeawayOrder.packing_charge).toFixed(2)}</span></div>
                 )}
                 <div className="flex justify-between font-bold text-gray-900 mt-1"><span>Total</span><span>₹{Number(selectedTakeawayOrder.total ?? 0).toFixed(2)}</span></div>
               </div>

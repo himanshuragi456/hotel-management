@@ -647,7 +647,7 @@ export default function CustomerMenuPage() {
   const [customerInfo, setCustomerInfo]   = useState(null) // { name, phone, email } — set once per session
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [dietFilter, setDietFilter]       = useState(null) // null | 'veg' | 'non-veg'
-  const [quickFilter, setQuickFilter]     = useState(null) // null | 'instant' | 'best_seller'
+  const [quickFilter, setQuickFilter]     = useState(null) // null | 'instant' | 'best_seller' | 'ready_fast'
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(menuSearch), 250)
@@ -801,21 +801,41 @@ export default function CustomerMenuPage() {
     ...(c.subcategories ?? []).flatMap(s => s.items ?? []),
   ])
 
+  // "Ready fast" = ready-made or prep time of 8 minutes or under.
+  const isReadyFast = (i) => i.is_ready_made || (i.prep_time_minutes != null && i.prep_time_minutes <= 8)
+
   const filterDiet = (items) => {
     let result = items
     if (dietFilter === 'veg') result = result.filter(i => i.type === 'veg' || i.type === 'vegan')
     else if (dietFilter) result = result.filter(i => i.type === dietFilter)
     if (quickFilter === 'instant') result = result.filter(i => i.is_ready_made)
     else if (quickFilter === 'best_seller') result = result.filter(i => i.is_best_seller)
+    else if (quickFilter === 'ready_fast') result = result.filter(isReadyFast)
     return result
   }
+
+  const anyFilterActive = dietFilter !== null || quickFilter !== null
+
+  // Items in a category (incl. subcategories) that survive the active filters.
+  const catFilteredCount = (cat) =>
+    filterDiet(cat.items ?? []).length +
+    (cat.subcategories ?? []).reduce((n, s) => n + filterDiet(s.items ?? []).length, 0)
+
+  // When a filter is active, hide categories with no matching items.
+  const visibleCategories = anyFilterActive
+    ? categories.filter(c => catFilteredCount(c) > 0)
+    : categories
 
   const searchedItems = debouncedSearch.trim()
     ? filterDiet(allItems.filter(i => i.name.toLowerCase().includes(debouncedSearch.toLowerCase())))
     : null
 
-  // Active category/subcategory items
-  const activeCatData = categories.find(c => c.id === (activeCat ?? categories[0]?.id))
+  // Active category/subcategory items.
+  // If a filter hides the currently-selected category, fall back to the first
+  // category that still has matching items so the user never lands on an empty tab.
+  const selectedCat   = visibleCategories.find(c => c.id === activeCat)
+  const effectiveCat  = selectedCat ?? visibleCategories[0]
+  const activeCatData = effectiveCat
   const activeSubData = activeSub ? activeCatData?.subcategories?.find(s => s.id === activeSub) : null
   const displayedItems = searchedItems ?? filterDiet(activeSubData ? activeSubData.items : activeCatData?.items ?? [])
 
@@ -948,24 +968,33 @@ export default function CustomerMenuPage() {
               )})}
             </div>
 
-            {/* Instant / Best Seller quick filter pills */}
+            {/* Instant / Best Seller / Ready Fast quick filter pills */}
             {(() => {
               const hasInstant = allItems.some(i => i.is_ready_made)
               const hasBestSeller = allItems.some(i => i.is_best_seller)
-              if (!hasInstant && !hasBestSeller) return null
+              const hasReadyFast = allItems.some(isReadyFast)
+              if (!hasInstant && !hasBestSeller && !hasReadyFast) return null
               return (
-                <div className="flex items-center gap-2 mt-2 mb-0.5">
+                <div className="flex items-center gap-2 mt-2 mb-0.5 overflow-x-auto scrollbar-hide -mx-5 px-5">
                   {hasInstant && (
                     <button onClick={() => setQuickFilter(q => q === 'instant' ? null : 'instant')}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                      className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
                         quickFilter === 'instant' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'
                       }`}>
                       <BoltIcon className="w-3.5 h-3.5" />Instant
                     </button>
                   )}
+                  {hasReadyFast && (
+                    <button onClick={() => setQuickFilter(q => q === 'ready_fast' ? null : 'ready_fast')}
+                      className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                        quickFilter === 'ready_fast' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-200'
+                      }`}>
+                      <ClockIcon className="w-3.5 h-3.5" />Ready Fast
+                    </button>
+                  )}
                   {hasBestSeller && (
                     <button onClick={() => setQuickFilter(q => q === 'best_seller' ? null : 'best_seller')}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                      className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
                         quickFilter === 'best_seller' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200'
                       }`}>
                       🔥 Best Sellers
@@ -977,11 +1006,11 @@ export default function CustomerMenuPage() {
 
             {!debouncedSearch.trim() && (
               <div className="flex gap-0 pt-2 pb-0 overflow-x-auto border-b border-gray-100 scrollbar-hide -mx-5 px-5">
-                {categories.map(cat => (
+                {visibleCategories.map(cat => (
                   <button key={cat.id}
                     onClick={() => { setActiveCat(cat.id); setActiveSub(null) }}
                     className={`shrink-0 px-4 py-3 text-base font-medium whitespace-nowrap border-b-2 transition-colors ${
-                      (activeCat ?? categories[0]?.id) === cat.id
+                      effectiveCat?.id === cat.id
                         ? 'border-orange-500 text-orange-600 font-semibold'
                         : 'border-transparent text-gray-500'
                     }`}>
@@ -1047,7 +1076,15 @@ export default function CustomerMenuPage() {
               </div>
             )}
 
-            {!debouncedSearch.trim() && (
+            {!debouncedSearch.trim() && anyFilterActive && visibleCategories.length === 0 && (
+              <div className="px-4 py-12 text-center">
+                <p className="text-base text-gray-400">No items match this filter</p>
+                <button onClick={() => { setDietFilter(null); setQuickFilter(null) }}
+                  className="mt-3 text-sm font-semibold text-orange-600">Clear filters</button>
+              </div>
+            )}
+
+            {!debouncedSearch.trim() && !(anyFilterActive && visibleCategories.length === 0) && (
               <div className="px-4 py-4 space-y-3">
                 {activeSub === null ? (
                   <>

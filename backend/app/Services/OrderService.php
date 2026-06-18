@@ -97,6 +97,9 @@ class OrderService
             return [
                 'menu_item'  => $menuItem,
                 'is_ready_made' => (bool) $menuItem->is_ready_made,
+                // Per-item packaging charge × qty — folded into the order's packing_charge
+                // for takeaway/aggregator orders when the tenant enables it.
+                'packing'    => round((float) ($menuItem->packaging_charge ?? 0) * $quantity, 2),
                 'attributes' => [
                     'menu_item_id'         => $menuItem->id,
                     'menu_item_variant_id' => $variant?->id,
@@ -137,7 +140,16 @@ class OrderService
 
         $created = [];
 
-        DB::transaction(function () use ($groups, $orderAttributes, $tenantId, &$created) {
+        // Packing charge applies to takeaway orders only (POS takeaway + aggregator).
+        // Gated by tenant toggles: packing_charge_enabled (master) and, for aggregator
+        // orders, packing_charge_on_aggregator.
+        $isTakeaway   = ($orderAttributes['type'] ?? null) === 'takeaway';
+        $isAggregator = ($orderAttributes['source'] ?? null) === 'aggregator';
+        $packingApplies = $isTakeaway
+            && (bool) ($tenant->packing_charge_enabled ?? false)
+            && (! $isAggregator || (bool) ($tenant->packing_charge_on_aggregator ?? false));
+
+        DB::transaction(function () use ($groups, $orderAttributes, $tenantId, $packingApplies, &$created) {
             foreach ($groups as $group) {
                 if ($group['lines']->isEmpty()) continue;
 
@@ -149,6 +161,10 @@ class OrderService
 
                 foreach ($group['lines'] as $line) {
                     OrderItem::create(array_merge(['order_id' => $order->id], $line['attributes']));
+                }
+
+                if ($packingApplies) {
+                    $order->packing_charge = round($group['lines']->sum('packing'), 2);
                 }
 
                 $order->load('items');

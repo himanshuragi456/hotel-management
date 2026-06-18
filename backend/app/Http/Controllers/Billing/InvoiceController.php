@@ -575,11 +575,14 @@ class InvoiceController extends Controller
             default => 0,
         };
 
+        // Packing charge was snapshotted on the order (takeaway/aggregator only).
+        $packingCharge = (float) ($order->packing_charge ?? 0);
+
         // Inclusive: tax is inside subtotal, so total = subtotal - discount.
         // Exclusive: total = subtotal + tax - discount.
-        $total = $inclusive
+        $total = ($inclusive
             ? $subtotal - $discountAmount
-            : $subtotal + $gstAmount - $discountAmount;
+            : $subtotal + $gstAmount - $discountAmount) + $packingCharge;
         $amtPaid   = (float)$request->amount_paid;
         $amtDue    = max(0, $total - $amtPaid);
         $status    = $amtDue <= 0 ? 'paid' : ($amtPaid > 0 ? 'partial' : 'unpaid');
@@ -595,6 +598,7 @@ class InvoiceController extends Controller
             'discount_type'   => $discountType,
             'discount_value'  => $discountValue,
             'discount_amount' => $discountAmount,
+            'packing_charge'  => $packingCharge,
             'total'           => $total,
             'payment_method'  => $request->payment_method,
             'amount_paid'     => $amtPaid,
@@ -672,7 +676,8 @@ class InvoiceController extends Controller
                         : round($subtotal * (($tenant->gst_rate ?? 5) / 100), 2)
                 );
                 $gstRate   = $subtotal > 0 ? round($gstAmount / $subtotal * 100, 4) : ($tenant->gst_rate ?? 5);
-                $total         = $inclusive ? $subtotal : $subtotal + $gstAmount;
+                $packingCharge = (float) ($order->packing_charge ?? 0);
+                $total         = ($inclusive ? $subtotal : $subtotal + $gstAmount) + $packingCharge;
                 $proportion    = $grandSubtotal > 0 ? $subtotal / $grandSubtotal : 1 / $orders->count();
                 $paid          = round($amtPaid * $proportion, 2);
                 $due           = max(0, $total - $paid);
@@ -689,6 +694,7 @@ class InvoiceController extends Controller
                     'discount_type'   => 0,
                     'discount_value'  => 0,
                     'discount_amount' => 0,
+                    'packing_charge'  => $packingCharge,
                     'total'           => $total,
                     'payment_method'  => $request->payment_method,
                     'amount_paid'     => $paid,
@@ -857,6 +863,7 @@ class InvoiceController extends Controller
             'subtotal' => $invoices->sum('subtotal'),
             'gst'      => $invoices->sum('gst_amount'),
             'discount' => $invoices->sum('discount_amount'),
+            'packing'  => $invoices->sum('packing_charge'),
             'total'    => $invoices->sum('total'),
             'paid'     => $invoices->sum('amount_paid'),
             'due'      => $invoices->sum('amount_due'),
