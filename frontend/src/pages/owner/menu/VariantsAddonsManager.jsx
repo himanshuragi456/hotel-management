@@ -19,7 +19,7 @@ const enterToSave = (fn) => (e) => { if (e.key === 'Enter') { e.preventDefault()
 
 function Toggle({ checked, onChange }) {
   return (
-    <button type="button" onClick={() => onChange(!checked)} className="relative shrink-0">
+    <button type="button" onClick={() => onChange(!checked)} className="relative shrink-0" style={{ minHeight: 0, minWidth: 0 }}>
       <div className={`w-9 h-5 rounded-full transition-colors ${checked ? 'bg-green-500' : 'bg-gray-300'}`} />
       <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-4' : ''}`} />
     </button>
@@ -59,9 +59,9 @@ function VariantsSection({ item, invalidate }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Portion Sizes / Variants</h4>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           {hasPending && (
             <button type="button" onClick={saveAll} disabled={savingAll}
               className="flex items-center gap-1 text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg font-semibold disabled:opacity-50">
@@ -80,10 +80,10 @@ function VariantsSection({ item, invalidate }) {
         {item.variants?.length
           ? item.variants.map(v => (
             <div key={v.id} className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5">
-              <span className="flex-1 text-sm text-gray-800 font-medium">{v.name}</span>
-              <span className="text-sm font-semibold text-gray-900">₹{v.price}</span>
+              <span className="flex-1 min-w-0 truncate text-sm text-gray-800 font-medium">{v.name}</span>
+              <span className="shrink-0 text-sm font-semibold text-gray-900">₹{v.price}</span>
               <Toggle checked={v.is_available} onChange={(val) => toggle.mutate({ id: v.id, is_available: val })} />
-              <button type="button" onClick={() => del.mutate(v.id)} className="text-red-400 hover:text-red-600"><TrashIcon className="w-4 h-4" /></button>
+              <button type="button" onClick={() => del.mutate(v.id)} className="shrink-0 text-red-400 hover:text-red-600"><TrashIcon className="w-4 h-4" /></button>
             </div>
           ))
           : pending.length === 0 && <p className="text-xs text-gray-400 mb-1">No variants — base item price used.</p>
@@ -94,9 +94,9 @@ function VariantsSection({ item, invalidate }) {
       {pending.map(row => (
         <div key={row._id} className="flex gap-2 mb-2">
           <input value={row.name} onChange={e => updRow(row._id, 'name', e.target.value)} onKeyDown={enterToSave(saveAll)}
-            placeholder="e.g. Half / Full / Regular" className={`${inp} flex-1`} />
+            placeholder="e.g. Half / Full / Regular" className={`${inp} flex-1 min-w-0`} />
           <input value={row.price} onChange={e => updRow(row._id, 'price', e.target.value)} onKeyDown={enterToSave(saveAll)}
-            type="number" step="0.5" min="0" placeholder="₹" className={`${inp} w-24`} />
+            type="number" step="0.5" min="0" placeholder="₹" className={`${inp} w-20 shrink-0`} />
           <button type="button" onClick={() => removeRow(row._id)}
             className="shrink-0 w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 flex items-center justify-center">
             <TrashIcon className="w-4 h-4" />
@@ -140,25 +140,27 @@ function AddonGroupCard({ group, invalidate, updGroup, delGroup }) {
 
   return (
     <div className="border border-gray-200 rounded-xl p-3">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="flex-1 text-sm font-semibold text-gray-800">{group.name}</span>
-        <label className="text-xs text-gray-500 flex items-center gap-1">
-          min
-          <input type="number" min="0" defaultValue={group.min_select}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } }}
-            onBlur={e => updGroup.mutate({ id: group.id, data: { min_select: Number(e.target.value) } })}
-            className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" />
-        </label>
-        <label className="text-xs text-gray-500 flex items-center gap-1">
-          max
-          <input type="number" min="1" defaultValue={group.max_select}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } }}
-            onBlur={e => updGroup.mutate({ id: group.id, data: { max_select: Number(e.target.value) } })}
-            className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" />
-        </label>
-        <button type="button" onClick={() => delGroup.mutate(group.id)} className="text-red-400 hover:text-red-600">
-          <TrashIcon className="w-4 h-4" />
-        </button>
+      <div className="flex items-center gap-2 flex-wrap mb-2">
+        <span className="flex-1 min-w-[80px] truncate text-sm font-semibold text-gray-800">{group.name}</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <label className="text-xs text-gray-500 flex items-center gap-1">
+            min
+            <input type="number" min="0" defaultValue={group.min_select}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } }}
+              onBlur={e => updGroup.mutate({ id: group.id, data: { min_select: Number(e.target.value) } })}
+              className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" />
+          </label>
+          <label className="text-xs text-gray-500 flex items-center gap-1">
+            max
+            <input type="number" min="1" defaultValue={group.max_select}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } }}
+              onBlur={e => updGroup.mutate({ id: group.id, data: { max_select: Number(e.target.value) } })}
+              className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" />
+          </label>
+          <button type="button" onClick={() => delGroup.mutate(group.id)} className="shrink-0 text-red-400 hover:text-red-600">
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Saved addons */}
@@ -166,10 +168,10 @@ function AddonGroupCard({ group, invalidate, updGroup, delGroup }) {
         {group.addons?.map(a => (
           <div key={a.id} className="flex items-center gap-2 text-sm pl-2">
             <span className={`w-2 h-2 rounded-full shrink-0 ${a.type === 'non-veg' ? 'bg-red-500' : 'bg-green-500'}`} />
-            <span className="flex-1 text-gray-700">{a.name}</span>
-            {a.price > 0 && <span className="text-gray-500 text-xs">+₹{a.price}</span>}
+            <span className="flex-1 min-w-0 truncate text-gray-700">{a.name}</span>
+            {a.price > 0 && <span className="shrink-0 text-gray-500 text-xs">+₹{a.price}</span>}
             <Toggle checked={a.is_available} onChange={(val) => toggleItem.mutate({ id: a.id, is_available: val })} />
-            <button type="button" onClick={() => delItem.mutate(a.id)} className="text-red-400 hover:text-red-600">
+            <button type="button" onClick={() => delItem.mutate(a.id)} className="shrink-0 text-red-400 hover:text-red-600">
               <TrashIcon className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -181,13 +183,13 @@ function AddonGroupCard({ group, invalidate, updGroup, delGroup }) {
 
       {/* Pending rows */}
       {pending.map(row => (
-        <div key={row._id} className="flex gap-1.5 mb-1.5">
+        <div key={row._id} className="flex flex-wrap gap-1.5 mb-1.5">
           <input value={row.name} onChange={e => updRow(row._id, 'name', e.target.value)} onKeyDown={enterToSave(saveAll)}
-            placeholder="Option name" className={`${inp} flex-1 text-xs`} />
+            placeholder="Option name" className={`${inp} flex-1 min-w-[100px] text-xs`} />
           <input value={row.price} onChange={e => updRow(row._id, 'price', e.target.value)} onKeyDown={enterToSave(saveAll)}
-            type="number" step="0.5" min="0" placeholder="₹0" className={`${inp} text-xs w-16`} />
+            type="number" step="0.5" min="0" placeholder="₹0" className={`${inp} text-xs w-14 shrink-0`} />
           <select value={row.type} onChange={e => updRow(row._id, 'type', e.target.value)}
-            className={`${inp} text-xs w-20`}>
+            className={`${inp} text-xs w-[72px] shrink-0`}>
             <option value="veg">Veg</option>
             <option value="non-veg">Non-veg</option>
           </select>
@@ -198,14 +200,14 @@ function AddonGroupCard({ group, invalidate, updGroup, delGroup }) {
         </div>
       ))}
 
-      <div className="flex gap-2 mt-1.5">
+      <div className="flex gap-2 flex-wrap mt-1.5">
         <button type="button" onClick={addRow}
-          className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold">
+          className="shrink-0 flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold">
           <PlusIcon className="w-3.5 h-3.5" /> Add option
         </button>
         {hasPending && (
           <button type="button" onClick={saveAll} disabled={savingAll}
-            className="flex items-center gap-1 text-xs bg-green-500 hover:bg-green-600 text-white px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50 ml-auto">
+            className="shrink-0 flex items-center gap-1 text-xs bg-green-500 hover:bg-green-600 text-white px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50 ml-auto">
             <CheckIcon className="w-3.5 h-3.5" />{savingAll ? 'Saving…' : 'Save options'}
           </button>
         )}
@@ -241,10 +243,10 @@ function AddonsSection({ item, invalidate }) {
           : <p className="text-xs text-gray-400">No add-on groups yet.</p>
         }
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <input value={groupName} onChange={e => setGroupName(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submitGroup() } }}
-          placeholder='Group name (e.g. "Choose sauce")' className={`${inp} flex-1`} />
+          placeholder='Group name (e.g. "Choose sauce")' className={`${inp} flex-1 min-w-[140px]`} />
         <button type="button" onClick={submitGroup} disabled={addGroup.isPending}
           className="shrink-0 flex items-center gap-1 text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50 whitespace-nowrap">
           <PlusIcon className="w-3.5 h-3.5" /> Add group

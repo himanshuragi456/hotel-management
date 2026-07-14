@@ -276,6 +276,7 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
   const [videoFile, setVideoFile] = useState(null)
   const [videoPreview, setVideoPreview] = useState(item?.video_url ?? null)
   const [removeVideo, setRemoveVideo] = useState(false)
+  const [imageError, setImageError] = useState('')
   const [videoError, setVideoError] = useState('')
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -476,9 +477,11 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
             <input type="file" accept="image/*" onChange={e => {
               const file = e.target.files[0]
               if (!file) return
-              setImageFile(file); setImagePreview(URL.createObjectURL(file))
+              if (file.size > 2 * 1024 * 1024) { setImageError('Photo must be 2 MB or smaller'); e.target.value = ''; return }
+              setImageError(''); setImageFile(file); setImagePreview(URL.createObjectURL(file))
             }} className="hidden" />
           </label>
+          {imageError && <p className="text-xs text-red-500 mt-1">{imageError}</p>}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Video <span className="text-gray-400 normal-case font-normal">(shown in popup)</span></label>

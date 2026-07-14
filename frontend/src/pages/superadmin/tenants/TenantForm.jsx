@@ -140,12 +140,15 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLoc
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
             <select value={form.status} onChange={e => set('status', e.target.value)} className={inp('status')}>
+              {form.status === 'active' && <option value="active">Active</option>}
               <option value="trial">Trial</option>
               <option value="suspended">Suspended</option>
             </select>
             <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
               <InformationCircleIcon className="w-3.5 h-3.5 shrink-0" />
-              To activate, assign a subscription in the Subscription tab.
+              {form.status === 'active'
+                ? 'Tenant is active via subscription. Switch here only to suspend.'
+                : 'To activate, assign a subscription in the Subscription tab.'}
             </p>
           </div>
         )}
@@ -392,7 +395,9 @@ export default function TenantForm({ tenant, onSuccess }) {
     setError('')
     setFieldErrors({})
     const editPayload = Object.fromEntries(
-      Object.entries(form).filter(([k]) => k !== 'modules' && k !== 'email')
+      Object.entries(form).filter(([k, v]) =>
+        k !== 'modules' && k !== 'email' && !(k === 'status' && v === 'active')
+      )
     )
     mutation.mutate(isEdit ? editPayload : form)
   }

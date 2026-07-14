@@ -51,7 +51,7 @@ class AuthController extends Controller
                     'branding' => [
                         'brand_name'        => $branding['brand_name'] ?? null,
                         'brand_logo'        => $logo,
-                        'brand_logo_url'    => $logo ? asset('storage/' . $logo) : null,
+                        'brand_logo_url'    => $logo ? '/storage/' . $logo : null,
                         'contact_phone'     => $branding['contact_phone'] ?? null,
                         'contact_whatsapp'  => $branding['contact_whatsapp'] ?? null,
                         'contact_email'     => $branding['contact_email'] ?? null,

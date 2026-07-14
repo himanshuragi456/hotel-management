@@ -102,8 +102,7 @@ function CustomerDetailsSheet({ onConfirm, onClose, placing }) {
     if (!form.name.trim())  errs.name  = 'Full name is required'
     if (!form.phone.trim()) errs.phone = 'Phone number is required'
     else if (!/^[6-9]\d{9}$/.test(form.phone)) errs.phone = 'Enter a valid 10-digit Indian mobile number'
-    if (!form.email.trim()) errs.email = 'Email address is required'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = 'Enter a valid email address'
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = 'Enter a valid email address'
     return errs
   }
 
@@ -148,7 +147,7 @@ function CustomerDetailsSheet({ onConfirm, onClose, placing }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address <span className="text-gray-400 font-normal">(optional)</span></label>
             <input
               type="email"
               value={form.email}

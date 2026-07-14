@@ -145,6 +145,7 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
     customer_name: order.customer_name || '',
     customer_phone: order.customer_phone || '',
   })
+  const [touched, setTouched] = useState({})
   const [error, setError] = useState('')
 
   // Whether GST is baked into menu prices. Reuses the cached tenant-settings
@@ -170,6 +171,27 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
   // discounted subtotal. Exclusive: add GST on top. Packing is added on top either way.
   const total = (inclusive ? afterDiscount : afterDiscount + taxAmt) + packingCharge
 
+  // ── Field-level validation ──────────────────────────────────────────────────
+  const discountVal = parseFloat(form.discount_value)
+  const fieldErrors = {
+    customer_phone: form.customer_phone && !/^[6-9]\d{9}$/.test(form.customer_phone)
+      ? 'Enter a valid 10-digit Indian mobile number (starts with 6–9)'
+      : '',
+    discount_value: form.discount_value !== ''
+      ? (isNaN(discountVal) || discountVal < 0
+          ? 'Discount must be a positive number'
+          : form.discount_type === 'percent' && discountVal > 100
+            ? 'Percentage discount cannot exceed 100%'
+            : form.discount_type === 'flat' && discountVal > order.subtotal
+              ? `Flat discount cannot exceed subtotal ₹${order.subtotal}`
+              : '')
+      : '',
+  }
+  const hasErrors = Object.values(fieldErrors).some(Boolean)
+
+  const touch = (field) => setTouched(t => ({ ...t, [field]: true }))
+  const touchAll = () => setTouched({ customer_phone: true, discount_value: true })
+
   const create = useMutation({
     mutationFn: createInvoice,
     onSuccess: (res) => onDone?.(res.data.data?.id),
@@ -178,6 +200,8 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    touchAll()
+    if (hasErrors) return
     setError('')
     create.mutate({
       order_id: order.id,
@@ -190,7 +214,9 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
     })
   }
 
-  const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400'
+  const baseInp = 'w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2'
+  const inpCls = (field) =>
+    `${baseInp} border focus:ring-orange-400 ${touched[field] && fieldErrors[field] ? 'border-red-400 bg-red-50' : 'border-gray-300'}`
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -233,17 +259,62 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Customer name (opt.)" className={inp} />
-              <input type="tel" inputMode="numeric" maxLength={10} value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile (opt.)" className={inp} />
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Customer Name <span className="text-gray-400">(optional)</span></label>
+                <input
+                  value={form.customer_name}
+                  onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))}
+                  placeholder="e.g. Rahul Sharma"
+                  className={`${baseInp} border border-gray-300 focus:ring-orange-400`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Mobile <span className="text-gray-400">(optional)</span></label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={form.customer_phone}
+                  onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                  onBlur={() => touch('customer_phone')}
+                  placeholder="10-digit number"
+                  className={inpCls('customer_phone')}
+                />
+                {touched.customer_phone && fieldErrors.customer_phone && (
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                    <span>⚠</span>{fieldErrors.customer_phone}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="flex gap-2">
-              <select value={form.discount_type} onChange={e => setForm(f => ({ ...f, discount_type: e.target.value }))} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                <option value="flat">₹ Flat</option>
-                <option value="percent">% Percent</option>
-              </select>
-              <input type="number" min="0" step="0.01" value={form.discount_value}
-                onChange={e => setForm(f => ({ ...f, discount_value: e.target.value }))}
-                placeholder="Discount (0)" className={`${inp} flex-1`} />
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Discount <span className="text-gray-400">(optional)</span></label>
+              <div className="flex gap-2">
+                <select
+                  value={form.discount_type}
+                  onChange={e => setForm(f => ({ ...f, discount_type: e.target.value, discount_value: '' }))}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                >
+                  <option value="flat">₹ Flat</option>
+                  <option value="percent">% Percent</option>
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  max={form.discount_type === 'percent' ? 100 : undefined}
+                  step="0.01"
+                  value={form.discount_value}
+                  onChange={e => setForm(f => ({ ...f, discount_value: e.target.value }))}
+                  onBlur={() => touch('discount_value')}
+                  placeholder={form.discount_type === 'percent' ? 'e.g. 10 (max 100%)' : `e.g. 50 (max ₹${order.subtotal})`}
+                  className={`flex-1 ${inpCls('discount_value')}`}
+                />
+              </div>
+              {touched.discount_value && fieldErrors.discount_value && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <span>⚠</span>{fieldErrors.discount_value}
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
@@ -284,8 +355,12 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
                 <p className="text-xs font-semibold text-green-700">Collect <span className="text-base">₹{total.toFixed(0)}</span> in cash from customer</p>
               </div>
             )}
-            <button type="submit" disabled={create.isPending}
-              className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={create.isPending || hasErrors}
+              title={hasErrors ? 'Fix the highlighted errors before submitting' : ''}
+              className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {create.isPending ? 'Creating Invoice…' : isLastBatch ? 'Create Invoice & Close Table' : 'Create Invoice'}
             </button>
           </form>
@@ -849,7 +924,18 @@ function BillAllModal({ table, total, onClose, onDone }) {
     customer_name:  prefill?.customer_name  || '',
     customer_phone: prefill?.customer_phone || '',
   })
+  const [touched, setTouched] = useState({})
   const [error, setError] = useState('')
+
+  // ── Field-level validation ──────────────────────────────────────────────────
+  const fieldErrors = {
+    customer_phone: form.customer_phone && !/^[6-9]\d{9}$/.test(form.customer_phone)
+      ? 'Enter a valid 10-digit Indian mobile number (starts with 6–9)'
+      : '',
+  }
+  const hasErrors = Object.values(fieldErrors).some(Boolean)
+
+  const touch = (field) => setTouched(t => ({ ...t, [field]: true }))
 
   const submit = useMutation({
     mutationFn: () => billAllOrders(table.id, {
@@ -862,7 +948,15 @@ function BillAllModal({ table, total, onClose, onDone }) {
     onError: (err) => setError(err.response?.data?.message ?? 'Error'),
   })
 
-  const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400'
+  const handleConfirm = () => {
+    setTouched({ customer_phone: true })
+    if (hasErrors) return
+    submit.mutate()
+  }
+
+  const baseInp = 'w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2'
+  const inpCls = (field) =>
+    `${baseInp} border focus:ring-green-400 ${touched[field] && fieldErrors[field] ? 'border-red-400 bg-red-50' : 'border-gray-300'}`
 
   return (
     <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
@@ -881,8 +975,33 @@ function BillAllModal({ table, total, onClose, onDone }) {
             <div className="text-2xl font-bold text-gray-900">₹{total.toFixed(0)}</div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Customer name (opt.)" className={inp} />
-            <input type="tel" inputMode="numeric" maxLength={10} value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile (opt.)" className={inp} />
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Customer Name <span className="text-gray-400">(opt.)</span></label>
+              <input
+                value={form.customer_name}
+                onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))}
+                placeholder="e.g. Rahul Sharma"
+                className={`${baseInp} border border-gray-300 focus:ring-green-400`}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Mobile <span className="text-gray-400">(opt.)</span></label>
+              <input
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                value={form.customer_phone}
+                onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                onBlur={() => touch('customer_phone')}
+                placeholder="10-digit number"
+                className={inpCls('customer_phone')}
+              />
+              {touched.customer_phone && fieldErrors.customer_phone && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <span>⚠</span>{fieldErrors.customer_phone}
+                </p>
+              )}
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
@@ -909,8 +1028,12 @@ function BillAllModal({ table, total, onClose, onDone }) {
               <p className="text-xs font-semibold text-green-700">Collect <span className="text-base">₹{total.toFixed(0)}</span> in cash from customer</p>
             </div>
           )}
-          <button onClick={() => submit.mutate()} disabled={submit.isPending}
-            className="w-full inline-flex items-center justify-center gap-2 bg-green-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-wait">
+          <button
+            onClick={handleConfirm}
+            disabled={submit.isPending || hasErrors}
+            title={hasErrors ? 'Fix the highlighted errors before submitting' : ''}
+            className="w-full inline-flex items-center justify-center gap-2 bg-green-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {submit.isPending && <Spinner />}
             {submit.isPending ? 'Processing…' : 'Confirm & Close Table'}
           </button>
@@ -1155,6 +1278,7 @@ function RecentBillsDrawer({ onClose }) {
   const [busy, setBusy] = useState(null) // `${sessionIdx}-${invoiceId}-print|download`
   const [expanded, setExpanded] = useState({}) // sessionIdx => bool
   const [hotelBusy, setHotelBusy] = useState(null) // bookingId-print|download
+  const [activeTab, setActiveTab] = useState('restaurant')
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['billing-recent-invoices'],
@@ -1223,15 +1347,36 @@ function RecentBillsDrawer({ onClose }) {
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex border-b border-gray-100 px-4 gap-1 pt-2 shrink-0">
+          {[
+            { key: 'restaurant', label: 'Restaurant', count: sessions.length },
+            { key: 'hotel',      label: 'Room Bookings', count: recentCheckouts.length },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${activeTab === tab.key ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            >
+              {tab.label}
+              {tab.count > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.key ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
+          {activeTab === 'restaurant' && (isLoading ? (
             <div className="p-4 space-y-3">
               {[1,2,3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}
             </div>
           ) : sessions.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-center px-6">
               <DocumentTextIcon className="w-10 h-10 text-gray-300 mb-2" />
-              <p className="text-sm text-gray-400">No bills yet</p>
+              <p className="text-sm text-gray-400">No restaurant bills yet</p>
             </div>
           ) : (
             <div className="p-4 space-y-3">
@@ -1327,61 +1472,60 @@ function RecentBillsDrawer({ onClose }) {
                 )
               })}
             </div>
-          )}
+          ))}
 
-          {/* Hotel room bills */}
-          {recentCheckouts.length > 0 && (
-            <div className="px-4 pb-4">
-              <div className="flex items-center gap-2 py-3 border-t border-gray-100 mt-1">
-                <span className="text-sm font-bold text-gray-700">🏨 Room Bookings</span>
-              </div>
-              <div className="space-y-2">
-                {recentCheckouts.map(b => {
-                  const isCheckedIn = b.status === 'checked_in'
-                  const dateLabel = isCheckedIn
-                    ? `Due out ${new Date(b.check_out_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
-                    : `Out ${new Date(b.actual_check_out ?? b.check_out_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
-                  return (
-                    <div key={b.id} className={`border rounded-xl px-4 py-3 ${isCheckedIn ? 'border-green-200 bg-green-50/40' : 'border-gray-200'}`}>
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-semibold text-gray-900">
-                              Room {b.room_number} · {b.guest_name}
-                            </p>
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isCheckedIn ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                              {isCheckedIn ? 'In' : 'Out'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {b.booking_number} · {dateLabel} · ₹{parseFloat(b.total_amount ?? 0).toFixed(0)}
+          {activeTab === 'hotel' && (recentCheckouts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center px-6">
+              <DocumentTextIcon className="w-10 h-10 text-gray-300 mb-2" />
+              <p className="text-sm text-gray-400">No room bookings yet</p>
+            </div>
+          ) : (
+            <div className="p-4 space-y-2">
+              {recentCheckouts.map(b => {
+                const isCheckedIn = b.status === 'checked_in'
+                const dateLabel = isCheckedIn
+                  ? `Due out ${new Date(b.check_out_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+                  : `Out ${new Date(b.actual_check_out ?? b.check_out_date).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+                return (
+                  <div key={b.id} className={`border rounded-xl px-4 py-3 ${isCheckedIn ? 'border-green-200 bg-green-50/40' : 'border-gray-200'}`}>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-gray-900">
+                            Room {b.room_number} · {b.guest_name}
                           </p>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isCheckedIn ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {isCheckedIn ? 'In' : 'Out'}
+                          </span>
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleHotelPrint(b)}
-                          disabled={!!hotelBusy}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-semibold py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          <PrinterIcon className="w-3.5 h-3.5" />
-                          {hotelBusy === `${b.id}-print` ? 'Printing…' : 'Print Bill'}
-                        </button>
-                        <button
-                          onClick={() => handleHotelDownload(b)}
-                          disabled={!!hotelBusy}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-gray-800 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-gray-900 disabled:opacity-50"
-                        >
-                          <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                          {hotelBusy === `${b.id}-dl` ? 'Saving…' : 'Download'}
-                        </button>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {b.booking_number} · {dateLabel} · ₹{parseFloat(b.total_amount ?? 0).toFixed(0)}
+                        </p>
                       </div>
                     </div>
-                  )
-                })}
-              </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleHotelPrint(b)}
+                        disabled={!!hotelBusy}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-semibold py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <PrinterIcon className="w-3.5 h-3.5" />
+                        {hotelBusy === `${b.id}-print` ? 'Printing…' : 'Print Bill'}
+                      </button>
+                      <button
+                        onClick={() => handleHotelDownload(b)}
+                        disabled={!!hotelBusy}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-gray-800 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-gray-900 disabled:opacity-50"
+                      >
+                        <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                        {hotelBusy === `${b.id}-dl` ? 'Saving…' : 'Download'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          )}
+          ))}
         </div>
       </div>
     </div>
@@ -1495,12 +1639,22 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
       ? (activeCatObj2?.subcategories?.find(s => s.id === activeSubTW)?.items ?? [])
       : [...(activeCatObj2?.items ?? []), ...(activeCatObj2?.subcategories ?? []).flatMap(s => s.items ?? [])]
 
+  const [placeError, setPlaceError] = useState('')
   const place = useMutation({
     mutationFn: (data) => isAggregator ? billingPlaceAggregator(data) : billingPlaceTakeaway(data),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
       onDone?.(res.data.data)
       onClose()
+    },
+    onError: (err) => {
+      const data = err.response?.data
+      if (data?.errors) {
+        const msgs = Object.values(data.errors).flat().join(' • ')
+        setPlaceError(msgs)
+      } else {
+        setPlaceError(data?.message ?? 'Failed to place order')
+      }
     },
   })
 
@@ -1525,12 +1679,12 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
 
   const handlePlace = () => {
     if (!cart.length) return
-    if (!isAggregator && !customerName.trim()) { setNameError('Customer name is required'); return }
     setNameError('')
+    setPlaceError('')
     place.mutate({
       items: cart.map(({ menu_item_id, variant_id, addon_ids, quantity }) => ({ menu_item_id, ...(variant_id ? { variant_id } : {}), ...(addon_ids?.length ? { addon_ids } : {}), quantity })),
       customer_name: customerName.trim() || undefined,
-      customer_phone: customerPhone || undefined,
+      customer_phone: customerPhone.trim() || undefined,
       notes: notes || undefined,
       ...(isAggregator ? { platform, external_order_id: externalId || undefined } : {}),
     })
@@ -1689,6 +1843,9 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
               <span className="text-sm font-semibold text-gray-700">Total</span>
               <span className="text-base font-bold text-orange-600">₹{total}</span>
             </div>
+            {placeError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2">{placeError}</p>
+            )}
             <button
               onClick={handlePlace}
               disabled={place.isPending}

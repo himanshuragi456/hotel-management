@@ -86,12 +86,12 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
           <h2 className="font-semibold text-gray-900">{isEdit ? 'Edit Staff Member' : 'Add Staff Member'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="w-5 h-5" /></button>
         </div>
-        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3">
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3 overflow-y-auto">
           {errors.general && (
             <div className="bg-red-50 text-red-600 text-sm px-3 py-2 rounded-lg">{errors.general}</div>
           )}
@@ -138,7 +138,7 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Role *</label>
-            <div className={`grid gap-2 grid-cols-${availableRoles.length}`}>
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${availableRoles.length}, minmax(0, 1fr))` }}>
               {availableRoles.map(r => (
                 <button type="button" key={r} onClick={() => set('role', r)}
                   className={`py-2 rounded-lg text-xs font-medium capitalize ${form.role === r ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -257,25 +257,27 @@ export default function StaffManager() {
               <div className="space-y-2">
                 {grouped[role].map(member => (
                   <div key={member.id}
-                    className={`bg-white rounded-xl border px-4 py-3 flex items-center gap-4 ${!member.is_active ? 'opacity-60' : ''}`}>
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center font-bold text-white text-sm shrink-0 shadow-sm">
-                      {member.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900 text-sm">{member.name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_META[member.role].color}`}>
-                          {ROLE_META[member.role].label}
-                        </span>
-                        {!member.is_active && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inactive</span>
-                        )}
+                    className={`bg-white rounded-xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 ${!member.is_active ? 'opacity-60' : ''}`}>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center font-bold text-white text-sm shrink-0 shadow-sm">
+                        {member.name.charAt(0).toUpperCase()}
                       </div>
-                      <div className="text-xs text-gray-400 mt-0.5 truncate">
-                        {member.email}{member.phone ? ` · ${member.phone}` : ''}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-gray-900 text-sm truncate">{member.name}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${ROLE_META[member.role].color}`}>
+                            {ROLE_META[member.role].label}
+                          </span>
+                          {!member.is_active && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 shrink-0">Inactive</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5 truncate">
+                          {member.email}{member.phone ? ` · ${member.phone}` : ''}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                    <div className="flex items-center gap-1 shrink-0 flex-wrap sm:justify-end">
                       <button
                         onClick={() => toggleMutation.mutate(member.id)}
                         disabled={toggleMutation.isPending}

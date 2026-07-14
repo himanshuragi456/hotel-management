@@ -188,7 +188,7 @@ class RevenueController extends Controller
 
         $orders = Order::where('tenant_id', auth()->user()->tenant_id)
             ->whereBetween('created_at', [$request->from, $request->to . ' 23:59:59'])
-            ->with(['items', 'table', 'invoice'])
+            ->with(['items', 'table', 'room', 'invoice'])
             ->withCount('items')
             ->latest()
             ->get();

@@ -29,7 +29,7 @@ class RoomMenuController extends Controller
             'tenant_name' => $tenant->name,
             'branding'    => [
                 'brand_name'       => $settings['brand_name']       ?? null,
-                'brand_logo_url'   => isset($settings['brand_logo']) ? asset('storage/' . $settings['brand_logo']) : null,
+                'brand_logo_url'   => isset($settings['brand_logo']) ? '/storage/' . $settings['brand_logo'] : null,
                 'contact_phone'    => $settings['contact_phone']    ?? null,
                 'contact_whatsapp' => $settings['contact_whatsapp'] ?? null,
                 'contact_email'    => $settings['contact_email']    ?? null,

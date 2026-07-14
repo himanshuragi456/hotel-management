@@ -823,7 +823,7 @@ class MagicTablesController extends Controller
             'address'             => $t->address,
             'city'                => $t->city,
             'cuisine_type'        => $t->business_domain,
-            'logo_url'            => $t->logo ? asset('storage/' . $t->logo) : null,
+            'logo_url'            => $t->logo ? '/storage/' . $t->logo : null,
             'cover_image_url'     => null,
             'avg_rating'          => 0.0,
             'review_count'        => 0,

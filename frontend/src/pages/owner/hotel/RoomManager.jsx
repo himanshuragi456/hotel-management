@@ -26,13 +26,13 @@ function RoomCard({ room, onEdit, onDelete, onQr }) {
   const cfg = STATUS_CONFIG[room.status] ?? STATUS_CONFIG.available
 
   return (
-    <div className={`rounded-2xl border-2 p-4 relative transition-all hover:shadow-md ${cfg.border} ${cfg.bg}`}>
-      <div className="flex items-start justify-between mb-2">
-        <div>
-          <div className="text-2xl font-bold text-gray-900">{room.number}</div>
-          <div className="text-xs text-gray-500 capitalize">{room.type} · Floor {room.floor}</div>
+    <div className={`rounded-2xl border-2 p-4 relative transition-all hover:shadow-md min-w-0 overflow-hidden ${cfg.border} ${cfg.bg}`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="min-w-0">
+          <div className="text-2xl font-bold text-gray-900 truncate">{room.number}</div>
+          <div className="text-xs text-gray-500 capitalize truncate">{room.type} · Floor {room.floor}</div>
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5 shrink-0">
           <button onClick={() => onQr(room)} title="Room Service QR"
             className="w-7 h-7 rounded-lg hover:bg-white/60 flex items-center justify-center transition-colors">
             <QrCodeIcon className="w-4 h-4 text-gray-500" />
@@ -48,14 +48,16 @@ function RoomCard({ room, onEdit, onDelete, onQr }) {
         </div>
       </div>
 
-      <div className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full mb-2 ${cfg.badge}`}>
-        <div className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${room.status === 'occupied' ? 'animate-pulse' : ''}`} />
-        {cfg.label}
-        {room.status === 'occupied' && room.occupied_minutes ? ` · ${formatOccupied(room.occupied_minutes)}` : ''}
+      <div className={`flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full mb-2 max-w-full ${cfg.badge}`}>
+        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot} ${room.status === 'occupied' ? 'animate-pulse' : ''}`} />
+        <span className="truncate">
+          {cfg.label}
+          {room.status === 'occupied' && room.occupied_minutes ? ` · ${formatOccupied(room.occupied_minutes)}` : ''}
+        </span>
       </div>
 
       {room.status === 'occupied' && room.active_booking && (
-        <div className="text-xs text-gray-600 mb-2 font-medium">
+        <div className="text-xs text-gray-600 mb-2 font-medium truncate">
           {room.active_booking.guest?.name}
           {room.active_booking.check_out_date && (
             <span className="text-gray-400 font-normal"> · out {new Date(room.active_booking.check_out_date).toLocaleDateString()}</span>
@@ -63,14 +65,14 @@ function RoomCard({ room, onEdit, onDelete, onQr }) {
         </div>
       )}
 
-      <div className="flex items-center justify-between mt-1">
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <UserGroupIcon className="w-3.5 h-3.5" />
-          {room.capacity} guests
+      <div className="flex items-center justify-between gap-2 mt-1">
+        <div className="flex items-center gap-1 text-xs text-gray-500 min-w-0">
+          <UserGroupIcon className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{room.capacity} guests</span>
         </div>
-        <div className="flex items-center gap-1 text-sm font-bold text-gray-900">
-          <BanknotesIcon className="w-3.5 h-3.5 text-gray-400" />
-          ₹{room.price_per_night}/night
+        <div className="flex items-center gap-1 text-sm font-bold text-gray-900 min-w-0 shrink-0">
+          <BanknotesIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <span className="truncate">₹{room.price_per_night}/night</span>
         </div>
       </div>
 
@@ -306,7 +308,7 @@ export default function RoomManager() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="h-36 rounded-2xl bg-gray-100 animate-pulse" />
           ))}
@@ -322,7 +324,7 @@ export default function RoomManager() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {filtered.map(room => (
             <RoomCard key={room.id} room={room}
               onEdit={(r) => { setEditing(r); setShowForm(true) }}

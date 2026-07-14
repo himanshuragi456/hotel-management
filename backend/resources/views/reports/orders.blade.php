@@ -26,6 +26,7 @@
         <th>Subtotal</th>
         <th>GST</th>
         <th>Total</th>
+        <th>Payment</th>
         <th>Status</th>
         <th>Time</th>
       </tr>
@@ -51,6 +52,7 @@
         <td>₹{{ number_format($order->subtotal, 2) }}</td>
         <td>₹{{ number_format($order->tax, 2) }}</td>
         <td class="total">₹{{ number_format($order->total, 2) }}</td>
+        <td>{{ $order->invoice->payment_method ?? '—' }}</td>
         <td>{{ $order->status }}</td>
         <td>{{ $order->created_at->setTimezone('Asia/Kolkata')->format('d M H:i') }}</td>
       </tr>

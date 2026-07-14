@@ -23,26 +23,34 @@ class OrdersExport implements FromCollection, WithHeadings, WithMapping
 
     public function headings(): array
     {
-        return ['Order #', 'Type', 'Table / Room', 'Date', 'Items', 'Total', 'Tax', 'Payment', 'Status'];
+        return ['Order #', 'Table', 'Items', 'Subtotal', 'GST', 'Total', 'Payment', 'Status', 'Time'];
     }
 
     /** @param \App\Models\Order $order */
     public function map($order): array
     {
-        $where = $order->type === 'room-service'
-            ? 'Room ' . ($order->room_id ?? '?')
-            : 'Table ' . ($order->table->number ?? '—');
+        if ($order->table) {
+            $where = 'Table ' . $order->table->number;
+        } elseif ($order->type === 'room-service') {
+            $where = 'Room ' . ($order->room?->number ?? 'Service');
+        } elseif ($order->type === 'takeaway' && $order->source === 'aggregator') {
+            $where = ucfirst($order->platform ?? 'Aggregator');
+        } elseif ($order->type === 'takeaway') {
+            $where = 'Takeaway';
+        } else {
+            $where = '—';
+        }
 
         return [
             $order->order_number,
-            $order->type,
             $where,
-            optional($order->created_at)->format('Y-m-d H:i'),
             $order->items_count ?? $order->items->count(),
-            (float) ($order->invoice->total ?? $order->total ?? 0),
-            (float) ($order->invoice->tax ?? 0),
-            $order->invoice->payment_method ?? '',
+            (float) ($order->subtotal ?? 0),
+            (float) ($order->tax ?? 0),
+            (float) ($order->total ?? 0),
+            $order->invoice->payment_method ?? '—',
             $order->status,
+            optional($order->created_at)->setTimezone('Asia/Kolkata')->format('d M H:i'),
         ];
     }
 }

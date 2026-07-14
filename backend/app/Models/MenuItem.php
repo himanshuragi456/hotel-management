@@ -32,12 +32,12 @@ class MenuItem extends Model
         if (!$this->image) return null;
         // Guard: if a video ended up in the image column somehow, don't serve it as image_url
         if (preg_match('/\.(mp4|webm)$/i', $this->image)) return null;
-        return Storage::disk('public')->url($this->image);
+        return '/storage/' . $this->image;
     }
 
     public function getVideoUrlAttribute(): ?string
     {
-        return $this->video ? Storage::disk('public')->url($this->video) : null;
+        return $this->video ? '/storage/' . $this->video : null;
     }
 
     public function tenant()      { return $this->belongsTo(Tenant::class); }

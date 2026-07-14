@@ -199,11 +199,17 @@ class InvoiceController extends Controller
             'items.*.menu_item_id'=> 'required|exists:menu_items,id',
             'items.*.quantity'    => 'required|integer|min:1',
             'items.*.notes'       => 'nullable|string',
-            'customer_name'       => 'required|string|max:100',
-            'customer_phone'      => 'nullable|regex:/^[6-9]\d{9}$/',
+            'customer_name'       => 'nullable|string|max:100',
+            'customer_phone'      => 'nullable|string|max:20',
             'notes'               => 'nullable|string',
         ]);
-        if ($v->fails()) return $this->validationError($v->errors());
+        if ($v->fails()) {
+            \Illuminate\Support\Facades\Log::error('storeTakeaway validation failed', [
+                'errors' => $v->errors()->toArray(),
+                'input'  => $request->all(),
+            ]);
+            return $this->validationError($v->errors());
+        }
 
         $tenantId = auth()->user()->tenant_id;
         $tenant   = auth()->user()->tenant;
@@ -214,7 +220,7 @@ class InvoiceController extends Controller
                 'waiter_id'      => auth()->id(),
                 'type'           => 'takeaway',
                 'source'         => 'pos',
-                'customer_name'  => $request->customer_name,
+                'customer_name'  => $request->customer_name ?? 'Walk-in',
                 'customer_phone' => $request->customer_phone,
                 'notes'          => $request->notes,
             ]);
@@ -250,7 +256,7 @@ class InvoiceController extends Controller
             'items.*.addon_ids.*' => 'integer',
             'items.*.notes'       => 'nullable|string',
             'customer_name'       => 'nullable|string|max:100',
-            'customer_phone'      => 'nullable|regex:/^[6-9]\d{9}$/',
+            'customer_phone'      => 'nullable|string|max:20',
             'notes'               => 'nullable|string',
             'no_cutlery'          => 'boolean',
         ]);

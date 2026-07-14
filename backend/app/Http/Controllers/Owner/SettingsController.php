@@ -55,6 +55,7 @@ class SettingsController extends Controller
     {
         $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
         $request->validate([
+            'name'                          => 'sometimes|string|max:255',
             'address'                       => 'sometimes|nullable|string|max:255',
             'city'                          => 'sometimes|nullable|string|max:100',
             'state'                         => 'sometimes|nullable|string|max:100',
@@ -81,6 +82,7 @@ class SettingsController extends Controller
             'ring_prefs.*'                  => 'boolean',
         ]);
         $tenant->update($request->only([
+            'name',
             'address',
             'city',
             'state',
