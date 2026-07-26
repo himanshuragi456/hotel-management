@@ -78,12 +78,12 @@ export default function FeedbackDashboard() {
         </div>
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-500">From</label>
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={inp} />
-            <label className="text-xs font-medium text-gray-500">To</label>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)} className={inp} />
+            <label htmlFor="feedback-filter-from" className="text-xs font-medium text-gray-500">From</label>
+            <input id="feedback-filter-from" name="from" type="date" value={from} onChange={e => setFrom(e.target.value)} className={inp} />
+            <label htmlFor="feedback-filter-to" className="text-xs font-medium text-gray-500">To</label>
+            <input id="feedback-filter-to" name="to" type="date" value={to} onChange={e => setTo(e.target.value)} className={inp} />
           </div>
-          <select value={rating} onChange={e => setRating(e.target.value)} className={inp}>
+          <select id="feedback-filter-rating" name="rating" aria-label="Rating filter" value={rating} onChange={e => setRating(e.target.value)} className={inp}>
             <option value="">All ratings</option>
             {[5,4,3,2,1].map(r => <option key={r} value={r}>{r} ★</option>)}
           </select>

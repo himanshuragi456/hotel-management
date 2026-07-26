@@ -42,14 +42,14 @@ export default function AuditLog() {
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:flex-wrap sm:items-center">
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-500 whitespace-nowrap">From</label>
-            <input type="date" value={from} max={to || today} onChange={e => setFrom(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+            <label htmlFor="owner-audit-log-from" className="text-xs font-medium text-gray-500 whitespace-nowrap">From</label>
+            <input id="owner-audit-log-from" name="from" type="date" value={from} max={to || today} onChange={e => setFrom(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-500 whitespace-nowrap">To</label>
-            <input type="date" value={to} min={from || undefined} max={today} onChange={e => setTo(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+            <label htmlFor="owner-audit-log-to" className="text-xs font-medium text-gray-500 whitespace-nowrap">To</label>
+            <input id="owner-audit-log-to" name="to" type="date" value={to} min={from || undefined} max={today} onChange={e => setTo(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
           </div>
-          <input value={action} onChange={e => setAction(e.target.value)} placeholder="Filter by action…" className={`${inp} w-full sm:w-48`} />
+          <input id="owner-audit-log-action" name="action" aria-label="Filter by action" value={action} onChange={e => setAction(e.target.value)} placeholder="Filter by action…" className={`${inp} w-full sm:w-48`} />
           {(from || to || action) && (
             <button onClick={() => { setFrom(''); setTo(''); setAction('') }} className="text-sm text-gray-400 hover:text-gray-600">Clear</button>
           )}

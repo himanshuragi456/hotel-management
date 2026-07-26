@@ -298,7 +298,7 @@ class InvoiceController extends Controller
         if ($order->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
         if ($order->status !== 'ready') return $this->error('Order must be ready before marking as served');
         $order->update(['status' => 'served']);
-        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) {}
+        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) { /* logged by LoggingAblyBroadcaster */ }
         return $this->success(null, 'Order marked as served');
     }
 
@@ -395,7 +395,7 @@ class InvoiceController extends Controller
         if ($order->type !== 'room-service') return $this->error('Not a room service order');
         if (!in_array($order->status, ['pending', 'preparing', 'ready'])) return $this->error('Order cannot be marked served');
         $order->update(['status' => 'served']);
-        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'room')))->toOthers(); } catch (\Exception $e) {}
+        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'room')))->toOthers(); } catch (\Exception $e) { /* logged by LoggingAblyBroadcaster */ }
         return $this->success(null, 'Order marked as served');
     }
 
@@ -624,7 +624,7 @@ class InvoiceController extends Controller
 
         // Mark order as served now that it's invoiced
         $order->update(['status' => 'served']);
-        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) {}
+        try { broadcast(new \App\Events\OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) { /* logged by LoggingAblyBroadcaster */ }
 
         // Free table only if no other unbilled orders remain
         if ($order->restaurant_table_id) {

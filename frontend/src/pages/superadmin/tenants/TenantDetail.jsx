@@ -42,6 +42,8 @@ function AiSettingsCard({ tenant, mutation }) {
         {/* Enable / disable toggle */}
         <label className="relative inline-flex items-center cursor-pointer">
           <input
+            id="ai-review-suggestions-enabled"
+            name="ai_review_suggestions_enabled"
             type="checkbox"
             className="sr-only peer"
             checked={enabled}
@@ -77,8 +79,9 @@ function AiSettingsCard({ tenant, mutation }) {
           {/* Quota control */}
           <div className="flex items-center gap-3">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Monthly quota (calls)</label>
+              <label htmlFor="ai-quota-monthly" className="block text-xs font-medium text-gray-600 mb-1">Monthly quota (calls)</label>
               <input
+                id="ai-quota-monthly" name="quota"
                 type="number" min="0" max="10000" value={quota}
                 onChange={e => setQuota(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
@@ -154,14 +157,14 @@ function ChangePasswordModal({ user, onClose }) {
       {errors.general && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl">{errors.general}</div>}
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">New Password *</label>
-          <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} className={inp('password')} placeholder="Min 8 chars, A-Z, 0-9, @$!%*#?&" />
+          <label htmlFor="change-user-password-new" className="block text-xs font-medium text-gray-600 mb-1">New Password *</label>
+          <input id="change-user-password-new" name="password" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} className={inp('password')} placeholder="Min 8 chars, A-Z, 0-9, @$!%*#?&" />
           {errors.password && <p className="text-xs text-red-500 mt-0.5">{errors.password}</p>}
           <p className="text-xs text-gray-400 mt-1">Must include uppercase, number, and special char (@$!%*#?&)</p>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Password *</label>
-          <input type="password" value={form.password_confirmation} onChange={e => setForm(f => ({ ...f, password_confirmation: e.target.value }))} className={inp('password_confirmation')} placeholder="Repeat password" />
+          <label htmlFor="change-user-password-confirm" className="block text-xs font-medium text-gray-600 mb-1">Confirm Password *</label>
+          <input id="change-user-password-confirm" name="password_confirmation" type="password" value={form.password_confirmation} onChange={e => setForm(f => ({ ...f, password_confirmation: e.target.value }))} className={inp('password_confirmation')} placeholder="Repeat password" />
           {errors.password_confirmation && <p className="text-xs text-red-500 mt-0.5">{errors.password_confirmation}</p>}
         </div>
         <div className="flex gap-2 pt-1">
@@ -346,6 +349,8 @@ export default function TenantDetail() {
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
+                      id={`module-toggle-${key}`}
+                      name={`module_${key}`}
                       type="checkbox"
                       className="sr-only peer"
                       checked={!!modules[key]}
@@ -358,9 +363,11 @@ export default function TenantDetail() {
                 </div>
                 {key === 'feedback' && modules.feedback && (
                   <div className="mt-2 ml-9.5 pl-0.5">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Domain</label>
+                    <label htmlFor="feedback-business-domain" className="block text-xs font-medium text-gray-500 mb-1">Business Domain</label>
                     <div className="flex gap-2">
                       <select
+                        id="feedback-business-domain"
+                        name="business_domain"
                         value={resolvedDomain}
                         onChange={e => setFeedbackDomain(e.target.value)}
                         className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50"
@@ -379,6 +386,9 @@ export default function TenantDetail() {
                     </div>
                     {resolvedDomain === 'other' && (
                       <input
+                        id="feedback-business-domain-other"
+                        name="business_domain_other"
+                        aria-label="Specify business type"
                         type="text"
                         placeholder="Specify business type…"
                         value={feedbackDomainOther || ''}

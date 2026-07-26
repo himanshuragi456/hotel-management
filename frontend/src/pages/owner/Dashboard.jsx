@@ -1,4 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import * as Ably from 'ably'
 import {
   BanknotesIcon, ShoppingBagIcon, ReceiptPercentIcon, ArrowTrendingUpIcon,
   BuildingOfficeIcon, UsersIcon, ArrowDownTrayIcon, ArrowUpTrayIcon,
@@ -112,7 +114,9 @@ function LiveSection({ title, orders, labelFn, subFn }) {
 }
 
 export default function OwnerDashboard() {
-  const { user } = useAuthStore()
+  const { user, getTenantId } = useAuthStore()
+  const qc = useQueryClient()
+  const tenantId = getTenantId?.()
   const modules = user?.modules
   const hasRestaurant = !!modules?.restaurant
   const hasHotel = !!modules?.hotel
@@ -120,14 +124,26 @@ export default function OwnerDashboard() {
   const { data: rev, isLoading: revLoading } = useQuery({
     queryKey: ['today-revenue'],
     queryFn: () => getTodayRevenue().then(r => r.data.data),
-    refetchInterval: 60000,
   })
   const { data: orders } = useQuery({
     queryKey: ['live-orders'],
     queryFn: () => getLiveOrders().then(r => r.data.data),
-    // Owner overview is not Pusher-subscribed — poll at a relaxed cadence.
-    refetchInterval: 30000,
   })
+
+  // Realtime via Ably — no polling. Reuses the same tenant kitchen channel
+  // the kitchen/waiter/billing dashboards subscribe to.
+  useEffect(() => {
+    if (!tenantId) return
+    const ably = new Ably.Realtime({ key: import.meta.env.VITE_ABLY_KEY })
+    const channel = ably.channels.get(`public:tenant.${tenantId}.kitchen`)
+    console.log(`[Ably] OwnerDashboard: connecting to tenant.${tenantId}.kitchen`)
+    ably.connection.on((stateChange) => console.log(`[Ably] OwnerDashboard: connection ${stateChange.current}`, stateChange.reason ?? ''))
+    channel.subscribe('order.updated', (msg) => {
+      console.log('[Ably] OwnerDashboard: order.updated received', msg.data)
+      qc.invalidateQueries({ queryKey: ['live-orders'] })
+    }).catch(() => {})
+    return () => { channel.unsubscribe(); ably.close() }
+  }, [tenantId, qc])
 
   const isOffPremise = o => o.source === 'aggregator' || o.type === 'takeaway' || o.source === 'takeaway'
   const dineIn   = (orders ?? []).filter(o => o.type !== 'room-service' && !isOffPremise(o))

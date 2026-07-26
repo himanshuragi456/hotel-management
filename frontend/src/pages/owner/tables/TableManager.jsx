@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import * as Ably from 'ably'
 import { useScrollToFirstError } from '@/hooks/useScrollToFirstError'
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, QrCodeIcon,
@@ -11,6 +12,7 @@ import Spinner from '@/components/shared/Spinner'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import { formatOccupied } from '@/utils/time'
 import { validate, validateField, required, minValue, isInteger } from '@/utils/validate'
+import useAuthStore from '@/store/authStore'
 
 const URGENCY_CONFIG = {
   high:   { border: 'border-red-400',    bg: 'bg-red-50',    dot: 'bg-red-500',    text: 'text-red-700'    },
@@ -119,8 +121,10 @@ function TableForm({ table, onSuccess }) {
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
       <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Table Number *</label>
+        <label htmlFor="table-form-number" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Table Number *</label>
         <input
+          id="table-form-number"
+          name="number"
           value={form.number}
           onChange={e => set('number', e.target.value)}
           onBlur={() => blur('number')}
@@ -131,8 +135,10 @@ function TableForm({ table, onSuccess }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity *</label>
+          <label htmlFor="table-form-capacity" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity *</label>
           <input
+            id="table-form-capacity"
+            name="capacity"
             type="number"
             min="1"
             value={form.capacity}
@@ -143,8 +149,8 @@ function TableForm({ table, onSuccess }) {
           {Err('capacity')}
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Section</label>
-          <input value={form.section} onChange={e => set('section', e.target.value)} className={inp('section')} placeholder="Ground Floor, Terrace…" />
+          <label htmlFor="table-form-section" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Section</label>
+          <input id="table-form-section" name="section" value={form.section} onChange={e => set('section', e.target.value)} className={inp('section')} placeholder="Ground Floor, Terrace…" />
         </div>
       </div>
       <div className="flex justify-end">
@@ -160,6 +166,8 @@ function TableForm({ table, onSuccess }) {
 
 export default function TableManager() {
   const qc = useQueryClient()
+  const { getTenantId } = useAuthStore()
+  const tenantId = getTenantId?.()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [qrData, setQrData] = useState(null) // { svgUrl, table }
@@ -168,8 +176,24 @@ export default function TableManager() {
   const { data: tables, isLoading } = useQuery({
     queryKey: ['tables'],
     queryFn: () => getTables().then(r => r.data.data),
-    refetchInterval: 15000,
   })
+
+  // Realtime via Ably — no polling. Table occupancy/waiter-call/bill-request
+  // state changes ride the same tenant kitchen channel as the other dashboards.
+  useEffect(() => {
+    if (!tenantId) return
+    const ably = new Ably.Realtime({ key: import.meta.env.VITE_ABLY_KEY })
+    const channel = ably.channels.get(`public:tenant.${tenantId}.kitchen`)
+    console.log(`[Ably] TableManager: connecting to tenant.${tenantId}.kitchen`)
+    ably.connection.on((stateChange) => console.log(`[Ably] TableManager: connection ${stateChange.current}`, stateChange.reason ?? ''))
+    const invalidate = (msg) => {
+      console.log(`[Ably] TableManager: ${msg.name} received`, msg.data)
+      qc.invalidateQueries({ queryKey: ['tables'] })
+    }
+    channel.subscribe('order.updated', invalidate).catch(() => {})
+    channel.subscribe('table.activity', invalidate).catch(() => {})
+    return () => { channel.unsubscribe(); ably.close() }
+  }, [tenantId, qc])
 
   const delTable = useMutation({
     mutationFn: deleteTable,

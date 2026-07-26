@@ -109,6 +109,9 @@ function ReviewCard({ review }) {
             </button>
           </div>
           <textarea
+            id={`gmb-review-reply-${review.id}`}
+            name={`reply_text_${review.id}`}
+            aria-label="Reply draft"
             value={replyText}
             onChange={e => setReplyText(e.target.value)}
             rows={4}

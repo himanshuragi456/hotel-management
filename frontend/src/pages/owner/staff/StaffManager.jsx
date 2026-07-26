@@ -97,8 +97,10 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+            <label htmlFor="staff-name" className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
             <input
+              id="staff-name"
+              name="name"
               value={form.name}
               onChange={e => set('name', e.target.value)}
               onBlur={() => blur('name')}
@@ -109,8 +111,10 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+            <label htmlFor="staff-email" className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
             <input
+              id="staff-email"
+              name="email"
               type="email"
               value={form.email}
               onChange={e => set('email', e.target.value)}
@@ -122,8 +126,10 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
+            <label htmlFor="staff-phone" className="block text-xs font-medium text-gray-600 mb-1">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
             <input
+              id="staff-phone"
+              name="phone"
               type="tel"
               inputMode="numeric"
               maxLength={10}
@@ -149,11 +155,14 @@ function StaffForm({ initial, onClose, onSave, availableRoles }) {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
+            <label htmlFor="staff-password" className="block text-xs font-medium text-gray-600 mb-1">
               Password {isEdit && <span className="text-gray-400 font-normal">(leave blank to keep current)</span>}
               {!isEdit && <span className="text-red-500"> *</span>}
             </label>
             <input
+              id="staff-password"
+              name="password"
+              autoComplete="new-password"
               type="password"
               value={form.password}
               onChange={e => set('password', e.target.value)}

@@ -41,12 +41,12 @@ export default function HotelReports() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">From</label>
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+            <label htmlFor="hotel-report-from" className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">From</label>
+            <input id="hotel-report-from" name="from" type="date" value={from} onChange={e => setFrom(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">To</label>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+            <label htmlFor="hotel-report-to" className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">To</label>
+            <input id="hotel-report-to" name="to" type="date" value={to} onChange={e => setTo(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
           </div>
         </div>
       </div>

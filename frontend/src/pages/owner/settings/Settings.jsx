@@ -250,30 +250,30 @@ function BusinessDetailsCard({ settings, onUpdate, isPending }) {
 
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">Business Name</label>
-          <input value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setSaved(false) }}
+          <label htmlFor="biz-details-name" className="block text-xs font-medium text-gray-600 mb-1.5">Business Name</label>
+          <input id="biz-details-name" name="name" value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setSaved(false) }}
             placeholder="e.g. Spice Garden Restaurant" className={inp}/>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">Address</label>
-          <input value={form.address} onChange={e => { setForm(f => ({ ...f, address: e.target.value })); setSaved(false) }}
+          <label htmlFor="biz-details-address" className="block text-xs font-medium text-gray-600 mb-1.5">Address</label>
+          <input id="biz-details-address" name="address" value={form.address} onChange={e => { setForm(f => ({ ...f, address: e.target.value })); setSaved(false) }}
             placeholder="Street, area, landmark" className={inp}/>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">City</label>
-            <input value={form.city} onChange={e => { setForm(f => ({ ...f, city: e.target.value })); setSaved(false) }}
+            <label htmlFor="biz-details-city" className="block text-xs font-medium text-gray-600 mb-1.5">City</label>
+            <input id="biz-details-city" name="city" value={form.city} onChange={e => { setForm(f => ({ ...f, city: e.target.value })); setSaved(false) }}
               placeholder="City" className={inp}/>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">State</label>
-            <input value={form.state} onChange={e => { setForm(f => ({ ...f, state: e.target.value })); setSaved(false) }}
+            <label htmlFor="biz-details-state" className="block text-xs font-medium text-gray-600 mb-1.5">State</label>
+            <input id="biz-details-state" name="state" value={form.state} onChange={e => { setForm(f => ({ ...f, state: e.target.value })); setSaved(false) }}
               placeholder="State" className={inp}/>
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">GSTIN</label>
-          <input value={form.gstin} onChange={e => { setForm(f => ({ ...f, gstin: e.target.value.toUpperCase() })); setSaved(false) }}
+          <label htmlFor="biz-details-gstin" className="block text-xs font-medium text-gray-600 mb-1.5">GSTIN</label>
+          <input id="biz-details-gstin" name="gstin" value={form.gstin} onChange={e => { setForm(f => ({ ...f, gstin: e.target.value.toUpperCase() })); setSaved(false) }}
             placeholder="15-digit GST number (optional)" maxLength={20} className={inp}/>
         </div>
         <button onClick={handleSave} disabled={isPending}
@@ -338,9 +338,9 @@ function GstSettingsCard({ settings, onUpdate, isPending }) {
 
       {/* Rate input */}
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">Default GST Rate (%)</label>
+        <label htmlFor="gst-settings-rate" className="block text-xs font-medium text-gray-600 mb-1.5">Default GST Rate (%)</label>
         <div className="flex gap-2">
-          <input type="number" min="0" max="100" step="0.5" value={rate}
+          <input id="gst-settings-rate" name="gst_rate" type="number" min="0" max="100" step="0.5" value={rate}
             onChange={e => { setRate(e.target.value); setSaved(false) }}
             placeholder="e.g. 5"
             className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400"/>
@@ -413,9 +413,9 @@ function HotelGstSettingsCard({ settings, onUpdate, isPending }) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">Hotel GST Rate (%)</label>
+        <label htmlFor="hotel-gst-settings-rate" className="block text-xs font-medium text-gray-600 mb-1.5">Hotel GST Rate (%)</label>
         <div className="flex gap-2">
-          <input type="number" min="0" max="100" step="0.5" value={rate}
+          <input id="hotel-gst-settings-rate" name="hotel_gst_rate" type="number" min="0" max="100" step="0.5" value={rate}
             onChange={e => { setRate(e.target.value); setSaved(false) }}
             placeholder="e.g. 12"
             className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400" />
@@ -466,6 +466,9 @@ function UpiSettingsCard({ settings, onUpdate, isPending }) {
       </div>
       <div className="flex gap-2">
         <input
+          id="upi-settings-id"
+          name="upi_id"
+          aria-label="UPI ID"
           type="text"
           value={upiId}
           onChange={e => { setUpiId(e.target.value); setSaved(false) }}
@@ -566,6 +569,9 @@ function ContactPhonesCard({ settings, onUpdate, isPending }) {
           <div className="relative flex-1">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium pointer-events-none">+91</span>
             <input
+              id="contact-phones-input"
+              name="new_phone"
+              aria-label="New contact phone number"
               type="tel"
               value={input}
               onChange={e => { setInput(e.target.value.replace(/\D/g, '').slice(0, 10)); setError('') }}
@@ -742,19 +748,19 @@ function ChangePasswordCard() {
 
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Current Password *</label>
-          <input type="password" value={form.current_password} onChange={e => set('current_password', e.target.value)} className={inp('current_password')} placeholder="Enter current password" />
+          <label htmlFor="change-password-current" className="block text-xs font-medium text-gray-600 mb-1">Current Password *</label>
+          <input id="change-password-current" name="current_password" type="password" value={form.current_password} onChange={e => set('current_password', e.target.value)} className={inp('current_password')} placeholder="Enter current password" />
           {Err('current_password')}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">New Password *</label>
-          <input type="password" value={form.password} onChange={e => set('password', e.target.value)} className={inp('password')} placeholder="Min 8 chars, A-Z, 0-9, @$!%*#?&" />
+          <label htmlFor="change-password-new" className="block text-xs font-medium text-gray-600 mb-1">New Password *</label>
+          <input id="change-password-new" name="password" type="password" value={form.password} onChange={e => set('password', e.target.value)} className={inp('password')} placeholder="Min 8 chars, A-Z, 0-9, @$!%*#?&" />
           {Err('password')}
           <p className="text-xs text-gray-400 mt-1">Must contain uppercase, number, and special character (@$!%*#?&)</p>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Confirm New Password *</label>
-          <input type="password" value={form.password_confirmation} onChange={e => set('password_confirmation', e.target.value)} className={inp('password_confirmation')} placeholder="Repeat new password" />
+          <label htmlFor="change-password-confirm" className="block text-xs font-medium text-gray-600 mb-1">Confirm New Password *</label>
+          <input id="change-password-confirm" name="password_confirmation" type="password" value={form.password_confirmation} onChange={e => set('password_confirmation', e.target.value)} className={inp('password_confirmation')} placeholder="Repeat new password" />
           {Err('password_confirmation')}
         </div>
         <button
@@ -783,7 +789,7 @@ function ChannelToggle({ label, online, onToggle, reasons, busy }) {
     return (
       <div className="py-3 border-t border-gray-50 first:border-0">
         <p className="text-sm font-medium text-gray-800 mb-2">Turn off {label} — why?</p>
-        <select value={reason} onChange={e => setReason(e.target.value)}
+        <select id={`channel-toggle-reason-${label}`} name="reason" aria-label={`Reason for turning off ${label}`} value={reason} onChange={e => setReason(e.target.value)}
           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 mb-2 focus:outline-none focus:ring-2 focus:ring-orange-400">
           <option value="">Select a reason…</option>
           {reasons?.map(r => <option key={r.code} value={r.code}>{r.label}</option>)}
@@ -830,13 +836,13 @@ function OutletHoursEditor({ outlet, busy, onSave }) {
       <div className="space-y-2 mb-2">
         {rows.map((row, i) => (
           <div key={i} className="flex items-center gap-2">
-            <select value={row.day_of_week} onChange={e => upd(i, 'day_of_week', Number(e.target.value))}
+            <select id={`outlet-hours-day-${i}`} name={`day_of_week_${i}`} aria-label="Day of week" value={row.day_of_week} onChange={e => upd(i, 'day_of_week', Number(e.target.value))}
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50">
               {OUTLET_DAYS.map((d, idx) => <option key={idx} value={idx}>{d}</option>)}
             </select>
-            <input type="time" value={row.open_time} onChange={e => upd(i, 'open_time', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50" />
+            <input id={`outlet-hours-open-${i}`} name={`open_time_${i}`} aria-label="Open time" type="time" value={row.open_time} onChange={e => upd(i, 'open_time', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50" />
             <span className="text-gray-400 text-sm">to</span>
-            <input type="time" value={row.close_time} onChange={e => upd(i, 'close_time', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50" />
+            <input id={`outlet-hours-close-${i}`} name={`close_time_${i}`} aria-label="Close time" type="time" value={row.close_time} onChange={e => upd(i, 'close_time', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50" />
             <button onClick={() => remove(i)} className="text-red-400 hover:text-red-600"><TrashIcon className="w-4 h-4" /></button>
           </div>
         ))}

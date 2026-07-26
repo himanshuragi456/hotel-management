@@ -14,10 +14,10 @@ import {
 import { getBranding, updateBranding } from '@/services/superadminService'
 import { validate, required, isEmail, isPhone } from '@/utils/validate'
 
-function Field({ label, icon: Icon, children, hint }) {
+function Field({ label, icon: Icon, children, hint, htmlFor }) {
   return (
     <div>
-      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1.5">
+      <label htmlFor={htmlFor} className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1.5">
         {Icon && <Icon className="w-3.5 h-3.5 text-gray-400" />}
         {label}
       </label>
@@ -159,7 +159,7 @@ export default function BrandingSettings() {
                 PNG or JPG, max 2 MB.<br />Displayed at ~48 px height.
               </p>
               {fieldErrors.brand_logo && <p className="text-xs text-red-500 mt-1">{fieldErrors.brand_logo}</p>}
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+              <input id="branding-logo-file" name="brand_logo" aria-label="Brand logo" ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
             </div>
           </div>
         </section>
@@ -168,8 +168,10 @@ export default function BrandingSettings() {
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h3 className="text-sm font-semibold text-gray-800">Brand Identity</h3>
 
-          <Field label="Company / Brand Name *" icon={BuildingStorefrontIcon}>
+          <Field label="Company / Brand Name *" icon={BuildingStorefrontIcon} htmlFor="branding-brand-name">
             <Input
+              id="branding-brand-name"
+              name="brand_name"
               value={form.brand_name}
               onChange={e => setField('brand_name', e.target.value)}
               placeholder="e.g. Magic Management"
@@ -181,8 +183,11 @@ export default function BrandingSettings() {
           <Field
             label="Sales Tagline"
             icon={TagIcon}
-            hint="Shown as the sub-message on the expired plan screen.">
+            hint="Shown as the sub-message on the expired plan screen."
+            htmlFor="branding-sales-tagline">
             <Input
+              id="branding-sales-tagline"
+              name="sales_tagline"
               value={form.sales_tagline}
               onChange={e => setField('sales_tagline', e.target.value)}
               placeholder="e.g. Get in touch with our sales team to reactivate your account."
@@ -195,8 +200,10 @@ export default function BrandingSettings() {
           <h3 className="text-sm font-semibold text-gray-800">Sales Contact</h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Phone Number" icon={PhoneIcon}>
+            <Field label="Phone Number" icon={PhoneIcon} htmlFor="branding-contact-phone">
               <Input
+                id="branding-contact-phone"
+                name="contact_phone"
                 value={form.contact_phone}
                 onChange={e => setField('contact_phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
                 placeholder="10-digit mobile number"
@@ -210,8 +217,11 @@ export default function BrandingSettings() {
             <Field
               label="WhatsApp Number"
               icon={ChatBubbleLeftEllipsisIcon}
-              hint="Include country code, no spaces.">
+              hint="Include country code, no spaces."
+              htmlFor="branding-contact-whatsapp">
               <Input
+                id="branding-contact-whatsapp"
+                name="contact_whatsapp"
                 value={form.contact_whatsapp}
                 onChange={e => setField('contact_whatsapp', e.target.value.replace(/\D/g, '').slice(0, 10))}
                 placeholder="10-digit mobile number"
@@ -223,8 +233,10 @@ export default function BrandingSettings() {
             </Field>
           </div>
 
-          <Field label="Email Address" icon={EnvelopeIcon}>
+          <Field label="Email Address" icon={EnvelopeIcon} htmlFor="branding-contact-email">
             <Input
+              id="branding-contact-email"
+              name="contact_email"
               value={form.contact_email}
               onChange={e => setField('contact_email', e.target.value)}
               placeholder="sales@yourcompany.com"

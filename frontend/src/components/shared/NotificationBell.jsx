@@ -40,9 +40,8 @@ export default function NotificationBell({ sound }) {
   const { data } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => getNotifications().then(r => r.data.data),
-    // Pusher refetches this on every event (useNotificationCenter); the poll is
-    // a backstop so the unread count still decays as items hit their TTL.
-    refetchInterval: 30000,
+    // Ably refetches this on every event (useNotificationCenter) — no polling.
+    // TTL decay for the unread count is handled purely client-side below.
     enabled: isAuthenticated(),
   })
 
@@ -84,8 +83,21 @@ export default function NotificationBell({ sound }) {
 
   const ringing = sound?.playing
 
+  const CONNECTION_DOT = {
+    connected:    { color: 'bg-green-500',  label: 'Live — real-time updates connected' },
+    connecting:   { color: 'bg-amber-400 animate-pulse', label: 'Connecting…' },
+    disconnected: { color: 'bg-amber-400 animate-pulse', label: 'Reconnecting…' },
+    suspended:    { color: 'bg-red-500',    label: 'Offline — real-time updates paused' },
+    failed:       { color: 'bg-red-500',    label: 'Offline — real-time updates failed' },
+    closed:       { color: 'bg-gray-400',   label: 'Disconnected' },
+  }
+  const dot = sound?.connectionState ? (CONNECTION_DOT[sound.connectionState] ?? CONNECTION_DOT.connecting) : null
+
   return (
     <div className="relative flex items-center gap-2" ref={ref}>
+      {dot && (
+        <span className={`w-2 h-2 rounded-full shrink-0 ${dot.color}`} title={dot.label} />
+      )}
       {/* Autoplay was blocked — clicking anything is itself the gesture that
           unlocks audio, so this pill just needs to be visible + clickable. */}
       {sound?.blocked && !sound?.muted && (

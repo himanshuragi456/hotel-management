@@ -93,9 +93,9 @@ function VariantsSection({ item, invalidate }) {
       {/* Pending rows (not yet saved) */}
       {pending.map(row => (
         <div key={row._id} className="flex gap-2 mb-2">
-          <input value={row.name} onChange={e => updRow(row._id, 'name', e.target.value)} onKeyDown={enterToSave(saveAll)}
+          <input id={`variant-name-${row._id}`} name={`variant_name_${row._id}`} aria-label="Variant name" value={row.name} onChange={e => updRow(row._id, 'name', e.target.value)} onKeyDown={enterToSave(saveAll)}
             placeholder="e.g. Half / Full / Regular" className={`${inp} flex-1 min-w-0`} />
-          <input value={row.price} onChange={e => updRow(row._id, 'price', e.target.value)} onKeyDown={enterToSave(saveAll)}
+          <input id={`variant-price-${row._id}`} name={`variant_price_${row._id}`} aria-label="Variant price" value={row.price} onChange={e => updRow(row._id, 'price', e.target.value)} onKeyDown={enterToSave(saveAll)}
             type="number" step="0.5" min="0" placeholder="₹" className={`${inp} w-20 shrink-0`} />
           <button type="button" onClick={() => removeRow(row._id)}
             className="shrink-0 w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 flex items-center justify-center">
@@ -145,14 +145,14 @@ function AddonGroupCard({ group, invalidate, updGroup, delGroup }) {
         <div className="flex items-center gap-2 shrink-0">
           <label className="text-xs text-gray-500 flex items-center gap-1">
             min
-            <input type="number" min="0" defaultValue={group.min_select}
+            <input id={`addon-group-min-${group.id}`} name={`addon_group_min_${group.id}`} type="number" min="0" defaultValue={group.min_select}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } }}
               onBlur={e => updGroup.mutate({ id: group.id, data: { min_select: Number(e.target.value) } })}
               className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" />
           </label>
           <label className="text-xs text-gray-500 flex items-center gap-1">
             max
-            <input type="number" min="1" defaultValue={group.max_select}
+            <input id={`addon-group-max-${group.id}`} name={`addon_group_max_${group.id}`} type="number" min="1" defaultValue={group.max_select}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } }}
               onBlur={e => updGroup.mutate({ id: group.id, data: { max_select: Number(e.target.value) } })}
               className="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-xs" />
@@ -184,11 +184,11 @@ function AddonGroupCard({ group, invalidate, updGroup, delGroup }) {
       {/* Pending rows */}
       {pending.map(row => (
         <div key={row._id} className="flex flex-wrap gap-1.5 mb-1.5">
-          <input value={row.name} onChange={e => updRow(row._id, 'name', e.target.value)} onKeyDown={enterToSave(saveAll)}
+          <input id={`addon-name-${row._id}`} name={`addon_name_${row._id}`} aria-label="Option name" value={row.name} onChange={e => updRow(row._id, 'name', e.target.value)} onKeyDown={enterToSave(saveAll)}
             placeholder="Option name" className={`${inp} flex-1 min-w-[100px] text-xs`} />
-          <input value={row.price} onChange={e => updRow(row._id, 'price', e.target.value)} onKeyDown={enterToSave(saveAll)}
+          <input id={`addon-price-${row._id}`} name={`addon_price_${row._id}`} aria-label="Option price" value={row.price} onChange={e => updRow(row._id, 'price', e.target.value)} onKeyDown={enterToSave(saveAll)}
             type="number" step="0.5" min="0" placeholder="₹0" className={`${inp} text-xs w-14 shrink-0`} />
-          <select value={row.type} onChange={e => updRow(row._id, 'type', e.target.value)}
+          <select id={`addon-type-${row._id}`} name={`addon_type_${row._id}`} aria-label="Option type" value={row.type} onChange={e => updRow(row._id, 'type', e.target.value)}
             className={`${inp} text-xs w-[72px] shrink-0`}>
             <option value="veg">Veg</option>
             <option value="non-veg">Non-veg</option>
@@ -244,7 +244,7 @@ function AddonsSection({ item, invalidate }) {
         }
       </div>
       <div className="flex gap-2 flex-wrap">
-        <input value={groupName} onChange={e => setGroupName(e.target.value)}
+        <input id="addon-group-name" name="group_name" aria-label="Add-on group name" value={groupName} onChange={e => setGroupName(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submitGroup() } }}
           placeholder='Group name (e.g. "Choose sauce")' className={`${inp} flex-1 min-w-[140px]`} />
         <button type="button" onClick={submitGroup} disabled={addGroup.isPending}

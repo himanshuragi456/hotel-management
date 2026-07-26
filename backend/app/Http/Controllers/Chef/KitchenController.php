@@ -71,7 +71,13 @@ class KitchenController extends Controller
             'status'       => $next,
             'preparing_at' => $next === 'preparing' ? now() : $order->preparing_at,
         ]);
-        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Exception $e) {}
+        // Broadcasting (success or failure) is logged centrally — see
+        // App\Broadcasting\LoggingAblyBroadcaster.
+        try {
+            broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers();
+        } catch (\Exception $e) {
+            // best-effort — already logged by the broadcaster
+        }
         AuditLog::record('order.status_changed', $order, ['status' => $prev], ['status' => $next, 'order_number' => $order->order_number]);
 
         // Order just became ready — alert the floor so it gets served: billers +

@@ -42,25 +42,25 @@ function LocationModal({ location, onClose, onSaved }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} className={inp} placeholder="e.g. Banjara Hills" />
+            <label htmlFor="location-form-name" className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
+            <input id="location-form-name" name="name" value={form.name} onChange={e => set('name', e.target.value)} className={inp} placeholder="e.g. Banjara Hills" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">City</label>
-              <input value={form.city} onChange={e => set('city', e.target.value)} className={inp} placeholder="Hyderabad" />
+              <label htmlFor="location-form-city" className="block text-xs font-medium text-gray-700 mb-1">City</label>
+              <input id="location-form-city" name="city" value={form.city} onChange={e => set('city', e.target.value)} className={inp} placeholder="Hyderabad" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">State</label>
-              <input value={form.state} onChange={e => set('state', e.target.value)} className={inp} placeholder="Telangana" />
+              <label htmlFor="location-form-state" className="block text-xs font-medium text-gray-700 mb-1">State</label>
+              <input id="location-form-state" name="state" value={form.state} onChange={e => set('state', e.target.value)} className={inp} placeholder="Telangana" />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Country</label>
-            <input value={form.country} onChange={e => set('country', e.target.value)} className={inp} />
+            <label htmlFor="location-form-country" className="block text-xs font-medium text-gray-700 mb-1">Country</label>
+            <input id="location-form-country" name="country" value={form.country} onChange={e => set('country', e.target.value)} className={inp} />
           </div>
           <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="rounded" />
+            <input id="location-form-is-active" name="is_active" type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="rounded" />
             <span className="text-sm text-gray-700">Active (visible in Magic Tables)</span>
           </label>
           <div className="flex justify-end gap-2 pt-1">

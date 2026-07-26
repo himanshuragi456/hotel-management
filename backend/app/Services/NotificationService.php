@@ -10,7 +10,7 @@ use App\Models\User;
  * Central fan-out for front-of-house alerts.
  *
  * Each alert is (a) written to app_notifications for every targeted user so a
- * late login still sees what was missed, and (b) broadcast over Pusher as a
+ * late login still sees what was missed, and (b) broadcast over Ably as a
  * TableActivity event so any open dashboard rings instantly. The client maps
  * `kind` → sound file and decides whether to ring.
  *
@@ -122,7 +122,7 @@ class NotificationService
                 excludeUserId: $excludeUserId,
             ));
         } catch (\Throwable $e) {
-            // broadcasting is best-effort
+            // broadcasting is best-effort; already logged by LoggingAblyBroadcaster
         }
 
         // OS-level push — wakes a sleeping/backgrounded phone. Same recipients

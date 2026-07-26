@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
-import Pusher from 'pusher-js'
+import * as Ably from 'ably'
 import useAuthStore from '@/store/authStore'
 import { getTenantSettings } from '@/services/restaurantService'
 
@@ -29,19 +29,6 @@ const ROLE_KINDS = {
 }
 
 const MUTE_KEY = (role) => `notif_muted_${role || 'all'}`
-
-function buildPusher() {
-  const cfg = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
-  if (import.meta.env.VITE_PUSHER_HOST) {
-    cfg.wsHost = import.meta.env.VITE_PUSHER_HOST
-    cfg.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-    cfg.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-    cfg.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-    cfg.disableStats = true
-    cfg.enabledTransports = ['ws']
-  }
-  return new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
-}
 
 /**
  * Central front-of-house notification engine. Mount once per dashboard.
@@ -162,7 +149,14 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
     el.muted = false
     el.onended = () => setPlaying(false)
     el.play()
-      .then(() => { setPlaying(true); setBlocked(false); unlockedRef.current = true })
+      .then(() => { 
+      //       console.log("Audio started");
+      // console.log(el.src);
+      // console.log(el.volume);
+      // console.log(el.muted);
+      // console.log(el.duration);
+        
+        setPlaying(true); setBlocked(false); unlockedRef.current = true })
       .catch((err) => {
         // Autoplay denied (no user gesture yet) — flag it so the UI can prompt.
         if (err?.name === 'NotAllowedError') setBlocked(true)
@@ -205,18 +199,33 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
   const extraKeysRef = useRef(extraInvalidateKeys)
   useEffect(() => { extraKeysRef.current = extraInvalidateKeys })
 
+  // Ably connection lifecycle — surfaced so the UI can show a live/offline dot.
+  // 'connecting' until the first successful handshake, then tracks Ably's own
+  // connection.state (connected | disconnected | suspended | failed | closed).
+  const [connectionState, setConnectionState] = useState('connecting')
+
   useEffect(() => {
     if (!tenantId) return
     const allowed = ROLE_KINDS[role] ?? []
-    const pusher = buildPusher()
-    const channel = pusher.subscribe(`tenant.${tenantId}.kitchen`)
+    const ably = new Ably.Realtime({ key: import.meta.env.VITE_ABLY_KEY })
+    const channel = ably.channels.get(`public:tenant.${tenantId}.kitchen`)
+    console.log(`[Ably] useNotificationCenter: connecting to tenant.${tenantId}.kitchen`)
+
+    // Ably's initial state is already 'connecting' (matches our useState default);
+    // this listener picks up every subsequent transition asynchronously.
+    ably.connection.on((stateChange) => {
+      console.log(`[Ably] useNotificationCenter: connection ${stateChange.current}`, stateChange.reason ?? '')
+      setConnectionState(stateChange.current)
+    })
 
     const refreshOrders = () => {
       extraKeysRef.current.forEach(k => qc.invalidateQueries({ queryKey: Array.isArray(k) ? k : [k] }))
     }
 
-    channel.bind('table.activity', (data) => {
+    channel.subscribe('table.activity', (msg) => {
+      const data = msg.data
       const kind = data?.kind
+      // console.log('[Ably] useNotificationCenter: table.activity received', data)
       refreshOrders()
 
       // Owner may have switched this (role, kind) ring off in settings.
@@ -228,25 +237,40 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
         !(data?.exclude_user_id && data.exclude_user_id === user?.id) &&
         // Waiter alerts may target a specific waiter; if so, only that waiter rings.
         !(role === 'waiter' && data?.waiter_id && data.waiter_id !== user?.id)
-
+// console.log({
+//     kind,
+//     allowed,
+//     ringAllowedByOwner,
+//     userId: user?.id,
+//     exclude: data?.exclude_user_id,
+//     shouldRing
+// });
       // Refresh the bell FIRST, then ring — so the sound never precedes the
       // notification appearing in the box. refetch() resolves once the list is
       // updated; the sound plays only after.
       qc.refetchQueries({ queryKey: ['notifications'] }).finally(() => {
-        if (shouldRing) playFor(kind)
+        if (shouldRing)
+        {
+// console.log("Playing:", kind);
+          playFor(kind)
+        }
       })
-    })
+    }).catch(() => {}) // swallow "connection closed" if we unmount mid-attach
 
-    channel.bind('order.updated', () => {
+    channel.subscribe('order.updated', (msg) => {
+      console.log('[Ably] useNotificationCenter: order.updated received', msg.data)
       refreshOrders()
       qc.invalidateQueries({ queryKey: ['notifications'] })
-    })
+    }).catch(() => {})
 
     return () => {
-      channel.unbind_all()
-      pusher.unsubscribe(`tenant.${tenantId}.kitchen`)
+      // console.log(`[Ably] useNotificationCenter: closing tenant.${tenantId}.kitchen`)
+      channel.unsubscribe()
+      ably.connection.off()
+      ably.close()
+      setConnectionState('connecting')
     }
   }, [tenantId, role, user?.id, qc, playFor])
 
-  return { muted, toggleMute, stopSound, playing, blocked, enableSound }
+  return { muted, toggleMute, stopSound, playing, blocked, enableSound, connectionState }
 }
