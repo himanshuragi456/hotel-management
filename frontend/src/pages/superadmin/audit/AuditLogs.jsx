@@ -64,19 +64,19 @@ export default function AuditLogs() {
           <span className="text-sm font-semibold text-gray-600">Filters</span>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:flex-wrap sm:items-center">
-          <input value={filters.action} onChange={e => set('action', e.target.value)}
+          <input id="audit-logs-action" name="action" aria-label="Filter by action" value={filters.action} onChange={e => set('action', e.target.value)}
             placeholder="Filter by action…"
             className={`${inp} w-full sm:w-auto`} />
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-500 whitespace-nowrap">From</label>
-            <input type="date" value={filters.from}
+            <label htmlFor="audit-logs-from" className="text-xs font-medium text-gray-500 whitespace-nowrap">From</label>
+            <input id="audit-logs-from" name="from" type="date" value={filters.from}
               max={filters.to || today}
               onChange={e => set('from', e.target.value)}
               className={inp} />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-500 whitespace-nowrap">To</label>
-            <input type="date" value={filters.to}
+            <label htmlFor="audit-logs-to" className="text-xs font-medium text-gray-500 whitespace-nowrap">To</label>
+            <input id="audit-logs-to" name="to" type="date" value={filters.to}
               min={filters.from || undefined}
               max={today}
               onChange={e => set('to', e.target.value)}

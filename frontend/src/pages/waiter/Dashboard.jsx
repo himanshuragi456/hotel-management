@@ -14,7 +14,6 @@ import NotificationBell from '@/components/shared/NotificationBell'
 import PushToggle from '@/components/shared/PushToggle'
 import Spinner from '@/components/shared/Spinner'
 import { useNotificationCenter } from '@/hooks/useNotificationCenter'
-import Pusher from 'pusher-js'
 import {
   TableCellsIcon,
   HomeModernIcon,
@@ -45,8 +44,7 @@ function TableGrid({ onSelect }) {
   const { data: tables, isLoading } = useQuery({
     queryKey: ['waiter-tables'],
     queryFn: () => getWaiterTables().then(r => r.data.data),
-    // Pusher-driven (useNotificationCenter invalidates 'waiter-tables'); slow backstop only.
-    refetchInterval: 60000,
+    // Ably-driven (useNotificationCenter invalidates 'waiter-tables') — no polling.
   })
 
   if (isLoading) return (
@@ -132,44 +130,19 @@ function TableGrid({ onSelect }) {
 // ─── Table Order Panel ────────────────────────────────────────────────────────
 function TableOrderPanel({ table, onClose }) {
   const qc = useQueryClient()
-  const { getTenantId } = useAuthStore()
-  const tenantId = getTenantId?.()
   const [cart, setCart] = useState([])
   const [customizeItem, setCustomizeItem] = useState(null)
   const [activeCat, setActiveCat] = useState(null)
   const [showMenu, setShowMenu] = useState(false)
 
-  // Load ALL open orders for this table (multiple batches)
+  // Load ALL open orders for this table (multiple batches). Realtime via the
+  // central useNotificationCenter subscription (Dashboard root) — it
+  // invalidates the 'waiter-table-orders' prefix on every order.updated
+  // event tenant-wide, so this panel needs no polling.
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ['waiter-table-orders', table.id],
     queryFn: () => getWaiterTableOrders(table.id).then(r => r.data.data),
-    // Pusher-driven via 'waiter-table-orders' prefix; slow backstop only.
-    refetchInterval: 60000,
   })
-
-  // Realtime refresh via Pusher
-  useEffect(() => {
-    if (!tenantId) return
-    const pusherConfig = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
-    if (import.meta.env.VITE_PUSHER_HOST) {
-      pusherConfig.wsHost = import.meta.env.VITE_PUSHER_HOST
-      pusherConfig.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      pusherConfig.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      pusherConfig.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-      pusherConfig.disableStats = true
-      pusherConfig.enabledTransports = ['ws']
-    }
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, pusherConfig)
-    const channel = pusher.subscribe(`tenant.${tenantId}.kitchen`)
-    channel.bind('order.updated', () => {
-      qc.invalidateQueries({ queryKey: ['waiter-table-orders', table.id] })
-      qc.invalidateQueries({ queryKey: ['waiter-tables'] })
-    })
-    return () => {
-      channel.unbind_all()
-      pusher.unsubscribe(`tenant.${tenantId}.kitchen`)
-    }
-  }, [tenantId, table.id, qc])
 
   const [menuSearch, setMenuSearch] = useState('')
   const [debouncedMenuSearch, setDebouncedMenuSearch] = useState('')
@@ -434,6 +407,9 @@ function TableOrderPanel({ table, onClose }) {
                 <div className="relative">
                   <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
+                    id="waiter-menu-search"
+                    name="menu_search"
+                    aria-label="Search menu items"
                     value={menuSearch}
                     onChange={e => setMenuSearch(e.target.value)}
                     placeholder="Search menu items…"
@@ -774,8 +750,7 @@ function ActiveOrders({ onSelectTable }) {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['waiter-orders'],
     queryFn: () => getWaiterOrders().then(r => r.data.data),
-    // Pusher-driven via useNotificationCenter; slow backstop only.
-    refetchInterval: 60000,
+    // Ably-driven via useNotificationCenter — no polling.
   })
 
   const served = useMutation({
@@ -893,7 +868,6 @@ function ActiveRooms({ onSelect }) {
   const { data: rooms } = useQuery({
     queryKey: ['active-rooms'],
     queryFn: () => getActiveRooms().then(r => r.data.data),
-    refetchInterval: 30000,
   })
 
   if (!rooms?.length) return (

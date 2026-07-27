@@ -98,48 +98,48 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLoc
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Business Name *</label>
-          <input value={form.name} onChange={e => set('name', e.target.value)} onBlur={() => blur('name')} className={inp('name')} placeholder="Spice Garden Restaurant" />
+          <label htmlFor="tenant-form-name" className="block text-xs font-medium text-gray-700 mb-1">Business Name *</label>
+          <input id="tenant-form-name" name="name" value={form.name} onChange={e => set('name', e.target.value)} onBlur={() => blur('name')} className={inp('name')} placeholder="Spice Garden Restaurant" />
           <FieldError message={fieldErrors.name} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Email *</label>
+          <label htmlFor="tenant-form-email" className="block text-xs font-medium text-gray-700 mb-1">Email *</label>
           {isEdit ? (
-            <input type="email" value={form.email} readOnly disabled className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
+            <input id="tenant-form-email" name="email" type="email" value={form.email} readOnly disabled className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
           ) : (
             <>
-              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} onBlur={() => blur('email')} className={inp('email')} placeholder="owner@example.com" />
+              <input id="tenant-form-email" name="email" type="email" value={form.email} onChange={e => set('email', e.target.value)} onBlur={() => blur('email')} className={inp('email')} placeholder="owner@example.com" />
               <FieldError message={fieldErrors.email} />
             </>
           )}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Phone *</label>
-          <input type="tel" inputMode="numeric" maxLength={10} value={form.phone} onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} onBlur={() => blur('phone')} className={inp('phone')} placeholder="10-digit mobile number" />
+          <label htmlFor="tenant-form-phone" className="block text-xs font-medium text-gray-700 mb-1">Phone *</label>
+          <input id="tenant-form-phone" name="phone" type="tel" inputMode="numeric" maxLength={10} value={form.phone} onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} onBlur={() => blur('phone')} className={inp('phone')} placeholder="10-digit mobile number" />
           <FieldError message={fieldErrors.phone} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">City</label>
-          <input value={form.city} onChange={e => set('city', e.target.value)} className={inp('city')} />
+          <label htmlFor="tenant-form-city" className="block text-xs font-medium text-gray-700 mb-1">City</label>
+          <input id="tenant-form-city" name="city" value={form.city} onChange={e => set('city', e.target.value)} className={inp('city')} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">State</label>
-          <input value={form.state} onChange={e => set('state', e.target.value)} className={inp('state')} />
+          <label htmlFor="tenant-form-state" className="block text-xs font-medium text-gray-700 mb-1">State</label>
+          <input id="tenant-form-state" name="state" value={form.state} onChange={e => set('state', e.target.value)} className={inp('state')} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">GSTIN</label>
-          <input value={form.gstin} onChange={e => set('gstin', e.target.value)} onBlur={() => blur('gstin')} className={inp('gstin')} placeholder="29ABCDE1234F1Z5" />
+          <label htmlFor="tenant-form-gstin" className="block text-xs font-medium text-gray-700 mb-1">GSTIN</label>
+          <input id="tenant-form-gstin" name="gstin" value={form.gstin} onChange={e => set('gstin', e.target.value)} onBlur={() => blur('gstin')} className={inp('gstin')} placeholder="29ABCDE1234F1Z5" />
           <FieldError message={fieldErrors.gstin} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">GST Rate (%) *</label>
-          <input type="number" step="0.5" min="0" max="100" value={form.gst_rate} onChange={e => set('gst_rate', e.target.value)} onBlur={() => blur('gst_rate')} className={inp('gst_rate')} />
+          <label htmlFor="tenant-form-gst-rate" className="block text-xs font-medium text-gray-700 mb-1">GST Rate (%) *</label>
+          <input id="tenant-form-gst-rate" name="gst_rate" type="number" step="0.5" min="0" max="100" value={form.gst_rate} onChange={e => set('gst_rate', e.target.value)} onBlur={() => blur('gst_rate')} className={inp('gst_rate')} />
           <FieldError message={fieldErrors.gst_rate} />
         </div>
         {isEdit && (
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-            <select value={form.status} onChange={e => set('status', e.target.value)} className={inp('status')}>
+            <label htmlFor="tenant-form-status" className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+            <select id="tenant-form-status" name="status" value={form.status} onChange={e => set('status', e.target.value)} className={inp('status')}>
               {form.status === 'active' && <option value="active">Active</option>}
               <option value="trial">Trial</option>
               <option value="suspended">Suspended</option>
@@ -196,8 +196,8 @@ function DetailsTab({ form, setForm, fieldErrors, setFieldErrors, isEdit, allLoc
           <p className="text-xs text-gray-400 mb-2">Select at least one module for this tenant</p>
           <div className="flex gap-4">
             {[['restaurant', 'Restaurant'], ['hotel', 'Hotel'], ['feedback', 'Feedback']].map(([key, label]) => (
-              <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" checked={form.modules[key]} onChange={e => setModule(key, e.target.checked)} className="rounded" />
+              <label key={key} htmlFor={`tenant-form-module-${key}`} className="flex items-center gap-2 cursor-pointer select-none">
+                <input id={`tenant-form-module-${key}`} name={`module_${key}`} type="checkbox" checked={form.modules[key]} onChange={e => setModule(key, e.target.checked)} className="rounded" />
                 <span className="text-sm">{label}</span>
               </label>
             ))}
@@ -269,8 +269,8 @@ export function SubscriptionTab({ tenant, plans, onSuccess }) {
         <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{sub ? 'Reassign Plan' : 'Assign Plan'}</p>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Plan *</label>
-          <select required value={assignForm.subscription_plan_id} onChange={e => setAssignForm(f => ({ ...f, subscription_plan_id: e.target.value }))}
+          <label htmlFor="assign-plan-select" className="block text-xs font-medium text-gray-700 mb-1">Plan *</label>
+          <select id="assign-plan-select" name="subscription_plan_id" required value={assignForm.subscription_plan_id} onChange={e => setAssignForm(f => ({ ...f, subscription_plan_id: e.target.value }))}
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">Select a plan</option>
             {plans?.filter(p => p.is_active).map(p => (
@@ -305,8 +305,8 @@ export function SubscriptionTab({ tenant, plans, onSuccess }) {
             </div>
           ) : (
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Expires On</label>
-              <input type="date" required={assignForm.expiry_mode === 'date'}
+              <label htmlFor="assign-plan-expires-at" className="block text-xs text-gray-500 mb-1">Expires On</label>
+              <input id="assign-plan-expires-at" name="expires_at" type="date" required={assignForm.expiry_mode === 'date'}
                 min={TOMORROW_MIN}
                 value={assignForm.expires_at}
                 onChange={e => setAssignForm(f => ({ ...f, expires_at: e.target.value }))}
@@ -316,8 +316,8 @@ export function SubscriptionTab({ tenant, plans, onSuccess }) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Payment Gateway</label>
-          <select value={assignForm.payment_gateway} onChange={e => setAssignForm(f => ({ ...f, payment_gateway: e.target.value }))}
+          <label htmlFor="assign-plan-gateway" className="block text-xs font-medium text-gray-700 mb-1">Payment Gateway</label>
+          <select id="assign-plan-gateway" name="payment_gateway" value={assignForm.payment_gateway} onChange={e => setAssignForm(f => ({ ...f, payment_gateway: e.target.value }))}
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="manual">Manual / Cash</option>
             <option value="stripe">Stripe</option>

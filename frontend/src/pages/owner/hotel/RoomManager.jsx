@@ -149,8 +149,10 @@ function RoomForm({ room, onSuccess }) {
       {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Room Number *</label>
+          <label htmlFor="room-form-number" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Room Number *</label>
           <input
+            id="room-form-number"
+            name="number"
             value={form.number}
             onChange={e => set('number', e.target.value)}
             onBlur={() => blur('number')}
@@ -160,8 +162,10 @@ function RoomForm({ room, onSuccess }) {
           {Err('number')}
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Floor</label>
+          <label htmlFor="room-form-floor" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Floor</label>
           <input
+            id="room-form-floor"
+            name="floor"
             type="number"
             min="0"
             value={form.floor}
@@ -172,15 +176,17 @@ function RoomForm({ room, onSuccess }) {
           {Err('floor')}
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type *</label>
-          <select value={form.type} onChange={e => set('type', e.target.value)} className={inp('type')}>
+          <label htmlFor="room-form-type" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type *</label>
+          <select id="room-form-type" name="type" value={form.type} onChange={e => set('type', e.target.value)} className={inp('type')}>
             {ROOM_TYPES.map(t => <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
           </select>
           {Err('type')}
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity *</label>
+          <label htmlFor="room-form-capacity" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Capacity *</label>
           <input
+            id="room-form-capacity"
+            name="capacity"
             type="number"
             min="1"
             value={form.capacity}
@@ -191,8 +197,10 @@ function RoomForm({ room, onSuccess }) {
           {Err('capacity')}
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Price / Night (₹) *</label>
+          <label htmlFor="room-form-price" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Price / Night (₹) *</label>
           <input
+            id="room-form-price"
+            name="price_per_night"
             type="number"
             step="0.01"
             min="0.01"
@@ -206,8 +214,8 @@ function RoomForm({ room, onSuccess }) {
         </div>
         {isEdit && (
           <div className="col-span-2">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Status</label>
-            <select value={form.status} onChange={e => set('status', e.target.value)} className={inp('status')}>
+            <label htmlFor="room-form-status" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Status</label>
+            <select id="room-form-status" name="status" value={form.status} onChange={e => set('status', e.target.value)} className={inp('status')}>
               <option value="available">Available</option>
               <option value="cleaning">Cleaning</option>
               <option value="maintenance">Maintenance</option>
@@ -215,12 +223,12 @@ function RoomForm({ room, onSuccess }) {
           </div>
         )}
         <div className="col-span-2">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Amenities <span className="text-gray-400 font-normal normal-case">(comma-separated)</span></label>
-          <input value={form.amenities} onChange={e => set('amenities', e.target.value)} className={inp('amenities')} placeholder="AC, TV, WiFi, Bathtub…" />
+          <label htmlFor="room-form-amenities" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Amenities <span className="text-gray-400 font-normal normal-case">(comma-separated)</span></label>
+          <input id="room-form-amenities" name="amenities" value={form.amenities} onChange={e => set('amenities', e.target.value)} className={inp('amenities')} placeholder="AC, TV, WiFi, Bathtub…" />
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
-          <input value={form.description} onChange={e => set('description', e.target.value)} className={inp('description')} placeholder="Optional room description" />
+          <label htmlFor="room-form-description" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
+          <input id="room-form-description" name="description" value={form.description} onChange={e => set('description', e.target.value)} className={inp('description')} placeholder="Optional room description" />
         </div>
       </div>
       <div className="flex justify-end pt-1">
@@ -251,7 +259,6 @@ export default function RoomManager() {
   const { data: rooms, isLoading } = useQuery({
     queryKey: ['rooms'],
     queryFn: () => getRooms().then(r => r.data.data),
-    refetchInterval: 20000,
   })
 
   const del = useMutation({

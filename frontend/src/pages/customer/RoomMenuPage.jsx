@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { XMarkIcon, ChevronRightIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { BoltIcon, ClockIcon } from '@heroicons/react/24/outline'
-import Pusher from 'pusher-js'
+import * as Ably from 'ably'
 import { getCustomerRoomMenu, customerPlaceRoomOrder, getOrderStatus } from '@/services/restaurantService'
 import PoweredByBanner from '@/components/shared/PoweredByBanner'
 import TenantSuspendedScreen from '@/components/shared/TenantSuspendedScreen'
@@ -175,17 +175,16 @@ function OrdersView({ sessionOrders, onOrderMore, tenantId, roomId }) {
 
   useEffect(() => {
     if (!tenantId || !roomId || !sessionOrders) return
-    const cfg = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
-    if (import.meta.env.VITE_PUSHER_HOST) {
-      cfg.wsHost = import.meta.env.VITE_PUSHER_HOST
-      cfg.wsPort = cfg.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      cfg.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-      cfg.disableStats = true; cfg.enabledTransports = ['ws']
-    }
-    const pusher  = new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
-    const channel = pusher.subscribe(`tenant.${tenantId}.table.${roomId}`)
-    channel.bind('order.updated', () => refetch())
-    return () => { channel.unbind_all(); pusher.unsubscribe(`tenant.${tenantId}.table.${roomId}`); pusher.disconnect() }
+    const ably = new Ably.Realtime({ key: import.meta.env.VITE_ABLY_KEY })
+    const channel = ably.channels.get(`public:tenant.${tenantId}.table.${roomId}`)
+    console.log(`[Ably] RoomMenuPage: connecting to tenant.${tenantId}.table.${roomId}`)
+    ably.connection.on((stateChange) => console.log(`[Ably] RoomMenuPage: connection ${stateChange.current}`, stateChange.reason ?? ''))
+    channel.subscribe('order.updated', (msg) => {
+      console.log('[Ably] RoomMenuPage: order.updated received', msg.data)
+      console.log('[Ably] RoomMenuPage: calling order status API')
+      refetch()
+    }).catch(() => {})
+    return () => { channel.unsubscribe(); ably.close() }
   }, [tenantId, roomId, sessionOrders, refetch])
 
   const batches  = data?.batches ?? []
@@ -330,7 +329,6 @@ export default function RoomMenuPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['customer-room-menu', slug, token],
     queryFn:  () => getCustomerRoomMenu(slug, token).then(r => r.data.data),
-    refetchInterval: 10000,
     staleTime: 0,
   })
 
@@ -451,7 +449,7 @@ export default function RoomMenuPage() {
             <>
               <div className="relative mt-2 mb-0">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-base">🔍</span>
-                <input type="search" value={menuSearch} onChange={e => setMenuSearch(e.target.value)}
+                <input id="room-menu-search" name="menu_search" aria-label="Search menu" type="search" value={menuSearch} onChange={e => setMenuSearch(e.target.value)}
                   placeholder="Search menu…"
                   className="w-full pl-10 pr-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400 text-base"/>
               </div>

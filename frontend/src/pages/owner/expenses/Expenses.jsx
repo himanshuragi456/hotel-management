@@ -102,6 +102,9 @@ export default function Expenses() {
         }} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <select
+              id="expense-category"
+              name="category"
+              aria-label="Category"
               value={form.category}
               onChange={e => setField('category', e.target.value)}
               onBlur={() => blur('category')}
@@ -112,9 +115,12 @@ export default function Expenses() {
             </select>
             {fieldErrors.category && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.category}</p>}
           </div>
-          <input value={form.description} onChange={e => setField('description', e.target.value)} placeholder="Description (optional)" className={inp('description')} />
+          <input id="expense-description" name="description" aria-label="Description" value={form.description} onChange={e => setField('description', e.target.value)} placeholder="Description (optional)" className={inp('description')} />
           <div>
             <input
+              id="expense-amount"
+              name="amount"
+              aria-label="Amount"
               type="number"
               step="0.01"
               min="0.01"
@@ -128,6 +134,9 @@ export default function Expenses() {
           </div>
           <div>
             <input
+              id="expense-date"
+              name="expense_date"
+              aria-label="Expense date"
               type="date"
               value={form.expense_date}
               onChange={e => setField('expense_date', e.target.value)}
@@ -153,13 +162,13 @@ export default function Expenses() {
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 whitespace-nowrap">From</label>
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            <label htmlFor="expense-filter-from" className="text-xs text-gray-500 whitespace-nowrap">From</label>
+            <input id="expense-filter-from" name="from" type="date" value={from} onChange={e => setFrom(e.target.value)}
               className="flex-1 sm:flex-none border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50" />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 whitespace-nowrap">To</label>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)}
+            <label htmlFor="expense-filter-to" className="text-xs text-gray-500 whitespace-nowrap">To</label>
+            <input id="expense-filter-to" name="to" type="date" value={to} onChange={e => setTo(e.target.value)}
               className="flex-1 sm:flex-none border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50" />
           </div>
           {(from || to) && (

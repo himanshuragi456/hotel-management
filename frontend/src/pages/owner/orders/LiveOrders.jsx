@@ -1,8 +1,11 @@
+import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import * as Ably from 'ably'
 import { ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import Spinner from '@/components/shared/Spinner'
 import { getLiveOrders } from '@/services/restaurantService'
 import { billingUpdateStatus, billingMarkServed } from '@/services/restaurantService'
+import useAuthStore from '@/store/authStore'
 
 const STATUS_CONFIG = {
   pending:   { border: 'border-yellow-400', dot: 'bg-yellow-500', badge: 'bg-yellow-100 text-yellow-800', label: 'Pending'   },
@@ -131,12 +134,29 @@ function OrderCard({ order, cfg }) {
 }
 
 export default function LiveOrders() {
+  const qc = useQueryClient()
+  const { getTenantId } = useAuthStore()
+  const tenantId = getTenantId?.()
+
   const { data: orders, isLoading } = useQuery({
     queryKey: ['live-orders'],
     queryFn: () => getLiveOrders().then(r => r.data.data),
-    // Owner board is not Pusher-subscribed — poll, but at a relaxed cadence.
-    refetchInterval: 20000,
   })
+
+  // Realtime via Ably — no polling. Reuses the same tenant kitchen channel
+  // the kitchen/waiter/billing dashboards subscribe to.
+  useEffect(() => {
+    if (!tenantId) return
+    const ably = new Ably.Realtime({ key: import.meta.env.VITE_ABLY_KEY })
+    const channel = ably.channels.get(`public:tenant.${tenantId}.kitchen`)
+    console.log(`[Ably] LiveOrders: connecting to tenant.${tenantId}.kitchen`)
+    ably.connection.on((stateChange) => console.log(`[Ably] LiveOrders: connection ${stateChange.current}`, stateChange.reason ?? ''))
+    channel.subscribe('order.updated', (msg) => {
+      console.log('[Ably] LiveOrders: order.updated received', msg.data)
+      qc.invalidateQueries({ queryKey: ['live-orders'] })
+    }).catch(() => {})
+    return () => { channel.unsubscribe(); ably.close() }
+  }, [tenantId, qc])
 
   const byStatus = {
     pending:   orders?.filter(o => o.status === 'pending')   ?? [],

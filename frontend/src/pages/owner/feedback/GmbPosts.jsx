@@ -59,6 +59,9 @@ function PostCard({ post, onPublish, onDismiss }) {
       {editing ? (
         <div className="space-y-2 mb-3">
           <textarea
+            id={`gmb-post-draft-${post.id}`}
+            name={`summary_${post.id}`}
+            aria-label="Post summary"
             value={draft}
             onChange={e => setDraft(e.target.value)}
             rows={5}

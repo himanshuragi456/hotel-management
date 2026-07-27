@@ -209,7 +209,8 @@ class OrderService
         try {
             broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers();
         } catch (\Throwable $e) {
-            // broadcasting is best-effort; never block an order on it
+            // broadcasting is best-effort; never block an order on it.
+            // Already logged by App\Broadcasting\LoggingAblyBroadcaster.
         }
 
         $this->notifyNewOrder($order, $notifyBiller);

@@ -77,12 +77,12 @@ export default function Reports() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">From</label>
-            <input type="date" value={from} max={to || today} onChange={e => setFrom(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+            <label htmlFor="orders-report-from" className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">From</label>
+            <input id="orders-report-from" name="from" type="date" value={from} max={to || today} onChange={e => setFrom(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">To</label>
-            <input type="date" value={to} min={from || undefined} max={today} onChange={e => setTo(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
+            <label htmlFor="orders-report-to" className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">To</label>
+            <input id="orders-report-to" name="to" type="date" value={to} min={from || undefined} max={today} onChange={e => setTo(e.target.value)} className={`${inp} flex-1 sm:flex-none`} />
           </div>
         </div>
       </div>

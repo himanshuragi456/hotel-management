@@ -169,7 +169,8 @@ class MenuController extends Controller
 
     public function requestBill(string $tenantSlug, string $qrToken): JsonResponse
     {
-        $tenant = Tenant::where('slug', $tenantSlug)->where('status', 'active')->firstOrFail();
+        $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
+        if ($tenant->status === 'suspended') return $this->suspendedResponse($tenant);
 
         if (!$tenant->customer_bill_request_enabled) {
             return $this->error('Bill request feature is not enabled for this restaurant.', 403);
@@ -198,7 +199,9 @@ class MenuController extends Controller
 
     public function callWaiter(string $tenantSlug, string $qrToken): JsonResponse
     {
-        $tenant = Tenant::where('slug', $tenantSlug)->where('status', 'active')->firstOrFail();
+        $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
+        if ($tenant->status === 'suspended') return $this->suspendedResponse($tenant);
+
         $table  = RestaurantTable::where('qr_token', $qrToken)->where('tenant_id', $tenant->id)->firstOrFail();
 
         if ($table->status !== 'occupied') {

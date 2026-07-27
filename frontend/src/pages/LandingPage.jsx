@@ -338,20 +338,20 @@ function CalendarBooking({ accentClass = 'orange', page = 'MagicServe' }) {
         </div>
         <p className="text-sm font-semibold text-slate-700">Your details</p>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Full Name <span className="text-rose-500">*</span></label>
-          <input type="text" autoComplete="name" placeholder="Rahul Sharma"
+          <label htmlFor="cb-userinfo-name" className="block text-xs font-medium text-slate-600 mb-1">Full Name <span className="text-rose-500">*</span></label>
+          <input id="cb-userinfo-name" name="name" type="text" autoComplete="name" placeholder="Rahul Sharma"
             className={`w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 ${ring} focus:border-transparent transition-all text-sm`}
             value={userInfo.name} onChange={e => setUserInfo(u => ({ ...u, name: e.target.value }))} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Email <span className="text-slate-400 font-normal">(or phone)</span></label>
-          <input type="email" autoComplete="email" placeholder="rahul@myrestaurant.com"
+          <label htmlFor="cb-userinfo-email" className="block text-xs font-medium text-slate-600 mb-1">Email <span className="text-slate-400 font-normal">(or phone)</span></label>
+          <input id="cb-userinfo-email" name="email" type="email" autoComplete="email" placeholder="rahul@myrestaurant.com"
             className={`w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 ${ring} focus:border-transparent transition-all text-sm`}
             value={userInfo.email} onChange={e => setUserInfo(u => ({ ...u, email: e.target.value }))} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Phone <span className="text-slate-400 font-normal">(or email)</span></label>
-          <input type="tel" autoComplete="tel" placeholder="+91 93014 20919"
+          <label htmlFor="cb-userinfo-phone" className="block text-xs font-medium text-slate-600 mb-1">Phone <span className="text-slate-400 font-normal">(or email)</span></label>
+          <input id="cb-userinfo-phone" name="phone" type="tel" autoComplete="tel" placeholder="+91 93014 20919"
             className={`w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 ${ring} focus:border-transparent transition-all text-sm`}
             value={userInfo.phone} onChange={e => setUserInfo(u => ({ ...u, phone: e.target.value }))} />
         </div>

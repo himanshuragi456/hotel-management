@@ -89,6 +89,9 @@ export default function TenantList() {
         <div className="relative flex-1 sm:max-w-xs">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
+            id="tenant-list-search"
+            name="search"
+            aria-label="Search tenants by name or email"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             placeholder="Search name or email…"
@@ -96,6 +99,9 @@ export default function TenantList() {
           />
         </div>
         <select
+          id="tenant-list-status"
+          name="status"
+          aria-label="Filter by status"
           value={status}
           onChange={e => { setStatus(e.target.value); setPage(1) }}
           className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"

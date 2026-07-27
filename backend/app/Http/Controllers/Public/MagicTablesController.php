@@ -256,7 +256,9 @@ class MagicTablesController extends Controller
             $order->load('items', 'table');
             try {
                 broadcast(new OrderStatusUpdated($order))->toOthers();
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+                // logged by LoggingAblyBroadcaster
+            }
 
             return $this->success([
                 'order_id'        => $order->id,
@@ -335,7 +337,8 @@ class MagicTablesController extends Controller
         try {
             broadcast(new OrderStatusUpdated($order))->toOthers();
         } catch (\Exception $e) {
-            // Pusher unavailable locally — order is confirmed in DB regardless
+            // Ably unavailable locally — order is confirmed in DB regardless.
+            // Already logged by LoggingAblyBroadcaster.
         }
 
         // Biller just confirmed payment — the order now hits the kitchen, so
@@ -590,7 +593,8 @@ class MagicTablesController extends Controller
         try {
             broadcast(new OrderStatusUpdated($order))->toOthers();
         } catch (\Exception $e) {
-            // Pusher unavailable locally — order is confirmed in DB regardless
+            // Ably unavailable locally — order is confirmed in DB regardless.
+            // Already logged by LoggingAblyBroadcaster.
         }
 
         return $this->success([

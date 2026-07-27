@@ -202,8 +202,8 @@ function RejectModal({ order, reasons, onClose, onConfirm, pending }) {
         <h3 className="text-white font-bold mb-1">Reject order</h3>
         <p className="text-slate-400 text-xs mb-4 font-mono">{order.order_number}</p>
 
-        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Reason</label>
-        <select value={code} onChange={e => { setCode(e.target.value); setItemIds([]) }}
+        <label htmlFor="reject-order-reason" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Reason</label>
+        <select id="reject-order-reason" name="reason" value={code} onChange={e => { setCode(e.target.value); setItemIds([]) }}
           className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-red-500">
           <option value="">Select a reason…</option>
           {reasons?.map(r => <option key={r.code} value={r.code}>{r.label}</option>)}
@@ -215,7 +215,7 @@ function RejectModal({ order, reasons, onClose, onConfirm, pending }) {
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {order.items?.map((it, i) => (
                 <label key={i} className="flex items-center gap-2 text-sm text-slate-200">
-                  <input type="checkbox" checked={itemIds.includes(it.menu_item_id)} onChange={() => toggleItem(it.menu_item_id)}
+                  <input id={`reject-oos-item-${it.menu_item_id}`} name={`oos_item_${it.menu_item_id}`} type="checkbox" checked={itemIds.includes(it.menu_item_id)} onChange={() => toggleItem(it.menu_item_id)}
                     className="rounded border-slate-600 text-red-500" />
                   {it.quantity}× {it.item_name}
                 </label>
@@ -224,7 +224,7 @@ function RejectModal({ order, reasons, onClose, onConfirm, pending }) {
           </div>
         )}
 
-        <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Note (optional)"
+        <textarea id="reject-order-note" name="note" aria-label="Note" value={note} onChange={e => setNote(e.target.value)} placeholder="Note (optional)"
           rows={2} className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" />
 
         <div className="flex justify-end gap-2">
@@ -294,10 +294,8 @@ export default function ChefDashboard() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['kitchen-orders'],
     queryFn: () => getKitchenOrders().then(r => r.data.data),
-    // Freshness is driven by Pusher (useNotificationCenter invalidates
-    // 'kitchen-orders' on every order event). This is just a slow safety
-    // backstop in case a websocket event is missed.
-    refetchInterval: 60000,
+    // Freshness is driven entirely by Ably (useNotificationCenter invalidates
+    // 'kitchen-orders' on every order event) — no polling.
   })
 
   // Auto-print KOT for new pending orders when setting is on

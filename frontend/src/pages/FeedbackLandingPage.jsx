@@ -225,7 +225,7 @@ function ContactForm() {
           <option value="other">Other</option>
         </select>
         {form.type === 'other' && (
-          <input type="text" placeholder="Please specify…"
+          <input id="f-type-other" name="type_other" aria-label="Please specify business domain" type="text" placeholder="Please specify…"
             className="w-full mt-2 px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
             value={form.typeOther} onChange={e => setForm(f => ({ ...f, typeOther: e.target.value }))} />
         )}
@@ -337,20 +337,20 @@ function CalendarBooking() {
         </button>
         <p className="text-sm font-semibold text-slate-700">Your details</p>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Full Name <span className="text-rose-500">*</span></label>
-          <input type="text" autoComplete="name" placeholder="Meera Joshi"
+          <label htmlFor="fcb-userinfo-name" className="block text-xs font-medium text-slate-600 mb-1">Full Name <span className="text-rose-500">*</span></label>
+          <input id="fcb-userinfo-name" name="name" type="text" autoComplete="name" placeholder="Meera Joshi"
             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
             value={userInfo.name} onChange={e => setUserInfo(u => ({ ...u, name: e.target.value }))} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Email <span className="text-slate-400 font-normal">(or phone)</span></label>
-          <input type="email" autoComplete="email" placeholder="meera@myrestaurant.com"
+          <label htmlFor="fcb-userinfo-email" className="block text-xs font-medium text-slate-600 mb-1">Email <span className="text-slate-400 font-normal">(or phone)</span></label>
+          <input id="fcb-userinfo-email" name="email" type="email" autoComplete="email" placeholder="meera@myrestaurant.com"
             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
             value={userInfo.email} onChange={e => setUserInfo(u => ({ ...u, email: e.target.value }))} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Phone <span className="text-slate-400 font-normal">(or email)</span></label>
-          <input type="tel" autoComplete="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number"
+          <label htmlFor="fcb-userinfo-phone" className="block text-xs font-medium text-slate-600 mb-1">Phone <span className="text-slate-400 font-normal">(or email)</span></label>
+          <input id="fcb-userinfo-phone" name="phone" type="tel" autoComplete="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number"
             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
             value={userInfo.phone} onChange={e => setUserInfo(u => ({ ...u, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} />
         </div>
@@ -475,7 +475,7 @@ function FeedbackFlowDemo() {
               </button>
             ))}
           </div>
-          <textarea className="w-full text-xs text-slate-600 border border-slate-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500" rows="2" placeholder="Optional: tell us more…" readOnly />
+          <textarea id="rating-demo-comment" name="demo_comment" aria-label="Feedback comment preview" className="w-full text-xs text-slate-600 border border-slate-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500" rows="2" placeholder="Optional: tell us more…" readOnly />
         </div>
       ) : rating >= 4 ? (
         <div className="p-6 text-center">

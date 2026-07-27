@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ItemCustomizeSheet from '@/components/shared/ItemCustomizeSheet'
 
-const WAITER_CALL_WINDOW_MS  = 20_000
+const WAITER_CALL_WINDOW_MS = 20_000
 const BILL_REQUEST_WINDOW_MS = 30_000
 
 function isWaiterCallActive(ts) {
@@ -28,7 +28,6 @@ function useAlertTicker(tables) {
 }
 import SubscriptionAlert from '@/components/shared/SubscriptionAlert'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import Pusher from 'pusher-js'
 import {
   XMarkIcon, PlusIcon, MinusIcon, PrinterIcon, ArrowDownTrayIcon,
   ArrowRightOnRectangleIcon, UserIcon, PhoneIcon,
@@ -260,8 +259,10 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Customer Name <span className="text-gray-400">(optional)</span></label>
+                <label htmlFor="invoice-customer-name" className="block text-xs font-medium text-gray-500 mb-1">Customer Name <span className="text-gray-400">(optional)</span></label>
                 <input
+                  id="invoice-customer-name"
+                  name="customer_name"
                   value={form.customer_name}
                   onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))}
                   placeholder="e.g. Rahul Sharma"
@@ -269,8 +270,10 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Mobile <span className="text-gray-400">(optional)</span></label>
+                <label htmlFor="invoice-customer-phone" className="block text-xs font-medium text-gray-500 mb-1">Mobile <span className="text-gray-400">(optional)</span></label>
                 <input
+                  id="invoice-customer-phone"
+                  name="customer_phone"
                   type="tel"
                   inputMode="numeric"
                   maxLength={10}
@@ -288,9 +291,11 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Discount <span className="text-gray-400">(optional)</span></label>
+              <label htmlFor="invoice-discount-type" className="block text-xs font-medium text-gray-500 mb-1">Discount <span className="text-gray-400">(optional)</span></label>
               <div className="flex gap-2">
                 <select
+                  id="invoice-discount-type"
+                  name="discount_type"
                   value={form.discount_type}
                   onChange={e => setForm(f => ({ ...f, discount_type: e.target.value, discount_value: '' }))}
                   className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
@@ -299,6 +304,9 @@ function InvoiceForm({ order, onClose, onDone, isLastBatch = false }) {
                   <option value="percent">% Percent</option>
                 </select>
                 <input
+                  id="invoice-discount-value"
+                  name="discount_value"
+                  aria-label="Discount value"
                   type="number"
                   min="0"
                   max={form.discount_type === 'percent' ? 100 : undefined}
@@ -452,7 +460,7 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
         <div className="px-4 pt-3 pb-2 border-b bg-gray-50">
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search items…"
+            <input id="add-items-search" name="search" aria-label="Search items" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search items…"
               className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"/>
           </div>
           {!debouncedSearch.trim() && (
@@ -528,8 +536,8 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
             ))}
             {!orderId && (
               <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-                <label className="block text-xs font-semibold text-blue-700 mb-1.5 flex items-center gap-1.5"><UserIcon className="w-3.5 h-3.5" />Assign Waiter</label>
-                <select value={waiterId} onChange={e => setWaiterId(e.target.value)}
+                <label htmlFor="add-items-waiter" className="block text-xs font-semibold text-blue-700 mb-1.5 flex items-center gap-1.5"><UserIcon className="w-3.5 h-3.5" />Assign Waiter</label>
+                <select id="add-items-waiter" name="waiter_id" value={waiterId} onChange={e => setWaiterId(e.target.value)}
                   className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-800">
                   <option value="">— Unassigned —</option>
                   {(waiters ?? []).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -562,40 +570,15 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
 // ─── Table Panel ──────────────────────────────────────────────────────────────
 function TablePanel({ table, onClose, onInvoiceDone }) {
   const qc = useQueryClient()
-  const { getTenantId } = useAuthStore()
-  const tenantId = getTenantId?.()
   const [invoiceOrder, setInvoiceOrder] = useState(null)
   const [addingTo, setAddingTo] = useState(null) // orderId or 'new'
   const { data: orders, isLoading } = useQuery({
     queryKey: ['billing-table-orders', table.id],
     queryFn: () => getBillingTableOrders(table.id).then(r => r.data.data),
-    // Pusher-driven via 'billing-table-orders' prefix; slow backstop only.
-    refetchInterval: 60000,
+    // Realtime via the central useNotificationCenter subscription (Dashboard
+    // root) — it invalidates the 'billing-table-orders' prefix on every
+    // order.updated event tenant-wide, so this panel needs no polling.
   })
-
-  // Realtime refresh via Pusher
-  useEffect(() => {
-    if (!tenantId) return
-    const pusherConfig = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
-    if (import.meta.env.VITE_PUSHER_HOST) {
-      pusherConfig.wsHost = import.meta.env.VITE_PUSHER_HOST
-      pusherConfig.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      pusherConfig.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      pusherConfig.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-      pusherConfig.disableStats = true
-      pusherConfig.enabledTransports = ['ws']
-    }
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, pusherConfig)
-    const channel = pusher.subscribe(`tenant.${tenantId}.kitchen`)
-    channel.bind('order.updated', () => {
-      qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] })
-      qc.invalidateQueries({ queryKey: ['billing-tables'] })
-    })
-    return () => {
-      channel.unbind_all()
-      pusher.unsubscribe(`tenant.${tenantId}.kitchen`)
-    }
-  }, [tenantId, table.id, qc])
 
   const closeTable = useMutation({
     mutationFn: () => closeBillingTable(table.id),
@@ -976,8 +959,10 @@ function BillAllModal({ table, total, onClose, onDone }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Customer Name <span className="text-gray-400">(opt.)</span></label>
+              <label htmlFor="bill-all-customer-name" className="block text-xs font-medium text-gray-500 mb-1">Customer Name <span className="text-gray-400">(opt.)</span></label>
               <input
+                id="bill-all-customer-name"
+                name="customer_name"
                 value={form.customer_name}
                 onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))}
                 placeholder="e.g. Rahul Sharma"
@@ -985,8 +970,10 @@ function BillAllModal({ table, total, onClose, onDone }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Mobile <span className="text-gray-400">(opt.)</span></label>
+              <label htmlFor="bill-all-customer-phone" className="block text-xs font-medium text-gray-500 mb-1">Mobile <span className="text-gray-400">(opt.)</span></label>
               <input
+                id="bill-all-customer-phone"
+                name="customer_phone"
                 type="tel"
                 inputMode="numeric"
                 maxLength={10}
@@ -1111,8 +1098,6 @@ function DownloadBar({ invoiceIds, upiId, onDismiss }) {
 // ─── Active Orders Bar ────────────────────────────────────────────────────────
 function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tables = [] }) {
   const qc = useQueryClient()
-  const { getTenantId } = useAuthStore()
-  const tenantId = getTenantId?.()
   const [open, setOpen] = useState(false)
 
   const dismiss = useMutation({
@@ -1120,10 +1105,12 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
     onSuccess: () => qc.invalidateQueries({ queryKey: ['billing-active-orders'] }),
   })
 
+  // Realtime via the central useNotificationCenter subscription (Dashboard
+  // root) — it invalidates 'billing-active-orders' on every order.updated
+  // event tenant-wide, so this bar needs no polling.
   const { data: orders = [] } = useQuery({
     queryKey: ['billing-active-orders'],
     queryFn: () => getActiveOrders().then(r => r.data.data),
-    refetchInterval: 10000,
   })
 
   const { data: settings } = useQuery({
@@ -1145,26 +1132,6 @@ function ActiveOrdersBar({ onSelectTable, onSelectBooking, onSelectTakeaway, tab
     newOrders.forEach(o => { knownKotIds.current.add(o.id); printKot(o) })
     orders.forEach(o => knownKotIds.current.add(o.id))
   }, [orders, kotEnabled, kotAutoPrint, kotPrinter])
-
-  // Pusher — stay up-to-date instantly
-  useEffect(() => {
-    if (!tenantId) return
-    const cfg = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
-    if (import.meta.env.VITE_PUSHER_HOST) {
-      cfg.wsHost = import.meta.env.VITE_PUSHER_HOST
-      cfg.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      cfg.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      cfg.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-      cfg.disableStats = true
-      cfg.enabledTransports = ['ws']
-    }
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
-    const channel = pusher.subscribe(`tenant.${tenantId}.kitchen`)
-    channel.bind('order.updated', () => {
-      qc.invalidateQueries({ queryKey: ['billing-active-orders'] })
-    })
-    return () => { channel.unbind_all(); pusher.unsubscribe(`tenant.${tenantId}.kitchen`) }
-  }, [tenantId, qc])
 
   const readyOrders = orders.filter(o => o.status === 'ready')
 
@@ -1539,7 +1506,6 @@ function UnbilledTakeawayDrawer({ onClose, onSelect }) {
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['billing-unbilled-takeaway'],
     queryFn: () => getUnbilledTakeaway().then(r => r.data.data),
-    refetchInterval: 10000,
   })
 
   const platformLabel = (o) => o.source === 'aggregator'
@@ -1709,6 +1675,9 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
         <div className="px-5 py-3 border-b bg-gray-50 shrink-0">
           {isAggregator && (
             <input
+              id="takeaway-external-id"
+              name="external_id"
+              aria-label={`${channelMeta?.label} order ID`}
               type="text"
               value={externalId}
               onChange={e => setExternalId(e.target.value)}
@@ -1721,6 +1690,9 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
               <div className="relative">
                 <UserIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                 <input
+                  id="takeaway-customer-name"
+                  name="customer_name"
+                  aria-label="Customer name"
                   type="text"
                   value={customerName}
                   onChange={e => { setCustomerName(e.target.value); if (e.target.value.trim()) setNameError('') }}
@@ -1734,6 +1706,9 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
               <div className="relative">
                 <PhoneIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                 <input
+                  id="takeaway-customer-phone"
+                  name="customer_phone"
+                  aria-label="Customer phone"
                   type="tel"
                   value={customerPhone}
                   onChange={e => setCustomerPhone(e.target.value)}
@@ -1750,6 +1725,9 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
+              id="takeaway-search"
+              name="search"
+              aria-label="Search items"
               type="search"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -1833,6 +1811,9 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
               ))}
             </div>
             <input
+              id="takeaway-notes"
+              name="notes"
+              aria-label="Order notes"
               type="text"
               value={notes}
               onChange={e => setNotes(e.target.value)}
@@ -1883,8 +1864,10 @@ function ActivePhoneSelector({ tenantSettings }) {
       <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
       </svg>
-      <label className="text-xs font-medium text-gray-600 shrink-0">Active call number:</label>
+      <label htmlFor="active-call-number" className="text-xs font-medium text-gray-600 shrink-0">Active call number:</label>
       <select
+        id="active-call-number"
+        name="active_call_number"
         value={active}
         onChange={e => mutation.mutate(e.target.value)}
         disabled={mutation.isPending}
@@ -1911,7 +1894,6 @@ function PendingMtPanel({ tenantSlug, freeTables = [], tenantSettings }) {
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['pending-mt-orders'],
     queryFn: () => getPendingMtOrders().then(r => r.data.data),
-    refetchInterval: 8000,
   })
 
   const confirm = useMutation({
@@ -2060,8 +2042,10 @@ function PendingMtPanel({ tenantSlug, freeTables = [], tenantSettings }) {
                     <p className="text-xs">Select a free table to assign this customer to, or call them to coordinate.</p>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to a free table</label>
+                    <label htmlFor="assign-free-table" className="block text-xs font-semibold text-gray-600 mb-1">Assign to a free table</label>
                     <select
+                      id="assign-free-table"
+                      name="table_id"
                       value={selectedTableId}
                       onChange={e => setSelectedTableId(e.target.value)}
                       className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
@@ -2114,7 +2098,6 @@ function BillPaidPanel() {
   const { data: tables = [] } = useQuery({
     queryKey: ['bill-paid-tables'],
     queryFn: () => getBillPaidTables().then(r => r.data.data),
-    refetchInterval: 8000,
   })
 
   const invalidate = () => {
@@ -2282,7 +2265,6 @@ export default function BillingDashboard({ embedded = false }) {
   const { data: tables, isLoading } = useQuery({
     queryKey: ['billing-tables'],
     queryFn: () => getBillingTables().then(r => r.data.data),
-    refetchInterval: 10000,
     enabled: hasRestaurant,
   })
 
@@ -2310,13 +2292,17 @@ export default function BillingDashboard({ embedded = false }) {
 
   // Central notification engine — rings on floor/order activity + drives the bell.
   const sound = useNotificationCenter({
-    // 'billing-table-orders' is a prefix — invalidates every open table panel
-    // (keyed ['billing-table-orders', tableId]) on any order event.
+    // Prefixes (no id) — invalidates every open panel keyed with that prefix
+    // (e.g. ['billing-table-orders', tableId], ['billing-booking-orders', bookingId])
+    // on any order.updated / table.activity event, tenant-wide.
     extraInvalidateKeys: [
       ['billing-tables'],
       ['billing-active-orders'],
       ['billing-unbilled-takeaway'],
       ['billing-table-orders'],
+      ['billing-booking-orders'],
+      ['pending-mt-orders'],
+      ['bill-paid-tables'],
     ],
   })
 
@@ -2797,7 +2783,6 @@ function BillingRoomOrdersPanel({ booking, onClose, onPlaceOrder }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['billing-booking-orders', booking.id],
     queryFn: () => getBillingBookingOrders(booking.id).then(r => r.data.data),
-    refetchInterval: 8000,
   })
 
   const markServed = useMutation({
@@ -2992,12 +2977,10 @@ function BillingRoomStatus({ onSelectRoom }) {
   const { data: rooms, isLoading } = useQuery({
     queryKey: ['billing-rooms-list'],
     queryFn: () => getBillingRooms().then(r => r.data.data),
-    refetchInterval: 15000,
   })
   const { data: activeBookings } = useQuery({
     queryKey: ['active-rooms-billing'],
     queryFn: () => getBillingActiveRooms().then(r => r.data.data),
-    refetchInterval: 15000,
   })
 
   const bookingByRoom = (activeBookings ?? []).reduce((acc, b) => { acc[b.room_id] = b; return acc }, {})
@@ -3122,6 +3105,9 @@ function BillingRoomServicePanel({ booking, onClose }) {
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
+              id="room-service-search"
+              name="search"
+              aria-label="Search items"
               type="search"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -3199,8 +3185,8 @@ function BillingRoomServicePanel({ booking, onClose }) {
               </div>
             ))}
             <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-              <label className="block text-xs font-semibold text-blue-700 mb-1.5">👤 Assign Waiter</label>
-              <select value={waiterId} onChange={e => setWaiterId(e.target.value)}
+              <label htmlFor="room-service-waiter" className="block text-xs font-semibold text-blue-700 mb-1.5">👤 Assign Waiter</label>
+              <select id="room-service-waiter" name="waiter_id" value={waiterId} onChange={e => setWaiterId(e.target.value)}
                 className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-800">
                 <option value="">— Unassigned —</option>
                 {(waiters ?? []).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}

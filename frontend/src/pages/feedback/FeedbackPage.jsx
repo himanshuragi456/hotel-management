@@ -147,11 +147,13 @@ function LowRatingForm({ tenantName, rating, onSubmit, isPending }) {
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-2">
+        <label htmlFor="feedback-comment" className="block text-sm font-semibold text-slate-700 mb-2">
           What could we do better?
           <span className="ml-1.5 text-xs font-normal text-slate-400">Optional</span>
         </label>
         <textarea
+          id="feedback-comment"
+          name="comment"
           value={comment}
           onChange={e => setComment(e.target.value)}
           rows={4}

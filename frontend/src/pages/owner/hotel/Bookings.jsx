@@ -153,16 +153,16 @@ function NewBookingForm({ onSuccess, svc }) {
         ) : isNewGuest ? (
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
-              <input required value={newGuest.name} onChange={e => setNewGuest(g => ({ ...g, name: e.target.value }))} placeholder="Full name *" className={inp} />
-              <input type="tel" inputMode="numeric" maxLength={10} required value={newGuest.phone} onChange={e => setNewGuest(g => ({ ...g, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile *" className={inp} />
+              <input id="new-booking-guest-name" name="guest_name" aria-label="Full name" required value={newGuest.name} onChange={e => setNewGuest(g => ({ ...g, name: e.target.value }))} placeholder="Full name *" className={inp} />
+              <input id="new-booking-guest-phone" name="guest_phone" aria-label="Mobile number" type="tel" inputMode="numeric" maxLength={10} required value={newGuest.phone} onChange={e => setNewGuest(g => ({ ...g, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile *" className={inp} />
             </div>
-            <input type="email" value={newGuest.email} onChange={e => setNewGuest(g => ({ ...g, email: e.target.value }))} placeholder="Email (optional)" className={inp} />
+            <input id="new-booking-guest-email" name="guest_email" aria-label="Email" type="email" value={newGuest.email} onChange={e => setNewGuest(g => ({ ...g, email: e.target.value }))} placeholder="Email (optional)" className={inp} />
             <button onClick={() => setIsNewGuest(false)} className="text-xs text-gray-400 hover:text-gray-600">← Search existing guest</button>
           </div>
         ) : (
           <div>
             <div className="relative mb-2">
-              <input value={guestQuery} onChange={e => setGuestQuery(e.target.value)} placeholder="Search by name or phone…" className={inp} />
+              <input id="new-booking-guest-search" name="guest_search" aria-label="Search guests by name or phone" value={guestQuery} onChange={e => setGuestQuery(e.target.value)} placeholder="Search by name or phone…" className={inp} />
               {guestResults?.length > 0 && (
                 <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 mt-1">
                   {guestResults.map(g => (
@@ -184,7 +184,7 @@ function NewBookingForm({ onSuccess, svc }) {
       <div className="bg-gray-50 rounded-xl p-4">
         <h3 className="font-medium text-gray-800 mb-3 text-sm">2. Room & Dates</h3>
         <div className="space-y-3">
-          <select required value={form.room_id} onChange={e => setForm(f => ({ ...f, room_id: e.target.value }))} className={inp}>
+          <select id="new-booking-room" name="room_id" aria-label="Select room" required value={form.room_id} onChange={e => setForm(f => ({ ...f, room_id: e.target.value }))} className={inp}>
             <option value="">Select room…</option>
             {rooms?.filter(r => r.status === 'available').map(r => (
               <option key={r.id} value={r.id}>{r.number} — {r.type} (Floor {r.floor}) — ₹{r.price_per_night}/night</option>
@@ -192,22 +192,22 @@ function NewBookingForm({ onSuccess, svc }) {
           </select>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Check-in</label>
-              <input type="date" value={form.check_in_date} onChange={e => setForm(f => ({ ...f, check_in_date: e.target.value }))} className={inp} />
+              <label htmlFor="new-booking-check-in" className="block text-xs font-medium text-gray-600 mb-1">Check-in</label>
+              <input id="new-booking-check-in" name="check_in_date" type="date" value={form.check_in_date} onChange={e => setForm(f => ({ ...f, check_in_date: e.target.value }))} className={inp} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Check-out</label>
-              <input type="date" value={form.check_out_date} onChange={e => setForm(f => ({ ...f, check_out_date: e.target.value }))} className={inp} />
+              <label htmlFor="new-booking-check-out" className="block text-xs font-medium text-gray-600 mb-1">Check-out</label>
+              <input id="new-booking-check-out" name="check_out_date" type="date" value={form.check_out_date} onChange={e => setForm(f => ({ ...f, check_out_date: e.target.value }))} className={inp} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Adults</label>
-              <input type="number" min="1" value={form.adults} onChange={e => setForm(f => ({ ...f, adults: e.target.value }))} className={inp} />
+              <label htmlFor="new-booking-adults" className="block text-xs font-medium text-gray-600 mb-1">Adults</label>
+              <input id="new-booking-adults" name="adults" type="number" min="1" value={form.adults} onChange={e => setForm(f => ({ ...f, adults: e.target.value }))} className={inp} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Children</label>
-              <input type="number" min="0" value={form.children} onChange={e => setForm(f => ({ ...f, children: e.target.value }))} className={inp} />
+              <label htmlFor="new-booking-children" className="block text-xs font-medium text-gray-600 mb-1">Children</label>
+              <input id="new-booking-children" name="children" type="number" min="0" value={form.children} onChange={e => setForm(f => ({ ...f, children: e.target.value }))} className={inp} />
             </div>
           </div>
         </div>
@@ -218,7 +218,7 @@ function NewBookingForm({ onSuccess, svc }) {
         <h3 className="font-medium text-gray-800 mb-1 text-sm">3. Payment</h3>
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label htmlFor="new-booking-decided-amount" className="block text-xs font-medium text-gray-600 mb-1">
             Decided Amount (₹)
             {decidedAmountTouched && roomCharges > 0 && (
               <button
@@ -229,6 +229,8 @@ function NewBookingForm({ onSuccess, svc }) {
             )}
           </label>
           <input
+            id="new-booking-decided-amount"
+            name="decided_amount"
             type="number" step="0.01" min="0"
             value={form.decided_amount}
             onChange={e => { setDecidedAmountTouched(true); setForm(f => ({ ...f, decided_amount: e.target.value })) }}
@@ -266,8 +268,11 @@ function NewBookingForm({ onSuccess, svc }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Advance Paid (₹)</label>
-            <input type="number" step="0.01" min="0" value={form.advance_paid}
+            <label htmlFor="new-booking-advance-paid" className="block text-xs font-medium text-gray-600 mb-1">Advance Paid (₹)</label>
+            <input
+              id="new-booking-advance-paid"
+              name="advance_paid"
+              type="number" step="0.01" min="0" value={form.advance_paid}
               onChange={e => {
                 const dBase = parseFloat(form.decided_amount || 0)
                 const dGst  = hotelGstRate > 0 && !hotelGstIncl ? dBase * hotelGstRate / 100 : 0
@@ -285,8 +290,8 @@ function NewBookingForm({ onSuccess, svc }) {
             })()}
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
-            <select value={form.advance_payment_method} onChange={e => setForm(f => ({ ...f, advance_payment_method: e.target.value }))} className={inp}>
+            <label htmlFor="new-booking-payment-method" className="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
+            <select id="new-booking-payment-method" name="advance_payment_method" value={form.advance_payment_method} onChange={e => setForm(f => ({ ...f, advance_payment_method: e.target.value }))} className={inp}>
               <option value="cash">Cash</option>
               <option value="upi">UPI</option>
               <option value="card">Card</option>
@@ -307,7 +312,7 @@ function NewBookingForm({ onSuccess, svc }) {
           )
         })()}
 
-        <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes (optional)" className={inp} />
+        <input id="new-booking-notes" name="notes" aria-label="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes (optional)" className={inp} />
       </div>
 
       <button onClick={handleSubmit} disabled={book.isPending || makeGuest.isPending}
@@ -402,8 +407,8 @@ export function CheckOutModal({ booking, onSuccess, svc }) {
           {showExtend && (
             <div className="mt-3 flex gap-2 items-end">
               <div className="flex-1">
-                <label className="block text-xs font-medium text-red-700 mb-1">New check-out date</label>
-                <input type="date" value={newCheckOut} onChange={e => setNewCheckOut(e.target.value)}
+                <label htmlFor="checkout-extend-date" className="block text-xs font-medium text-red-700 mb-1">New check-out date</label>
+                <input id="checkout-extend-date" name="new_check_out_date" type="date" value={newCheckOut} onChange={e => setNewCheckOut(e.target.value)}
                   min={[new Date().toISOString().split('T')[0], b.check_in_date].sort().pop()}
                   className="w-full border border-red-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
               </div>
@@ -670,8 +675,10 @@ function EditBookingForm({ booking, onSuccess, svc }) {
         <h3 className="font-medium text-gray-800 text-sm">Guest</h3>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Full Name *</label>
+            <label htmlFor="edit-booking-guest-name" className="block text-xs font-medium text-gray-600 mb-1">Full Name *</label>
             <input
+              id="edit-booking-guest-name"
+              name="guest_name"
               value={form.guest_name}
               onChange={e => set('guest_name', e.target.value)}
               onBlur={() => touch('guest_name')}
@@ -681,8 +688,10 @@ function EditBookingForm({ booking, onSuccess, svc }) {
             {Err('guest_name')}
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
+            <label htmlFor="edit-booking-guest-phone" className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
             <input
+              id="edit-booking-guest-phone"
+              name="guest_phone"
               type="tel"
               inputMode="numeric"
               maxLength={10}
@@ -702,7 +711,10 @@ function EditBookingForm({ booking, onSuccess, svc }) {
         <div className="bg-gray-50 rounded-xl p-4 space-y-3">
           <h3 className="font-medium text-gray-800 text-sm">Room & Dates</h3>
           <div>
+            <label htmlFor="edit-booking-room" className="sr-only">Room</label>
             <select
+              id="edit-booking-room"
+              name="room_id"
               value={form.room_id}
               onChange={e => set('room_id', e.target.value)}
               onBlur={() => touch('room_id')}
@@ -717,8 +729,10 @@ function EditBookingForm({ booking, onSuccess, svc }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Check-in *</label>
+              <label htmlFor="edit-booking-check-in" className="block text-xs font-medium text-gray-600 mb-1">Check-in *</label>
               <input
+                id="edit-booking-check-in"
+                name="check_in_date"
                 type="date"
                 value={form.check_in_date}
                 onChange={e => set('check_in_date', e.target.value)}
@@ -728,8 +742,10 @@ function EditBookingForm({ booking, onSuccess, svc }) {
               {Err('check_in_date')}
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Check-out *</label>
+              <label htmlFor="edit-booking-check-out" className="block text-xs font-medium text-gray-600 mb-1">Check-out *</label>
               <input
+                id="edit-booking-check-out"
+                name="check_out_date"
                 type="date"
                 value={form.check_out_date}
                 onChange={e => set('check_out_date', e.target.value)}
@@ -741,8 +757,10 @@ function EditBookingForm({ booking, onSuccess, svc }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Adults *</label>
+              <label htmlFor="edit-booking-adults" className="block text-xs font-medium text-gray-600 mb-1">Adults *</label>
               <input
+                id="edit-booking-adults"
+                name="adults"
                 type="number" min="1"
                 value={form.adults}
                 onChange={e => set('adults', e.target.value)}
@@ -752,8 +770,10 @@ function EditBookingForm({ booking, onSuccess, svc }) {
               {Err('adults')}
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Children</label>
+              <label htmlFor="edit-booking-children" className="block text-xs font-medium text-gray-600 mb-1">Children</label>
               <input
+                id="edit-booking-children"
+                name="children"
                 type="number" min="0"
                 value={form.children}
                 onChange={e => set('children', e.target.value)}
@@ -766,7 +786,7 @@ function EditBookingForm({ booking, onSuccess, svc }) {
 
       {/* Decided Amount */}
       <div className="bg-gray-50 rounded-xl p-4">
-        <label className="block text-xs font-medium text-gray-600 mb-1">
+        <label htmlFor="edit-booking-decided-amount" className="block text-xs font-medium text-gray-600 mb-1">
           Decided Amount (₹)
           {decidedTouched && roomCharges > 0 && (
             <button
@@ -777,6 +797,8 @@ function EditBookingForm({ booking, onSuccess, svc }) {
           )}
         </label>
         <input
+          id="edit-booking-decided-amount"
+          name="decided_amount"
           type="number" step="0.01" min="0"
           value={form.decided_amount}
           onChange={e => { setDecidedTouched(true); setForm(f => ({ ...f, decided_amount: e.target.value })) }}
@@ -814,8 +836,10 @@ function EditBookingForm({ booking, onSuccess, svc }) {
 
       {/* Notes */}
       <div className="bg-gray-50 rounded-xl p-4">
-        <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+        <label htmlFor="edit-booking-notes" className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
         <input
+          id="edit-booking-notes"
+          name="notes"
           value={form.notes}
           onChange={e => set('notes', e.target.value)}
           placeholder="Optional notes…"
@@ -979,7 +1003,6 @@ export default function Bookings({ services = {}, queryKeyPrefix = 'owner' }) {
   const { data: bookingPage, isLoading } = useQuery({
     queryKey: [qk, 'bookings', status],
     queryFn: () => svc.getBookings(status ? { status } : {}).then(r => r.data.data),
-    refetchInterval: 30000,
   })
 
   const bookings = bookingPage?.data ?? bookingPage ?? []

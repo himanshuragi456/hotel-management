@@ -5,7 +5,7 @@ import {
   XMarkIcon, ShoppingBagIcon, ChevronRightIcon, ChevronDownIcon,
 } from '@heroicons/react/24/outline'
 import { BoltIcon, ClockIcon } from '@heroicons/react/24/outline'
-import Pusher from 'pusher-js'
+import * as Ably from 'ably'
 import {
   getCustomerMenu, customerPlaceOrder, getOrderStatus,
   customerRequestBill, customerCallWaiter, customerNotifyBillPaid,
@@ -122,8 +122,10 @@ function CustomerDetailsSheet({ onConfirm, onClose, placing }) {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name <span className="text-red-500">*</span></label>
+            <label htmlFor="customer-details-name" className="block text-sm font-medium text-gray-700 mb-1.5">Full Name <span className="text-red-500">*</span></label>
             <input
+              id="customer-details-name"
+              name="name"
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Your full name"
@@ -133,8 +135,10 @@ function CustomerDetailsSheet({ onConfirm, onClose, placing }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number <span className="text-red-500">*</span></label>
+            <label htmlFor="customer-details-phone" className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number <span className="text-red-500">*</span></label>
             <input
+              id="customer-details-phone"
+              name="phone"
               type="tel"
               inputMode="numeric"
               maxLength={10}
@@ -147,8 +151,10 @@ function CustomerDetailsSheet({ onConfirm, onClose, placing }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address <span className="text-gray-400 font-normal">(optional)</span></label>
+            <label htmlFor="customer-details-email" className="block text-sm font-medium text-gray-700 mb-1.5">Email Address <span className="text-gray-400 font-normal">(optional)</span></label>
             <input
+              id="customer-details-email"
+              name="email"
               type="email"
               value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
@@ -405,19 +411,16 @@ function OrdersView({ sessionOrders, onOrderMore, onRequestBill, billRequestEnab
 
   useEffect(() => {
     if (!tenantId || !tableId) return
-    const cfg = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
-    if (import.meta.env.VITE_PUSHER_HOST) {
-      cfg.wsHost = import.meta.env.VITE_PUSHER_HOST
-      cfg.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      cfg.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      cfg.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-      cfg.disableStats = true
-      cfg.enabledTransports = ['ws']
-    }
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
-    const channel = pusher.subscribe(`tenant.${tenantId}.table.${tableId}`)
-    channel.bind('order.updated', () => refetch())
-    return () => { channel.unbind_all(); pusher.unsubscribe(`tenant.${tenantId}.table.${tableId}`) }
+    const ably = new Ably.Realtime({ key: import.meta.env.VITE_ABLY_KEY })
+    const channel = ably.channels.get(`public:tenant.${tenantId}.table.${tableId}`)
+    console.log(`[Ably] MenuPage/OrdersView: connecting to tenant.${tenantId}.table.${tableId}`)
+    ably.connection.on((stateChange) => console.log(`[Ably] MenuPage/OrdersView: connection ${stateChange.current}`, stateChange.reason ?? ''))
+    channel.subscribe('order.updated', (msg) => {
+      console.log('[Ably] MenuPage/OrdersView: order.updated received', msg.data)
+      console.log('[Ably] MenuPage/OrdersView: calling order status API')
+      refetch()
+    }).catch(() => {})
+    return () => { channel.unsubscribe(); ably.close() }
   }, [tenantId, tableId, refetch])
 
   const batches     = data?.batches ?? []
@@ -656,9 +659,6 @@ export default function CustomerMenuPage() {
   const { data, isLoading, error, refetch: refetchMenu } = useQuery({
     queryKey: ['customer-menu', slug, token],
     queryFn:  () => getCustomerMenu(slug, token).then(r => r.data.data),
-    // Public customer phone — no Pusher. Menu rarely changes mid-session
-    // (mostly to pick up item OOS toggles), so a relaxed poll is plenty.
-    refetchInterval: 15000,
     staleTime: 0,
   })
 
@@ -667,19 +667,16 @@ export default function CustomerMenuPage() {
     const tenantId = data?.tenant_id
     const tableId  = data?.table?.id
     if (!tenantId || !tableId || !sessionOrders) return
-    const cfg = { cluster: import.meta.env.VITE_PUSHER_CLUSTER ?? 'mt1' }
-    if (import.meta.env.VITE_PUSHER_HOST) {
-      cfg.wsHost = import.meta.env.VITE_PUSHER_HOST
-      cfg.wsPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      cfg.wssPort = Number(import.meta.env.VITE_PUSHER_PORT ?? 6001)
-      cfg.forceTLS = (import.meta.env.VITE_PUSHER_SCHEME ?? 'http') === 'https'
-      cfg.disableStats = true
-      cfg.enabledTransports = ['ws']
-    }
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, cfg)
-    const channel = pusher.subscribe(`tenant.${tenantId}.table.${tableId}`)
-    channel.bind('order.updated', () => refetchMenu())
-    return () => { channel.unbind_all(); pusher.unsubscribe(`tenant.${tenantId}.table.${tableId}`) }
+    const ably = new Ably.Realtime({ key: import.meta.env.VITE_ABLY_KEY })
+    const channel = ably.channels.get(`public:tenant.${tenantId}.table.${tableId}`)
+    console.log(`[Ably] MenuPage: connecting to tenant.${tenantId}.table.${tableId}`)
+    ably.connection.on((stateChange) => console.log(`[Ably] MenuPage: connection ${stateChange.current}`, stateChange.reason ?? ''))
+    channel.subscribe('order.updated', (msg) => {
+      console.log('[Ably] MenuPage: order.updated received', msg.data)
+      console.log('[Ably] MenuPage: calling order status API')
+      refetchMenu()
+    }).catch(() => {})
+    return () => { channel.unsubscribe(); ably.close() }
   }, [data?.tenant_id, data?.table?.id, sessionOrders, refetchMenu])
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -933,7 +930,7 @@ export default function CustomerMenuPage() {
           <>
             <div className="relative mt-2 mb-0">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-base">🔍</span>
-              <input type="search" value={menuSearch} onChange={e => setMenuSearch(e.target.value)}
+              <input id="menu-search" name="search" aria-label="Search menu" type="search" value={menuSearch} onChange={e => setMenuSearch(e.target.value)}
                 placeholder="Search menu…"
                 className="w-full pl-10 pr-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400 text-base"/>
             </div>

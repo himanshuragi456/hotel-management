@@ -58,8 +58,8 @@ export default function SubscriptionList() {
           <p className="text-sm text-gray-400 mt-0.5">Manage tenant plans and billing cycles</p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-gray-500">Status</label>
-          <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
+          <label htmlFor="subscription-status-filter" className="text-xs font-medium text-gray-500">Status</label>
+          <select id="subscription-status-filter" name="status" value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
             <option value="">All</option>
             {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
@@ -151,7 +151,7 @@ export default function SubscriptionList() {
                 </button>
               ))}
             </div>
-            <input type="number" min="1" value={extendMonths} onChange={e => setExtendMonths(Number(e.target.value))}
+            <input id="subscription-extend-months" name="extend_months" aria-label="Extend by months" type="number" min="1" value={extendMonths} onChange={e => setExtendMonths(Number(e.target.value))}
               className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex items-center gap-2 pt-1">

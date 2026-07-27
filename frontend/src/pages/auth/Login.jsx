@@ -125,10 +125,13 @@ export default function Login() {
 
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Email</label>
+              <label htmlFor="login-email" className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Email</label>
               <div className="relative">
                 <EnvelopeIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
+                  id="login-email"
+                  name="email"
+                  autoComplete="username"
                   type="email"
                   value={email}
                   onChange={e => { setEmail(e.target.value); setFieldErrors(f => ({ ...f, email: undefined })) }}
@@ -141,10 +144,13 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Password</label>
+              <label htmlFor="login-password" className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Password</label>
               <div className="relative">
                 <LockClosedIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
+                  id="login-password"
+                  name="password"
+                  autoComplete="current-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => { setPassword(e.target.value); setFieldErrors(f => ({ ...f, password: undefined })) }}

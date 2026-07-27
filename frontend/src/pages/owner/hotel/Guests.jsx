@@ -79,8 +79,10 @@ function GuestForm({ guest, onSuccess }) {
       {error && <div className="text-red-600 text-sm bg-red-50 p-2 rounded">{error}</div>}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Full Name *</label>
+          <label htmlFor="guest-form-name" className="block text-xs font-medium text-gray-600 mb-1">Full Name *</label>
           <input
+            id="guest-form-name"
+            name="name"
             value={form.name}
             onChange={e => set('name', e.target.value)}
             onBlur={() => blur('name')}
@@ -90,8 +92,10 @@ function GuestForm({ guest, onSuccess }) {
           {Err('name')}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
+          <label htmlFor="guest-form-phone" className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
           <input
+            id="guest-form-phone"
+            name="phone"
             type="tel"
             inputMode="numeric"
             maxLength={10}
@@ -104,8 +108,10 @@ function GuestForm({ guest, onSuccess }) {
           {Err('phone')}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+          <label htmlFor="guest-form-email" className="block text-xs font-medium text-gray-600 mb-1">Email</label>
           <input
+            id="guest-form-email"
+            name="email"
             type="email"
             value={form.email}
             onChange={e => set('email', e.target.value)}
@@ -116,8 +122,10 @@ function GuestForm({ guest, onSuccess }) {
           {Err('email')}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">ID Type</label>
+          <label htmlFor="guest-form-id-type" className="block text-xs font-medium text-gray-600 mb-1">ID Type</label>
           <select
+            id="guest-form-id-type"
+            name="id_proof_type"
             value={form.id_proof_type}
             onChange={e => set('id_proof_type', e.target.value)}
             className={inp('id_proof_type')}
@@ -131,10 +139,12 @@ function GuestForm({ guest, onSuccess }) {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label htmlFor="guest-form-id-number" className="block text-xs font-medium text-gray-600 mb-1">
             ID Number {form.id_proof_type && <span className="text-red-500">*</span>}
           </label>
           <input
+            id="guest-form-id-number"
+            name="id_proof_number"
             value={form.id_proof_number}
             onChange={e => set('id_proof_number', e.target.value)}
             onBlur={() => blur('id_proof_number')}
@@ -145,16 +155,16 @@ function GuestForm({ guest, onSuccess }) {
           {Err('id_proof_number')}
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Company / Sponsor</label>
-          <input value={form.company} onChange={e => set('company', e.target.value)} className={inp('company')} />
+          <label htmlFor="guest-form-company" className="block text-xs font-medium text-gray-600 mb-1">Company / Sponsor</label>
+          <input id="guest-form-company" name="company" value={form.company} onChange={e => set('company', e.target.value)} className={inp('company')} />
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
-          <input value={form.address} onChange={e => set('address', e.target.value)} className={inp('address')} />
+          <label htmlFor="guest-form-address" className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+          <input id="guest-form-address" name="address" value={form.address} onChange={e => set('address', e.target.value)} className={inp('address')} />
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-          <input value={form.notes} onChange={e => set('notes', e.target.value)} className={inp('notes')} />
+          <label htmlFor="guest-form-notes" className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+          <input id="guest-form-notes" name="notes" value={form.notes} onChange={e => set('notes', e.target.value)} className={inp('notes')} />
         </div>
       </div>
       <div className="flex justify-end pt-2">
@@ -249,7 +259,7 @@ export default function Guests() {
 
       <div className="relative mb-5">
         <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name or phone…"
+        <input id="guests-search" name="search" aria-label="Search guests by name or phone" value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name or phone…"
           className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white" />
       </div>
 

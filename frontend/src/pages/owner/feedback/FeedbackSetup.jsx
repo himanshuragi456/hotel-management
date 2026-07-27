@@ -68,6 +68,9 @@ function ManualPlaceIdPanel() {
       <div className="flex gap-2 items-end">
         <div className="flex-1">
           <input
+            id="feedback-setup-place-id"
+            name="place_id"
+            aria-label="Google Place ID"
             type="text"
             value={placeId}
             onChange={e => setPlaceId(e.target.value)}
@@ -314,8 +317,10 @@ function GoogleConnectPanel() {
 
           {/* Tone selector */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reply tone</label>
+            <label htmlFor="feedback-setup-reply-tone" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reply tone</label>
             <select
+              id="feedback-setup-reply-tone"
+              name="auto_reply_tone"
               value={status.auto_reply_tone}
               onChange={e => autoReply.mutate({ auto_reply_tone: e.target.value })}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400"
@@ -491,16 +496,18 @@ export default function FeedbackSetup() {
           className="flex gap-2 items-end flex-wrap mb-5 bg-gray-50 rounded-xl p-4 border border-gray-100"
         >
           <div className="flex-1 min-w-36">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Label</label>
+            <label htmlFor="feedback-qr-label" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Label</label>
             <input
+              id="feedback-qr-label"
+              name="label"
               required value={label} onChange={e => setLabel(e.target.value)}
               placeholder="e.g. Front Desk"
               className={`${inp} w-full`}
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Placement</label>
-            <select value={placement} onChange={e => setPlacement(e.target.value)} className={inp}>
+            <label htmlFor="feedback-qr-placement" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Placement</label>
+            <select id="feedback-qr-placement" name="placement" value={placement} onChange={e => setPlacement(e.target.value)} className={inp}>
               {PLACEMENTS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
             </select>
           </div>

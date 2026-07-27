@@ -62,7 +62,7 @@ class OrderActionController extends Controller
             'cancelled_at'      => now(),
         ]);
 
-        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Throwable $e) {}
+        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Throwable $e) { /* logged by LoggingAblyBroadcaster */ }
         AuditLog::record('order.rejected', $order, ['status' => $prev], [
             'order_number' => $order->order_number,
             'reason'       => $reason->label,
@@ -91,7 +91,7 @@ class OrderActionController extends Controller
             'cancelled_at'      => now(),
         ]);
 
-        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Throwable $e) {}
+        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Throwable $e) { /* logged by LoggingAblyBroadcaster */ }
         AuditLog::record('order.cancelled', $order, ['status' => $prev], [
             'order_number' => $order->order_number,
             'note'         => $request->note,

@@ -143,7 +143,7 @@ class OrderController extends Controller
         if ($order->status !== 'served') {
             $order->update(['status' => 'ready']);
         }
-        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) {}
+        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table')))->toOthers(); } catch (\Exception $e) { /* logged by LoggingAblyBroadcaster */ }
         return $this->success($order->fresh(), 'Bill requested — billing counter notified');
     }
 
@@ -178,7 +178,7 @@ class OrderController extends Controller
         if ($order->tenant_id !== auth()->user()->tenant_id) return $this->forbidden();
         if ($order->status !== 'ready') return $this->error('Order must be ready before marking as served');
         $order->update(['status' => 'served']);
-        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Exception $e) {}
+        try { broadcast(new OrderStatusUpdated($order->fresh()->load('items', 'table', 'room')))->toOthers(); } catch (\Exception $e) { /* logged by LoggingAblyBroadcaster */ }
         AuditLog::record('order.served', $order, ['status' => 'ready'], ['status' => 'served', 'order_number' => $order->order_number]);
         return $this->success(null, 'Order marked as served');
     }
@@ -200,7 +200,7 @@ class OrderController extends Controller
         if ($v->fails()) return $this->validationError($v->errors());
 
         $fresh = app(\App\Services\OrderService::class)->addLinesToOrder($order, $request->items);
-        try { broadcast(new OrderStatusUpdated($fresh))->toOthers(); } catch (\Exception $e) {}
+        try { broadcast(new OrderStatusUpdated($fresh))->toOthers(); } catch (\Exception $e) { /* logged by LoggingAblyBroadcaster */ }
 
         return $this->success($fresh, 'Items added');
     }

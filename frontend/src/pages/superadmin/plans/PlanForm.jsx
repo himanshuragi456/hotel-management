@@ -91,8 +91,10 @@ export default function PlanForm({ plan, onSuccess }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-700 mb-1">Plan Name *</label>
+          <label htmlFor="plan-form-name" className="block text-xs font-medium text-gray-700 mb-1">Plan Name *</label>
           <input
+            id="plan-form-name"
+            name="name"
             value={form.name}
             onChange={e => set('name', e.target.value)}
             onBlur={() => blur('name')}
@@ -102,8 +104,10 @@ export default function PlanForm({ plan, onSuccess }) {
           {Err('name')}
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+          <label htmlFor="plan-form-description" className="block text-xs font-medium text-gray-700 mb-1">Description</label>
           <input
+            id="plan-form-description"
+            name="description"
             value={form.description}
             onChange={e => set('description', e.target.value)}
             className={inp('description')}
@@ -111,8 +115,10 @@ export default function PlanForm({ plan, onSuccess }) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Monthly Price (₹) *</label>
+          <label htmlFor="plan-form-price-monthly" className="block text-xs font-medium text-gray-700 mb-1">Monthly Price (₹) *</label>
           <input
+            id="plan-form-price-monthly"
+            name="price_monthly"
             type="number"
             min="1"
             step="1"
@@ -125,8 +131,10 @@ export default function PlanForm({ plan, onSuccess }) {
           {Err('price_monthly')}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Yearly Price (₹) *</label>
+          <label htmlFor="plan-form-price-yearly" className="block text-xs font-medium text-gray-700 mb-1">Yearly Price (₹) *</label>
           <input
+            id="plan-form-price-yearly"
+            name="price_yearly"
             type="number"
             min="1"
             step="1"
@@ -145,8 +153,10 @@ export default function PlanForm({ plan, onSuccess }) {
         <p className="text-xs text-gray-400 mb-2">Select at least one module to include in this plan</p>
         <div className={`flex gap-4 p-3 rounded-lg border ${moduleError ? 'border-red-400 bg-red-50/30' : 'border-gray-200 bg-gray-50'}`}>
           {[['module_restaurant', 'Restaurant'], ['module_hotel', 'Hotel'], ['module_feedback', 'Feedback']].map(([key, label]) => (
-            <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+            <label key={key} htmlFor={`plan-form-${key}`} className="flex items-center gap-2 cursor-pointer select-none">
               <input
+                id={`plan-form-${key}`}
+                name={key}
                 type="checkbox"
                 checked={form[key]}
                 onChange={e => set(key, e.target.checked)}
@@ -161,8 +171,10 @@ export default function PlanForm({ plan, onSuccess }) {
 
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Max Users *</label>
+          <label htmlFor="plan-form-max-users" className="block text-xs font-medium text-gray-700 mb-1">Max Users *</label>
           <input
+            id="plan-form-max-users"
+            name="max_users"
             type="number"
             min="1"
             value={form.max_users}
@@ -173,8 +185,10 @@ export default function PlanForm({ plan, onSuccess }) {
           {Err('max_users')}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Max Tables</label>
+          <label htmlFor="plan-form-max-tables" className="block text-xs font-medium text-gray-700 mb-1">Max Tables</label>
           <input
+            id="plan-form-max-tables"
+            name="max_tables"
             type="number"
             min="0"
             value={form.max_tables}
@@ -185,8 +199,10 @@ export default function PlanForm({ plan, onSuccess }) {
           {Err('max_tables')}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Max Rooms</label>
+          <label htmlFor="plan-form-max-rooms" className="block text-xs font-medium text-gray-700 mb-1">Max Rooms</label>
           <input
+            id="plan-form-max-rooms"
+            name="max_rooms"
             type="number"
             min="0"
             value={form.max_rooms}
@@ -199,8 +215,10 @@ export default function PlanForm({ plan, onSuccess }) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Features (one per line)</label>
+        <label htmlFor="plan-form-features" className="block text-xs font-medium text-gray-700 mb-1">Features (one per line)</label>
         <textarea
+          id="plan-form-features"
+          name="features"
           rows={4}
           value={form.features}
           onChange={e => set('features', e.target.value)}
@@ -211,7 +229,7 @@ export default function PlanForm({ plan, onSuccess }) {
 
       {isEdit && (
         <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="rounded" />
+          <input id="plan-form-is-active" name="is_active" type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="rounded" />
           <span className="text-sm">Active (visible to users)</span>
         </label>
       )}

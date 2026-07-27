@@ -108,7 +108,7 @@ class RoomServiceController extends Controller
 
             $notifier = app(\App\Services\NotificationService::class);
             foreach ($createdOrders as $o) {
-                try { broadcast(new OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) {}
+                try { broadcast(new OrderStatusUpdated($o))->toOthers(); } catch (\Exception $e) { /* logged by LoggingAblyBroadcaster */ }
                 AuditLog::record('order.room_service_placed', $o, [], [
                     'order_number' => $o->order_number,
                     'room'         => 'Room ' . $booking->room?->number,

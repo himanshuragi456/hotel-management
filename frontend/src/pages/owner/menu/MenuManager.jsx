@@ -51,14 +51,14 @@ function ScheduleEditor({ category, onClose }) {
       <div className="space-y-2">
         {rows.map((row, i) => (
           <div key={i} className="flex items-center gap-2">
-            <select value={row.day_of_week} onChange={e => upd(i, 'day_of_week', Number(e.target.value))}
+            <select id={`schedule-day-${i}`} name={`schedule_day_${i}`} aria-label="Day of week" value={row.day_of_week} onChange={e => upd(i, 'day_of_week', Number(e.target.value))}
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50">
               {DAYS.map((d, idx) => <option key={idx} value={idx}>{d}</option>)}
             </select>
-            <input type="time" value={row.start_time} onChange={e => upd(i, 'start_time', e.target.value)}
+            <input id={`schedule-start-${i}`} name={`schedule_start_${i}`} aria-label="Start time" type="time" value={row.start_time} onChange={e => upd(i, 'start_time', e.target.value)}
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50" />
             <span className="text-gray-400 text-sm">to</span>
-            <input type="time" value={row.end_time} onChange={e => upd(i, 'end_time', e.target.value)}
+            <input id={`schedule-end-${i}`} name={`schedule_end_${i}`} aria-label="End time" type="time" value={row.end_time} onChange={e => upd(i, 'end_time', e.target.value)}
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-gray-50" />
             <button onClick={() => remove(i)} className="text-red-400 hover:text-red-600"><TrashIcon className="w-4 h-4" /></button>
           </div>
@@ -161,6 +161,9 @@ function CategoryPanel() {
         <div className="flex gap-2">
           <div className="flex-1">
             <input
+              id="menu-category-name"
+              name="category_name"
+              aria-label="New category name"
               value={name}
               onChange={e => { setName(e.target.value); setCatError('') }}
               placeholder="New category…"
@@ -171,7 +174,7 @@ function CategoryPanel() {
             {create.isPending ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <PlusIcon className="w-4 h-4" />}
           </button>
         </div>
-        <select value={parentId} onChange={e => setParentId(e.target.value)}
+        <select id="menu-category-parent" name="parent_id" aria-label="Parent category" value={parentId} onChange={e => setParentId(e.target.value)}
           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400">
           <option value="">Top-level category</option>
           {parents.map(p => <option key={p.id} value={p.id}>↳ under "{p.name}"</option>)}
@@ -344,8 +347,10 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
       {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category *</label>
+          <label htmlFor="item-form-category" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category *</label>
           <select
+            id="item-form-category"
+            name="menu_category_id"
             value={form.menu_category_id}
             onChange={e => setField('menu_category_id', e.target.value)}
             onBlur={() => blur('menu_category_id')}
@@ -368,8 +373,10 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
           {fieldErrors.menu_category_id && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.menu_category_id}</p>}
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Item Name *</label>
+          <label htmlFor="item-form-name" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Item Name *</label>
           <input
+            id="item-form-name"
+            name="name"
             value={form.name}
             onChange={e => setField('name', e.target.value)}
             onBlur={() => blur('name')}
@@ -379,8 +386,10 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
           {fieldErrors.name && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.name}</p>}
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Price (₹) *</label>
+          <label htmlFor="item-form-price" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Price (₹) *</label>
           <input
+            id="item-form-price"
+            name="price"
             type="number"
             step="0.5"
             min="0.5"
@@ -393,21 +402,21 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
           {fieldErrors.price && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.price}</p>}
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type</label>
-          <select value={form.type} onChange={e => setField('type', e.target.value)} className={inp('type')}>
+          <label htmlFor="item-form-type" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type</label>
+          <select id="item-form-type" name="type" value={form.type} onChange={e => setField('type', e.target.value)} className={inp('type')}>
             <option value="veg">Veg</option>
             <option value="non-veg">Non-Veg</option>
             <option value="vegan">Vegan</option>
           </select>
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
-          <input value={form.description} onChange={e => setField('description', e.target.value)} className={inp('description')} placeholder="Short description (optional)" />
+          <label htmlFor="item-form-description" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
+          <input id="item-form-description" name="description" value={form.description} onChange={e => setField('description', e.target.value)} className={inp('description')} placeholder="Short description (optional)" />
         </div>
         <div className="col-span-2">
           <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors">
             <div className="relative">
-              <input type="checkbox" className="sr-only" checked={form.is_ready_made}
+              <input id="item-form-ready-made" name="is_ready_made" type="checkbox" className="sr-only" checked={form.is_ready_made}
                 onChange={e => setField('is_ready_made', e.target.checked)} />
               <div className={`w-10 h-5 rounded-full transition-colors ${form.is_ready_made ? 'bg-orange-500' : 'bg-gray-300'}`} />
               <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.is_ready_made ? 'translate-x-5' : ''}`} />
@@ -424,7 +433,7 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
         <div className="col-span-2">
           <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors">
             <div className="relative">
-              <input type="checkbox" className="sr-only" checked={form.is_best_seller}
+              <input id="item-form-best-seller" name="is_best_seller" type="checkbox" className="sr-only" checked={form.is_best_seller}
                 onChange={e => setField('is_best_seller', e.target.checked)} />
               <div className={`w-10 h-5 rounded-full transition-colors ${form.is_best_seller ? 'bg-amber-500' : 'bg-gray-300'}`} />
               <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.is_best_seller ? 'translate-x-5' : ''}`} />
@@ -439,12 +448,14 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
         </div>
         {!form.is_ready_made && (
           <div className="col-span-2">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+            <label htmlFor="item-form-prep-time" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
               <ClockIcon className="w-3.5 h-3.5" />
               Estimated Prep Time (minutes)
             </label>
             <div className="relative">
               <input
+                id="item-form-prep-time"
+                name="prep_time_minutes"
                 type="number"
                 min="1"
                 max="300"
@@ -474,7 +485,7 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
               <button type="button" onClick={e => { e.preventDefault(); setImageFile(null); setImagePreview(null) }}
                 className="ml-auto text-gray-300 hover:text-red-400 shrink-0">✕</button>
             )}
-            <input type="file" accept="image/*" onChange={e => {
+            <input id="item-form-image" name="image" aria-label="Upload photo" type="file" accept="image/*" onChange={e => {
               const file = e.target.files[0]
               if (!file) return
               if (file.size > 2 * 1024 * 1024) { setImageError('Photo must be 2 MB or smaller'); e.target.value = ''; return }
@@ -498,7 +509,7 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
               <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); setVideoFile(null); setVideoPreview(null); setRemoveVideo(true) }}
                 className="ml-auto text-gray-300 hover:text-red-400 shrink-0">✕</button>
             )}
-            <input type="file" accept="video/mp4,video/webm" onChange={e => {
+            <input id="item-form-video" name="video" aria-label="Upload video" type="file" accept="video/mp4,video/webm" onChange={e => {
               const file = e.target.files[0]
               if (!file) return
               if (file.size > 20 * 1024 * 1024) { setVideoError('Video must be 20 MB or smaller'); e.target.value = ''; return }
@@ -518,45 +529,45 @@ function ItemForm({ item, categories, onSuccess, onCreated }) {
         {showAdvanced && (
           <>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">GST Slab (%)</label>
-              <input type="number" step="0.5" min="0" max="100" value={form.gst_slab}
+              <label htmlFor="item-form-gst-slab" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">GST Slab (%)</label>
+              <input id="item-form-gst-slab" name="gst_slab" type="number" step="0.5" min="0" max="100" value={form.gst_slab}
                 onChange={e => setField('gst_slab', e.target.value)} className={inp('gst_slab')} placeholder="default (tenant rate)" />
               <p className="text-[11px] text-gray-400 mt-0.5">Leave blank to use the restaurant default.</p>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Packaging Charge (₹)</label>
-              <input type="number" step="0.5" min="0" value={form.packaging_charge}
+              <label htmlFor="item-form-packaging-charge" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Packaging Charge (₹)</label>
+              <input id="item-form-packaging-charge" name="packaging_charge" type="number" step="0.5" min="0" value={form.packaging_charge}
                 onChange={e => setField('packaging_charge', e.target.value)} className={inp('packaging_charge')} placeholder="0" />
             </div>
             <div className="col-span-2">
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input type="checkbox" checked={form.gst_cgst_sgst} onChange={e => setField('gst_cgst_sgst', e.target.checked)}
+                <input id="item-form-gst-cgst-sgst" name="gst_cgst_sgst" type="checkbox" checked={form.gst_cgst_sgst} onChange={e => setField('gst_cgst_sgst', e.target.checked)}
                   className="rounded border-gray-300 text-orange-500 focus:ring-orange-400" />
                 Split GST into CGST + SGST (India GST 5(9) bifurcation)
               </label>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Meat Type</label>
-              <input value={form.meat_type} onChange={e => setField('meat_type', e.target.value)} className={inp('meat_type')} placeholder="e.g. Chicken, Mutton, Fish" />
+              <label htmlFor="item-form-meat-type" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Meat Type</label>
+              <input id="item-form-meat-type" name="meat_type" value={form.meat_type} onChange={e => setField('meat_type', e.target.value)} className={inp('meat_type')} placeholder="e.g. Chicken, Mutton, Fish" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Serving Info</label>
-              <input value={form.serving_info} onChange={e => setField('serving_info', e.target.value)} className={inp('serving_info')} placeholder="e.g. Serves 2" />
+              <label htmlFor="item-form-serving-info" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Serving Info</label>
+              <input id="item-form-serving-info" name="serving_info" value={form.serving_info} onChange={e => setField('serving_info', e.target.value)} className={inp('serving_info')} placeholder="e.g. Serves 2" />
             </div>
             <div className="col-span-2">
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input type="checkbox" checked={form.is_beverage} onChange={e => setField('is_beverage', e.target.checked)}
+                <input id="item-form-is-beverage" name="is_beverage" type="checkbox" checked={form.is_beverage} onChange={e => setField('is_beverage', e.target.checked)}
                   className="rounded border-gray-300 text-orange-500 focus:ring-orange-400" />
                 This is a beverage (Pepsi, Coke, etc.)
               </label>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Calories (kcal)</label>
-              <input type="number" min="0" value={form.nutri_calories} onChange={e => setField('nutri_calories', e.target.value)} className={inp('nutri_calories')} placeholder="optional" />
+              <label htmlFor="item-form-nutri-calories" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Calories (kcal)</label>
+              <input id="item-form-nutri-calories" name="nutri_calories" type="number" min="0" value={form.nutri_calories} onChange={e => setField('nutri_calories', e.target.value)} className={inp('nutri_calories')} placeholder="optional" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Protein (g)</label>
-              <input type="number" min="0" value={form.nutri_protein} onChange={e => setField('nutri_protein', e.target.value)} className={inp('nutri_protein')} placeholder="optional" />
+              <label htmlFor="item-form-nutri-protein" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Protein (g)</label>
+              <input id="item-form-nutri-protein" name="nutri_protein" type="number" min="0" value={form.nutri_protein} onChange={e => setField('nutri_protein', e.target.value)} className={inp('nutri_protein')} placeholder="optional" />
             </div>
           </>
         )}
@@ -696,6 +707,9 @@ export default function MenuManager() {
               <div className="shrink-0 relative">
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
+                  id="menu-manager-search"
+                  name="search"
+                  aria-label="Search menu items"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search…"
@@ -764,7 +778,7 @@ export default function MenuManager() {
                 {filteredItems?.map(item => (
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
                     <td className="px-4 py-3.5">
-                      <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)}
+                      <input id={`menu-item-select-${item.id}`} name={`menu_item_select_${item.id}`} aria-label={`Select ${item.name}`} type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)}
                         className="rounded border-gray-300 text-orange-500 focus:ring-orange-400" />
                     </td>
                     <td className="px-4 py-3.5">

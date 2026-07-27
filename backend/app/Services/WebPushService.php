@@ -10,7 +10,7 @@ use Minishlink\WebPush\WebPush;
 /**
  * Sends OS-level push notifications (Web Push / VAPID) to users' registered
  * devices, so a sleeping or backgrounded phone still rings for a new order.
- * This is the durable, screen-off layer; the in-app Pusher sound is the
+ * This is the durable, screen-off layer; the in-app Ably sound is the
  * foreground layer. Both are driven from NotificationService.
  *
  * Best-effort: a failed push never blocks the originating action. Dead
