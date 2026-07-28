@@ -591,18 +591,20 @@ function TablePanel({ table, onClose, onInvoiceDone }) {
   const markServed = useMutation({
     mutationFn: (orderId) => billingMarkServed(orderId),
     // await + return so the spinner keeps spinning until the refetch lands.
+    // Marking an order served doesn't change table occupancy (the table stays
+    // occupied until the bill is paid), so no 'billing-tables' invalidation.
     onSuccess: () => Promise.all([
       qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] }),
-      qc.invalidateQueries({ queryKey: ['billing-tables'] }),
       qc.invalidateQueries({ queryKey: ['billing-active-orders'] }),
     ]),
   })
 
   const advanceStatus = useMutation({
     mutationFn: ({ orderId, status }) => billingUpdateStatus(orderId, status),
+    // A status transition (pending/preparing/ready/served) never changes table
+    // occupancy, so no 'billing-tables' invalidation here either.
     onSuccess: () => Promise.all([
       qc.invalidateQueries({ queryKey: ['billing-table-orders', table.id] }),
-      qc.invalidateQueries({ queryKey: ['billing-tables'] }),
       qc.invalidateQueries({ queryKey: ['billing-active-orders'] }),
     ]),
   })
@@ -2292,18 +2294,34 @@ export default function BillingDashboard({ embedded = false }) {
 
   // Central notification engine — rings on floor/order activity + drives the bell.
   const sound = useNotificationCenter({
-    // Prefixes (no id) — invalidates every open panel keyed with that prefix
-    // (e.g. ['billing-table-orders', tableId], ['billing-booking-orders', bookingId])
-    // on any order.updated / table.activity event, tenant-wide.
-    extraInvalidateKeys: [
-      ['billing-tables'],
-      ['billing-active-orders'],
-      ['billing-unbilled-takeaway'],
-      ['billing-table-orders'],
-      ['billing-booking-orders'],
-      ['pending-mt-orders'],
-      ['bill-paid-tables'],
-    ],
+    // Only kinds that flip a field no order.updated will ever carry:
+    // waiter_called / bill_requested / payment_claimed set *_at columns on
+    // restaurant_tables, mt_order is a payment-pending MT order that hasn't
+    // hit the `orders` table's normal flow yet. A fresh new_order is what
+    // actually flips a table free -> occupied, so it also touches billing-tables.
+    // new_kot and order_ready are pure alert signals paired with an
+    // order.updated for the same order — no separate invalidation needed.
+    tableActivityKeys: {
+      new_order:       [['billing-tables']],
+      waiter_called:   [['billing-tables']],
+      bill_requested:  [['billing-tables']],
+      payment_claimed: [['billing-tables'], ['bill-paid-tables']],
+      mt_order:        [['pending-mt-orders']],
+    },
+    // order.updated carries the order's own table (dine-in) or none
+    // (takeaway/room service) — target the specific open panel instead of
+    // invalidating every table/booking panel tenant-wide.
+    onOrderUpdated: (order) => {
+      const keys = [['billing-active-orders']]
+      if (order?.table?.id) {
+        keys.push(['billing-table-orders', order.table.id])
+      } else {
+        // Can't tell takeaway from room-service without a table id in the
+        // payload — invalidate both, still narrower than the old blanket list.
+        keys.push(['billing-unbilled-takeaway'], ['billing-booking-orders'])
+      }
+      return keys
+    },
   })
 
   const sections = tables?.reduce((acc, t) => {
@@ -2552,7 +2570,7 @@ export default function BillingDashboard({ embedded = false }) {
       {selectedTable && (
         <TablePanel
           table={selectedTable}
-          onClose={() => { setSelectedTable(null); qc.invalidateQueries({ queryKey: ['billing-tables'] }) }}
+          onClose={() => setSelectedTable(null)}
           onInvoiceDone={handleInvoiceDone}
         />
       )}

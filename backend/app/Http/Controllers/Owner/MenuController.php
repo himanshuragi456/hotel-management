@@ -12,6 +12,7 @@ use App\Models\MenuItemVariant;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -115,6 +116,9 @@ class MenuController extends Controller
                     ->update(['sort_order' => $order]);
             }
         });
+        // Mass update() above is query-builder, not Eloquent saves, so
+        // MenuCacheObserver never fires — forget explicitly.
+        Cache::forget("menu.orderable.{$tenantId}");
 
         return $this->success(null, 'Categories reordered');
     }
@@ -264,9 +268,14 @@ class MenuController extends Controller
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
-        MenuItem::where('tenant_id', auth()->user()->tenant_id)
+        $tenantId = auth()->user()->tenant_id;
+        MenuItem::where('tenant_id', $tenantId)
             ->whereIn('id', $request->ids)
             ->update(['is_available' => $request->is_available]);
+        // is_available directly controls whether these items appear in the
+        // cached orderable menu — mass update() bypasses MenuCacheObserver,
+        // so forget explicitly here too.
+        Cache::forget("menu.orderable.{$tenantId}");
 
         return $this->success(null, 'Items updated');
     }
@@ -428,6 +437,10 @@ class MenuController extends Controller
         if ($v->fails()) return $this->validationError($v->errors());
 
         // Replace the whole schedule set in one shot (simplest mental model for the owner UI).
+        // Relation ->delete() is a query-builder mass delete (bypasses Eloquent
+        // events), so if $request->schedules is empty the create() loop below
+        // never runs either — forget the cache explicitly so clearing all
+        // schedules (category becomes "always available") isn't missed.
         $menuCategory->schedules()->delete();
         foreach ($request->schedules as $row) {
             CategorySchedule::create([
@@ -438,6 +451,7 @@ class MenuController extends Controller
                 'end_time'         => $row['end_time'],
             ]);
         }
+        Cache::forget("menu.orderable.{$menuCategory->tenant_id}");
         return $this->success($menuCategory->load('schedules'), 'Schedule updated');
     }
 
