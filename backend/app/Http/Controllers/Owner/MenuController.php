@@ -9,6 +9,7 @@ use App\Models\CategorySchedule;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\MenuItemVariant;
+use App\Services\ImageConversionService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -161,7 +162,7 @@ class MenuController extends Controller
 
         $imagePath = null;
         if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('menu', 'public');
+            $imagePath = ImageConversionService::toWebp($request->file('image'), 'menu');
         }
         $videoPath = null;
         if ($request->hasFile('video')) {
@@ -222,7 +223,7 @@ class MenuController extends Controller
 
         if ($request->hasFile('image')) {
             if ($menuItem->image) Storage::disk('public')->delete($menuItem->image);
-            $menuItem->image = $request->file('image')->store('menu', 'public');
+            $menuItem->image = ImageConversionService::toWebp($request->file('image'), 'menu');
         }
         if ($request->hasFile('video')) {
             if ($menuItem->video) Storage::disk('public')->delete($menuItem->video);

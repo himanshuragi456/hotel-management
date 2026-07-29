@@ -237,7 +237,13 @@ export function useNotificationCenter({ tableActivityKeys = {}, onOrderUpdated }
       // console.log('[Ably] useNotificationCenter: table.activity received', data)
       const resolver = tableActivityKeysRef.current[kind]
       const keys = typeof resolver === 'function' ? resolver(data) : resolver
-      invalidateAll(keys)
+      // The user who triggered this action already invalidated/refetched the
+      // relevant queries client-side right after their own mutation succeeded
+      // (e.g. billing's addItems onSuccess). Re-invalidating here too would
+      // just duplicate that fetch a moment later — skip it for the actor,
+      // same self-exclusion already used for the ring below.
+      const isSelfTriggered = data?.exclude_user_id && data.exclude_user_id === user?.id
+      if (!isSelfTriggered) invalidateAll(keys)
 
       // Owner may have switched this (role, kind) ring off in settings.
       // Absent key defaults to true (ring).
@@ -258,14 +264,15 @@ export function useNotificationCenter({ tableActivityKeys = {}, onOrderUpdated }
 // });
       // Refresh the bell FIRST, then ring — so the sound never precedes the
       // notification appearing in the box. refetch() resolves once the list is
-      // updated; the sound plays only after.
-      qc.refetchQueries({ queryKey: ['notifications'] }).finally(() => {
-        if (shouldRing)
-        {
-// console.log("Playing:", kind);
-          playFor(kind)
-        }
-      })
+      // updated; the sound plays only after. Only bother refetching when this
+      // role actually has DB rows for this kind (ROLE_KINDS) — e.g. owner has
+      // no kinds here, so an owner-created order no longer fires a wasted
+      // GET /notifications from this hook.
+      if (kind && allowed.includes(kind)) {
+        qc.refetchQueries({ queryKey: ['notifications'] }).finally(() => {
+          if (shouldRing) playFor(kind)
+        })
+      }
     }).catch(() => {}) // swallow "connection closed" if we unmount mid-attach
 
     channel.subscribe('order.updated', (msg) => {

@@ -392,7 +392,7 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data) })
+  const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data), staleTime: 5 * 60 * 1000 })
   const cats = menu ?? []
   const [activeSub, setActiveSub] = useState(null)
   const activeCatId = activeCat ?? cats[0]?.id
@@ -416,6 +416,7 @@ function AddItemsPanel({ tableId, orderId, onClose, onDone }) {
     queryKey: ['billing-waiters'],
     queryFn: () => getBillingWaiters().then(r => r.data.data),
     enabled: !orderId,
+    staleTime: 5 * 60 * 1000,
   })
 
   const addItems = useMutation({
@@ -1594,7 +1595,7 @@ function TakeawayPanel({ onClose, onDone, platform = null }) {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data) })
+  const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data), staleTime: 5 * 60 * 1000 })
   const cats = menu ?? []
   const [activeSubTW, setActiveSubTW] = useState(null)
   const activeCatId = activeCat ?? cats[0]?.id
@@ -3067,8 +3068,8 @@ function BillingRoomServicePanel({ booking, onClose }) {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data) })
-  const { data: waiters } = useQuery({ queryKey: ['billing-waiters'], queryFn: () => getBillingWaiters().then(r => r.data.data) })
+  const { data: menu } = useQuery({ queryKey: ['billing-menu'], queryFn: () => getBillingMenu().then(r => r.data.data), staleTime: 5 * 60 * 1000 })
+  const { data: waiters } = useQuery({ queryKey: ['billing-waiters'], queryFn: () => getBillingWaiters().then(r => r.data.data), staleTime: 5 * 60 * 1000 })
   const cats = menu ?? []
   const [activeSubBRS, setActiveSubBRS] = useState(null)
   const activeCatId = activeCat ?? cats[0]?.id
