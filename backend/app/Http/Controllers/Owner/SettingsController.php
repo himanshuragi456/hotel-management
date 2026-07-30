@@ -7,11 +7,18 @@ use App\Models\Tenant;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 
 class SettingsController extends Controller
 {
     use ApiResponse;
+
+    /** Dynamic key: one cached row per tenant, keyed by tenant_id. */
+    private function cacheKey(int $tenantId): string
+    {
+        return "tenant.settings.{$tenantId}";
+    }
 
     private function tenantData(Tenant $tenant): array
     {
@@ -47,8 +54,16 @@ class SettingsController extends Controller
 
     public function show(): JsonResponse
     {
-        $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
-        return $this->success($this->tenantData($tenant));
+        $tenantId = auth()->user()->tenant_id;
+        // Hit on nearly every dashboard mount (billing/waiter/chef/owner all
+        // pull 'tenant-settings' via React Query) but only changes through
+        // update()/setActivePhone() below, both of which forget this key.
+        $data = Cache::remember(
+            $this->cacheKey($tenantId),
+            now()->addMinutes(10),
+            fn () => $this->tenantData(Tenant::findOrFail($tenantId))
+        );
+        return $this->success($data);
     }
 
     public function update(Request $request): JsonResponse
@@ -106,6 +121,7 @@ class SettingsController extends Controller
             'active_contact_phone',
             'ring_prefs',
         ]));
+        Cache::forget($this->cacheKey($tenant->id));
         return $this->success($this->tenantData($tenant), 'Settings updated');
     }
 
@@ -125,6 +141,7 @@ class SettingsController extends Controller
         }
 
         $tenant->update(['active_contact_phone' => $phone]);
+        Cache::forget($this->cacheKey($tenant->id));
         return $this->success(['active_contact_phone' => $tenant->active_contact_phone], 'Active phone updated');
     }
 

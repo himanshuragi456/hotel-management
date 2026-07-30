@@ -178,20 +178,25 @@ export default function TableManager() {
     queryFn: () => getTables().then(r => r.data.data),
   })
 
-  // Realtime via Ably — no polling. Table occupancy/waiter-call/bill-request
-  // state changes ride the same tenant kitchen channel as the other dashboards.
+  // Realtime via Ably — no polling. This view only shows table occupancy /
+  // waiter-call / bill-request state, which live on restaurant_tables, not on
+  // orders — so only table.activity kinds that actually flip one of those
+  // columns need to refetch. new_order flips free -> occupied; waiter_called /
+  // bill_requested / payment_claimed set their *_at column. new_kot, order_ready
+  // and mt_order never touch restaurant_tables, and order.updated never carries
+  // table-occupancy info either, so neither needs a subscription here.
+  const RELEVANT_KINDS = ['new_order', 'waiter_called', 'bill_requested', 'payment_claimed']
   useEffect(() => {
     if (!tenantId) return
     const ably = new Ably.Realtime({ key: import.meta.env.VITE_ABLY_KEY })
     const channel = ably.channels.get(`public:tenant.${tenantId}.kitchen`)
     console.log(`[Ably] TableManager: connecting to tenant.${tenantId}.kitchen`)
     ably.connection.on((stateChange) => console.log(`[Ably] TableManager: connection ${stateChange.current}`, stateChange.reason ?? ''))
-    const invalidate = (msg) => {
+    channel.subscribe('table.activity', (msg) => {
+      if (!RELEVANT_KINDS.includes(msg.data?.kind)) return
       console.log(`[Ably] TableManager: ${msg.name} received`, msg.data)
       qc.invalidateQueries({ queryKey: ['tables'] })
-    }
-    channel.subscribe('order.updated', invalidate).catch(() => {})
-    channel.subscribe('table.activity', invalidate).catch(() => {})
+    }).catch(() => {})
     return () => { channel.unsubscribe(); ably.close() }
   }, [tenantId, qc])
 

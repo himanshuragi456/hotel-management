@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class MenuCategory extends Model
 {
@@ -30,6 +31,19 @@ class MenuCategory extends Model
      * Subcategories rendered separately let ordering UIs show a two-level tab hierarchy.
      */
     public static function orderableMenu(int $tenantId): \Illuminate\Support\Collection
+    {
+        // Called on every customer QR scan, every waiter-dashboard menu open
+        // and every billing new-order screen — but the underlying categories/
+        // items/variants/addons only change when the owner edits the menu
+        // (invalidated via MenuCacheObserver, see AppServiceProvider::boot()).
+        // TTL is kept short (not rememberForever) because isAvailableNow()
+        // below is also time-of-day/day-of-week sensitive (category
+        // schedules) — a short TTL bounds how stale a schedule boundary can
+        // be without needing a cache entry per minute.
+        return Cache::remember("menu.orderable.{$tenantId}", now()->addMinutes(2), fn () => self::buildOrderableMenu($tenantId));
+    }
+
+    private static function buildOrderableMenu(int $tenantId): \Illuminate\Support\Collection
     {
         $itemEager = [
             'variants'           => fn ($q) => $q->where('is_available', true)->orderBy('sort_order'),

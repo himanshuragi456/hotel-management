@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -75,6 +76,10 @@ class OutletController extends Controller
             $data['offline_until']  = null;
         }
         $tenant->update($data);
+        // is_open/zomato_online/swiggy_online are also surfaced in
+        // Owner\SettingsController::tenantData(), cached under 'tenant.settings.{id}'
+        // — this write bypasses that controller, so forget it here too.
+        Cache::forget("tenant.settings.{$tenant->id}");
 
         AuditLog::record('outlet.channel_toggled', $tenant, [], [
             'channel' => $request->channel,

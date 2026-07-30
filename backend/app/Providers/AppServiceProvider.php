@@ -4,7 +4,14 @@ namespace App\Providers;
 
 use Ably\AblyRest;
 use App\Broadcasting\LoggingAblyBroadcaster;
+use App\Models\Addon;
+use App\Models\AddonGroup;
+use App\Models\CategorySchedule;
+use App\Models\MenuCategory;
+use App\Models\MenuItem;
+use App\Models\MenuItemVariant;
 use App\Models\Tenant;
+use App\Observers\MenuCacheObserver;
 use App\Observers\TenantObserver;
 use Illuminate\Foundation\Console\ServeCommand;
 use Illuminate\Support\Facades\Broadcast;
@@ -17,6 +24,16 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Tenant::observe(TenantObserver::class);
+
+        // Keeps MenuCategory::orderableMenu()'s cache fresh across every menu
+        // write surface (categories, items, variants, addon groups/addons,
+        // day/time schedules) — see MenuCacheObserver docblock.
+        MenuCategory::observe(MenuCacheObserver::class);
+        MenuItem::observe(MenuCacheObserver::class);
+        MenuItemVariant::observe(MenuCacheObserver::class);
+        AddonGroup::observe(MenuCacheObserver::class);
+        Addon::observe(MenuCacheObserver::class);
+        CategorySchedule::observe(MenuCacheObserver::class);
 
         // Every controller/service broadcasts via the plain `broadcast()`
         // helper — swapping the driver here logs every one of those sends

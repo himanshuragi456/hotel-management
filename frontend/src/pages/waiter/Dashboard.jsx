@@ -906,9 +906,24 @@ export default function WaiterDashboard() {
 
   // Central notification engine — rings when an assigned table calls / requests bill.
   const sound = useNotificationCenter({
-    // 'waiter-table-orders' is a prefix — React Query invalidates every open
-    // table panel (keyed ['waiter-table-orders', tableId]) on any order event.
-    extraInvalidateKeys: [['waiter-tables'], ['waiter-orders'], ['waiter-table-orders']],
+    // Only kinds that flip a table flag no order.updated will ever carry:
+    // waiter_called / bill_requested set *_at columns on restaurant_tables, and
+    // a fresh new_order is what actually flips a table free -> occupied. All
+    // other kinds (new_kot, order_ready, mt_order) are pure alert signals for
+    // the waiter — the matching order.updated already refreshes order data.
+    tableActivityKeys: {
+      new_order:       [['waiter-tables']],
+      waiter_called:   [['waiter-tables']],
+      bill_requested:  [['waiter-tables']],
+      payment_claimed: [['waiter-tables']],
+    },
+    // order.updated carries the order's own table (if dine-in) — target that
+    // table's panel specifically instead of invalidating every open panel.
+    onOrderUpdated: (order) => {
+      const keys = [['waiter-orders']]
+      if (order?.table?.id) keys.push(['waiter-table-orders', order.table.id])
+      return keys
+    },
   })
 
   const openTable = (t) => {

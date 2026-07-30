@@ -14,6 +14,9 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: [
+      'alienable-casino-legwork.ngrok-free.dev'
+    ],
     proxy: {
       '/api': {
         target: 'http://localhost:8000',

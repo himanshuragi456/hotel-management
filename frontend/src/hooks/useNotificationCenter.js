@@ -34,16 +34,23 @@ const MUTE_KEY = (role) => `notif_muted_${role || 'all'}`
  * Central front-of-house notification engine. Mount once per dashboard.
  *
  * - Subscribes to the tenant kitchen channel.
- * - On a `table.activity` event for a kind this role cares about, it plays the
- *   matching sound (once, full length ~10-12s) and refreshes the DB-backed bell
- *   list so the notification appears and survives refresh.
- * - On `order.updated` it just refreshes order queries (sound for new orders is
- *   driven by the explicit `table.activity` new_order/new_kot events).
+ * - On a `table.activity` event it plays the matching sound (once, full length
+ *   ~10-12s) and refreshes the DB-backed bell list so the notification appears
+ *   and survives refresh. It only invalidates data queries for kinds that carry
+ *   state NOT already covered by an `order.updated` broadcast — waiter_called /
+ *   bill_requested / payment_claimed / mt_order flip fields that live outside
+ *   the `orders` table, so no other event will refresh them. `new_order`,
+ *   `new_kot` and `order_ready` are pure alert/sound signals: they always fire
+ *   alongside an `order.updated` for the same change, so invalidating on them
+ *   here would just double-fetch what `order.updated` already refetches.
+ * - On `order.updated` it runs the caller's `onOrderUpdated(order)` to compute
+ *   which queries actually depend on this order (e.g. only the open panel for
+ *   its table, not every table).
  * - Global mute is per-device (localStorage) and personal to this role.
  *
  * Returns { muted, toggleMute, stopSound, playing } for a sound control button.
  */
-export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
+export function useNotificationCenter({ tableActivityKeys = {}, onOrderUpdated } = {}) {
   const qc = useQueryClient()
   const { user, getTenantId } = useAuthStore()
   const tenantId = getTenantId?.()
@@ -195,9 +202,11 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
       .catch(() => { /* still blocked — banner stays */ })
   }, [getAudioEl])
 
-  // keep stable refs for the keys so the effect doesn't re-subscribe each render
-  const extraKeysRef = useRef(extraInvalidateKeys)
-  useEffect(() => { extraKeysRef.current = extraInvalidateKeys })
+  // keep stable refs so the effect doesn't re-subscribe each render
+  const tableActivityKeysRef = useRef(tableActivityKeys)
+  useEffect(() => { tableActivityKeysRef.current = tableActivityKeys })
+  const onOrderUpdatedRef = useRef(onOrderUpdated)
+  useEffect(() => { onOrderUpdatedRef.current = onOrderUpdated })
 
   // Ably connection lifecycle — surfaced so the UI can show a live/offline dot.
   // 'connecting' until the first successful handshake, then tracks Ably's own
@@ -218,15 +227,23 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
       setConnectionState(stateChange.current)
     })
 
-    const refreshOrders = () => {
-      extraKeysRef.current.forEach(k => qc.invalidateQueries({ queryKey: Array.isArray(k) ? k : [k] }))
+    const invalidateAll = (keys) => {
+      (keys ?? []).forEach(k => qc.invalidateQueries({ queryKey: Array.isArray(k) ? k : [k] }))
     }
 
     channel.subscribe('table.activity', (msg) => {
       const data = msg.data
       const kind = data?.kind
       // console.log('[Ably] useNotificationCenter: table.activity received', data)
-      refreshOrders()
+      const resolver = tableActivityKeysRef.current[kind]
+      const keys = typeof resolver === 'function' ? resolver(data) : resolver
+      // The user who triggered this action already invalidated/refetched the
+      // relevant queries client-side right after their own mutation succeeded
+      // (e.g. billing's addItems onSuccess). Re-invalidating here too would
+      // just duplicate that fetch a moment later — skip it for the actor,
+      // same self-exclusion already used for the ring below.
+      const isSelfTriggered = data?.exclude_user_id && data.exclude_user_id === user?.id
+      if (!isSelfTriggered) invalidateAll(keys)
 
       // Owner may have switched this (role, kind) ring off in settings.
       // Absent key defaults to true (ring).
@@ -247,20 +264,24 @@ export function useNotificationCenter({ extraInvalidateKeys = [] } = {}) {
 // });
       // Refresh the bell FIRST, then ring — so the sound never precedes the
       // notification appearing in the box. refetch() resolves once the list is
-      // updated; the sound plays only after.
-      qc.refetchQueries({ queryKey: ['notifications'] }).finally(() => {
-        if (shouldRing)
-        {
-// console.log("Playing:", kind);
-          playFor(kind)
-        }
-      })
+      // updated; the sound plays only after. Only bother refetching when this
+      // role actually has DB rows for this kind (ROLE_KINDS) — e.g. owner has
+      // no kinds here, so an owner-created order no longer fires a wasted
+      // GET /notifications from this hook.
+      if (kind && allowed.includes(kind)) {
+        qc.refetchQueries({ queryKey: ['notifications'] }).finally(() => {
+          if (shouldRing) playFor(kind)
+        })
+      }
     }).catch(() => {}) // swallow "connection closed" if we unmount mid-attach
 
     channel.subscribe('order.updated', (msg) => {
       console.log('[Ably] useNotificationCenter: order.updated received', msg.data)
-      refreshOrders()
-      qc.invalidateQueries({ queryKey: ['notifications'] })
+      invalidateAll(onOrderUpdatedRef.current?.(msg.data))
+      // No 'notifications' refresh here: the only status change that ever
+      // creates a notification row is pending/preparing -> 'ready', and that
+      // always fires alongside a 'table.activity' (kind: order_ready) event,
+      // which already refetches the bell list above.
     }).catch(() => {})
 
     return () => {

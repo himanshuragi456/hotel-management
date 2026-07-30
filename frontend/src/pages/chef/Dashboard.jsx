@@ -278,7 +278,11 @@ export default function ChefDashboard() {
   const knownOrderIds = useRef(new Set())
 
   // Central notification engine — rings new-KOT sound + drives the bell.
-  const sound = useNotificationCenter({ extraInvalidateKeys: [['kitchen-orders']] })
+  // new_kot is a pure alert signal (always paired with an order.updated for the
+  // same order), so only order.updated needs to refresh the kitchen queue.
+  const sound = useNotificationCenter({
+    onOrderUpdated: () => [['kitchen-orders']],
+  })
 
   const { data: settings } = useQuery({
     queryKey: ['tenant-settings'],

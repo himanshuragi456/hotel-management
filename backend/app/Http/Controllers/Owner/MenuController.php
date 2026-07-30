@@ -9,9 +9,11 @@ use App\Models\CategorySchedule;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\MenuItemVariant;
+use App\Services\ImageConversionService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -115,6 +117,9 @@ class MenuController extends Controller
                     ->update(['sort_order' => $order]);
             }
         });
+        // Mass update() above is query-builder, not Eloquent saves, so
+        // MenuCacheObserver never fires — forget explicitly.
+        Cache::forget("menu.orderable.{$tenantId}");
 
         return $this->success(null, 'Categories reordered');
     }
@@ -157,7 +162,7 @@ class MenuController extends Controller
 
         $imagePath = null;
         if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('menu', 'public');
+            $imagePath = ImageConversionService::toWebp($request->file('image'), 'menu');
         }
         $videoPath = null;
         if ($request->hasFile('video')) {
@@ -218,7 +223,7 @@ class MenuController extends Controller
 
         if ($request->hasFile('image')) {
             if ($menuItem->image) Storage::disk('public')->delete($menuItem->image);
-            $menuItem->image = $request->file('image')->store('menu', 'public');
+            $menuItem->image = ImageConversionService::toWebp($request->file('image'), 'menu');
         }
         if ($request->hasFile('video')) {
             if ($menuItem->video) Storage::disk('public')->delete($menuItem->video);
@@ -264,9 +269,14 @@ class MenuController extends Controller
         ]);
         if ($v->fails()) return $this->validationError($v->errors());
 
-        MenuItem::where('tenant_id', auth()->user()->tenant_id)
+        $tenantId = auth()->user()->tenant_id;
+        MenuItem::where('tenant_id', $tenantId)
             ->whereIn('id', $request->ids)
             ->update(['is_available' => $request->is_available]);
+        // is_available directly controls whether these items appear in the
+        // cached orderable menu — mass update() bypasses MenuCacheObserver,
+        // so forget explicitly here too.
+        Cache::forget("menu.orderable.{$tenantId}");
 
         return $this->success(null, 'Items updated');
     }
@@ -428,6 +438,10 @@ class MenuController extends Controller
         if ($v->fails()) return $this->validationError($v->errors());
 
         // Replace the whole schedule set in one shot (simplest mental model for the owner UI).
+        // Relation ->delete() is a query-builder mass delete (bypasses Eloquent
+        // events), so if $request->schedules is empty the create() loop below
+        // never runs either — forget the cache explicitly so clearing all
+        // schedules (category becomes "always available") isn't missed.
         $menuCategory->schedules()->delete();
         foreach ($request->schedules as $row) {
             CategorySchedule::create([
@@ -438,6 +452,7 @@ class MenuController extends Controller
                 'end_time'         => $row['end_time'],
             ]);
         }
+        Cache::forget("menu.orderable.{$menuCategory->tenant_id}");
         return $this->success($menuCategory->load('schedules'), 'Schedule updated');
     }
 

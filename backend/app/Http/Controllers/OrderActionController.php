@@ -12,6 +12,7 @@ use App\Models\OrderRejectionReason;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -24,10 +25,19 @@ class OrderActionController extends Controller
 {
     use ApiResponse;
 
-    /** List active rejection reasons for the picker. */
+    /**
+     * List active rejection reasons for the picker. Global, seed-only data
+     * (no admin CRUD exists for this table today) — rememberForever is safe.
+     * If a management screen is ever added, it MUST call
+     * Cache::forget('order_rejection_reasons') on write, same as the
+     * menu/settings caches elsewhere in this codebase.
+     */
     public function rejectionReasons(): JsonResponse
     {
-        $reasons = OrderRejectionReason::where('is_active', true)->orderBy('sort_order')->get();
+        $reasons = Cache::rememberForever(
+            'order_rejection_reasons',
+            fn () => OrderRejectionReason::where('is_active', true)->orderBy('sort_order')->get()
+        );
         return $this->success($reasons);
     }
 
